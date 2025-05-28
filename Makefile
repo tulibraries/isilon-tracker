@@ -32,15 +32,8 @@ build:
 		--file .docker/app/Dockerfile \
 		--no-cache .
 
-#build:
-#	@docker build \
-#		--platform $(PLATFORM) \
-#		--progress plain \
-#		--file .docker/app/Dockerfile \
-#		--no-cache .
-
 run:
-	@docker run --name=padigital -p 127.0.0.1:3001:3000/tcp \
+	@docker run --name=isilon_tracker -p 127.0.0.1:3001:3000/tcp \
 		--platform $(PLATFORM) \
 		$(DEFAULT_RUN_ARGS) \
 		$(HARBOR)/$(IMAGE):$(VERSION)
