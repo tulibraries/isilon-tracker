@@ -1,72 +1,61 @@
-# syntax=docker/dockerfile:1
-# check=error=true
+# For circleci this arg gets overridden via configuration.
+ARG BASE_IMAGE="harbor.k8s.temple.edu/library/ruby:3.4-alpine" \
+  RAILS_MASTER_KEY=foobar \
+  RAILS_ENV=production
 
-# This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
-# docker build -t tul_isilon_tracker .
-# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name tul_isilon_tracker tul_isilon_tracker
+# hadolint ignore=DL3006,DL3026
+FROM "${BASE_IMAGE}"
 
-# For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
+WORKDIR /app
 
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version
-ARG RUBY_VERSION=3.3.1
-FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
-
-# Rails app lives here
-WORKDIR /rails
-
-# Install base packages
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips sqlite3 && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
-
-# Set production environment
-ENV RAILS_ENV="production" \
-    BUNDLE_DEPLOYMENT="1" \
-    BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development"
-
-# Throw-away build stage to reduce size of final image
-FROM base AS build
-
-# Install packages needed to build gems
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libyaml-dev pkg-config && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
-
-# Install application gems
-COPY Gemfile Gemfile.lock ./
-RUN bundle install && \
-    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
-    bundle exec bootsnap precompile --gemfile
-
-# Copy application code
 COPY . .
 
-# Precompile bootsnap code for faster boot times
-RUN bundle exec bootsnap precompile app/ lib/
+ENV LD_PRELOAD="libjemalloc.so.2" \
+      MALLOC_CONF="dirty_decay_ms:1000,narenas:2,background_thread:true" \
+      RUBY_YJIT_ENABLE="1"
 
-# Precompiling assets for production without requiring secret RAILS_MASTER_KEY
-RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
+USER root
 
+# gcompat is added to allow m1 build of nokogiri
+RUN apk add -U --no-cache \
+      jemalloc=5.3.0-r6 \
+      bash=5.2.37-r0 \
+      busybox=1.37.0-r12 \
+      gcompat=1.1.0-r4 \
+      imagemagick=7.1.1.41-r0 \
+      libxslt=1.1.42-r2 \
+      postgresql16-client=16.9-r0 \
+      sqlite=3.48.0-r2 \
+      shared-mime-info=2.4-r2 \
+      ssl_client=1.37.0-r12 \
+      tzdata=2025b-r0 && \
+    apk add -U --no-cache --virtual build-dependencies \
+      build-base=0.5-r3 \
+      yaml=0.2.5-r2 \
+      yaml-dev=0.2.5-r2 \
+      git=2.47.2-r0 \
+      libjpeg-turbo-dev=3.0.4-r0 \
+      libxslt-dev=1.1.42-r2 \
+      libxml2-dev=2.13.4-r6 \
+      postgresql16-dev=16.9-r0 \
+      sqlite-dev=3.48.0-r2 \
+      nodejs=22.13.1-r0 \
+      yarn=1.22.22-r1 && \
+    if [ "${RAILS_ENV}" = "production" ]; then bundle config set --local without "development test"; fi && \
+    bundle install --jobs=8 && \
+    find "$GEM_HOME" -name Gemfile.lock -exec rm "{}" \; && \
+    find "$GEM_HOME" -name yarn.lock -exec rm "{}" \; && \
+    bundle exec rails assets:precompile && \
+    if [ "${RAILS_ENV}" = "production" ]; then rm -rf node_modules; fi && \
+    if [ "${RAILS_ENV}" = "production" ]; then rm -rf tmp/*; fi && \
+    if [ "${RAILS_ENV}" = "production" ]; then apk del build-dependencies; fi && \
+    rm -rf /var/cache/apk/ && \
+    chown nobody -R /app/tmp && \
+    chown nobody -R /app/log
 
+USER nobody
 
+ENTRYPOINT [".docker/app/entrypoint.sh"]
+EXPOSE 3000
 
-# Final stage for app image
-FROM base
-
-# Copy built artifacts: gems, application
-COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
-COPY --from=build /rails /rails
-
-# Run and own only the runtime files as a non-root user for security
-RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp
-USER 1000:1000
-
-# Entrypoint prepares the database.
-ENTRYPOINT ["/rails/bin/docker-entrypoint"]
-
-# Start server via Thruster by default, this can be overwritten at runtime
-EXPOSE 80
-CMD ["./bin/thrust", "./bin/rails", "server"]
+CMD ["rails", "server", "-b", "0.0.0.0"]
