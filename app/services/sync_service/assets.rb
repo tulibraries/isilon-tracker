@@ -28,6 +28,9 @@ module SyncService
           last_modified_in_isilon:   row["ModifiedAt"],
           date_created_in_isilon:    row["CreatedAt"]
         )
+
+        directory_check(asset.isilon_path)
+
         if asset.save!
           imported += 1
         else
@@ -40,6 +43,25 @@ module SyncService
 
     def get_name(path)
       path.split("/").last
+    end
+
+    def directory_check(path)
+      directories = path.split("/")[0..-2]
+      i = -2
+      directories.reverse.each_with_index do |dir, index|
+        i = i-index
+        new_path = path.split("/")[0..i].join("/")
+        if IsilonFolder.exists?(full_path: new_path)
+          return
+        else
+          if new_path.present?
+            stdout_and_log("Creating isilon folder for: #{new_path}")
+            IsilonFolder.create!(
+              full_path: new_path
+            )
+          end
+        end
+      end
     end
 
     def stdout_and_log(message, level: :info)
