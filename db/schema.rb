@@ -36,5 +36,6 @@ ActiveRecord::Schema[7.2].define(version: 2025_05_29_205111) do
     t.string "full_path"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["full_path"], name: "index_isilon_folders_on_full_path", unique: true
   end
 end
