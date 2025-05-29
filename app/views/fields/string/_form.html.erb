@@ -1,0 +1,12 @@
+<div class="field-unit__label">
+  <%= f.label field.attribute.upcase %>
+</div>
+<div class="field-unit__field">
+  <%= if [:date_created_in_isilon, :file_checksum, :file_size, :file_type, :isilon_name,
+          :isilon_path, :last_modified_in_isilon].include? field.attribute
+          f.text_field field.attribute, readonly: true
+      else
+        f.text_field field.attribute
+      end
+  %>
+</div>

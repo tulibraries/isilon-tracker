@@ -1,0 +1,2 @@
+module IsilonAssetsHelper
+end

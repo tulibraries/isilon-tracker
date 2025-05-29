@@ -10,5 +10,25 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 0) do
+ActiveRecord::Schema[7.2].define(version: 2025_05_29_155555) do
+  create_table "isilon_assets", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "file_size"
+    t.string "file_type"
+    t.string "isilon_path"
+    t.string "isilon_name"
+    t.string "last_modified_in_isilon"
+    t.string "date_created_in_isilon"
+    t.string "migration_status", default: "pending"
+    t.string "contentdm_collection"
+    t.string "aspace_collection"
+    t.string "preservica_reference_id"
+    t.string "aspace_linking_status"
+    t.text "notes"
+    t.string "assigned_to", default: "unassigned"
+    t.string "last_updated_by"
+    t.string "file_checksum"
+    t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
+  end
 end
