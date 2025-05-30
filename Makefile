@@ -67,4 +67,4 @@ up:
 	bundle install
 	bundle exec rake db:seed
 	bundle exec rake db:migrate
-	bundle exec rails s -p 3000
+	bundle exec rails s -d -p 3000
