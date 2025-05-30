@@ -109,6 +109,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   # across all pages of the admin dashboard.
   #
   def display_resource(isilon_asset)
-    "IsilonAsset ##{isilon_asset.id}"
+    isilon_asset.isilon_name
   end
 end
