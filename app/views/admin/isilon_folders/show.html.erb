@@ -20,15 +20,15 @@ as well as a link to its edit page.
 
 <header class="main-content__header">
   <h1 class="main-content__page-title">
-    <%= content_for(:title) %>
+    <%= "Files for: " +  page.page_title %>
   </h1>
-<%# binding.pry %>
+
   <div>
-    <%= link_to(
-      t("administrate.actions.edit_resource", name: ""),
+    <%# link_to(
+      t("administrate.actions.edit_resource", name: page.page_title),
       [:edit, namespace, page.resource],
       class: "button",
-    ) if accessible_action?(page.resource, :edit) && page.resource.model_name == "IsilonAsset" %>
+    ) if accessible_action?(page.resource, :edit) %>
 
     <%# link_to(
       t("administrate.actions.destroy"),
@@ -41,22 +41,13 @@ as well as a link to its edit page.
 </header>
 
 <section class="main-content__body">
-  <% if page.resource.model_name == "IsilonFolder" %>
-    <% page.attributes.each do |title, attributes| %>
-        <% attributes.each do |attribute| %>
-          <dd class="attribute-data attribute-data--<%=attribute.html_class%>">
-            <%= render_field attribute, page: page %></dd>
-        <% end %>
-    <% end %>
-
-  <% else %>
-    <dl>
+  <dl>
     <% page.attributes.each do |title, attributes| %>
       <fieldset class="<%= "field-unit--nested" if title.present? %>">
         <% if title.present? %>
           <legend><%= t "helpers.label.#{page.resource_name}.#{title}", default: title %></legend>
         <% end %>
-        
+
         <% attributes.each do |attribute| %>
           <dt class="attribute-label" id="<%= attribute.name %>">
           <%= t(
@@ -71,5 +62,4 @@ as well as a link to its edit page.
       </fieldset>
     <% end %>
   </dl>
-  <% end %>
 </section>

@@ -1,10 +1,10 @@
 Rails.application.routes.draw do
   namespace :admin do
-      resources :isilon_assets
-      resources :isilon_folders
       resources :volumes
+      resources :isilon_folders
+      resources :isilon_assets
 
-      root to: "isilon_folders#index"
+      root to: "volumes#index"
     end
   resources :isilon_assets
   resources :isilon_folders
