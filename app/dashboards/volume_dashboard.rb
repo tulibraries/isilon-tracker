@@ -53,7 +53,7 @@ class VolumeDashboard < Administrate::BaseDashboard
   # Overwrite this method to customize how volumes are displayed
   # across all pages of the admin dashboard.
   #
-  # def display_resource(volume)
-  #   "Volume ##{volume.id}"
-  # end
+  def display_resource(volume)
+    volume.name
+  end
 end

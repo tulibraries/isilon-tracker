@@ -65,14 +65,17 @@ to display a collection of resources in an HTML table.
           <td class="cell-data cell-data--<%= attribute.html_class %>">
             <% if accessible_action?(resource, :show) -%>
               <a href="<%= polymorphic_path([namespace, resource]) -%>"
-                 tabindex="-1"
-                 class="action-show"
-                 >
+                tabindex="-1"
+                class="action-show"
+                >
                 <%= render_field attribute %>
               </a>
             <% else %>
               <%= render_field attribute %>
             <% end -%>
+          </td>
+          <td class="cell-data cell-data--<%= attribute.html_class %>">
+            <%= resource.isilon_assets.count %>
           </td>
         <% end %>
 

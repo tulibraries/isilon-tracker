@@ -20,9 +20,9 @@ as well as a link to its edit page.
 
 <header class="main-content__header">
   <h1 class="main-content__page-title">
-    <%= content_for(:title) %>
+    <%= page.page_title %>
   </h1>
-<%# binding.pry %>
+
   <div>
     <%= link_to(
       t("administrate.actions.edit_resource", name: ""),
