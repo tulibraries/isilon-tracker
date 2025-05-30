@@ -13,6 +13,7 @@ module SyncService
       @csv_path = params.fetch(:csv_path)
       @log = Logger.new("log/isilon-sync.log")
       @stdout = Logger.new($stdout)
+      @parent_volume_name = check_volume(@csv_path)
       stdout_and_log(%(Syncing assets from #{@csv_path}))
     end
 
@@ -32,7 +33,8 @@ module SyncService
         next if asset.isilon_path.count("/") < 4
 
         directory_check(asset)
-        asset.isilon_folders_id = get_parent_folder(asset.isilon_path)
+
+        asset.parent_folder_id = get_parent_folder(asset.isilon_path)
 
         if asset.save!
           imported += 1
@@ -54,7 +56,8 @@ module SyncService
       else
         stdout_and_log("Creating volume: #{volume}")
         new_volume = Volume.create!(name: volume)
-        new_volume
+        new_volume.save!
+        new_volume.name
       end
     end
 
@@ -64,26 +67,27 @@ module SyncService
 
     def get_parent_folder(path)
       parent_path = "/" + path.split("/").compact_blank[0..-2].join("/")
-      IsilonFolder.find_by(full_path: parent_path)
+      folder = IsilonFolder.find_or_create_by(full_path: parent_path)
+      folder.volume_id = Volume.find_by(name: @parent_volume_name).id
+      folder.save!
+      folder.id
     end
 
     def directory_check(asset)
-      parent_volume = check_volume(@csv_path)
       directories = asset.isilon_path.split("/").compact_blank[0..-2]
       i = -2
       directories.each_with_index do |dir, index|
         i = i-index
         new_path = "/" + asset.isilon_path.split("/").compact_blank[0..i].join("/")
+        parent_path = "/" + asset.isilon_path.split("/").compact_blank[0..i-1].join("/")
         next if new_path.count("/") < 3
-        # binding.pry
-        folder = IsilonFolder.find_or_create_by(full_path: new_path) do |f|
-          f.volume = Volume.find_by(name: parent_volume)
-          f.parent_folder = IsilonFolder.find_or_create_by(full_path: new_path)
-        end
 
-        asset.isilon_folders_id = folder
-
+        folder = IsilonFolder.find_or_create_by(full_path: new_path)
         stdout_and_log("Created or found folder: #{folder.full_path}")
+
+        folder.volume_id = Volume.find_by(name: @parent_volume_name).id
+        folder.parent_folder_id = get_parent_folder(parent_path)
+        folder.save!
       end
     end
 

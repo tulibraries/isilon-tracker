@@ -29,9 +29,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_05_30_130711) do
     t.string "assigned_to", default: "unassigned"
     t.string "last_updated_by"
     t.string "file_checksum"
-    t.integer "isilon_folders_id"
-    t.index ["isilon_folders_id"], name: "index_isilon_assets_on_isilon_folders_id"
+    t.integer "parent_folder_id"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
+    t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
   end
 
   create_table "isilon_folders", force: :cascade do |t|
@@ -51,7 +51,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_05_30_130711) do
     t.datetime "updated_at", null: false
   end
 
-  add_foreign_key "isilon_assets", "isilon_folders", column: "isilon_folders_id"
+  add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_folders", "volumes"
 end

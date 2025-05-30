@@ -24,6 +24,14 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     migration_status: Field::String,
     notes: Field::Text,
     preservica_reference_id: Field::String,
+    parent_folder: Field::BelongsTo.with_options(
+      class_name: "IsilonFolder",
+      searchable: true,
+      searchable_field: :full_path,
+      searchable_field_options: {
+        truncate: 500
+      }
+    ),
     created_at: Field::String,
     updated_at: Field::String
   }.freeze
@@ -46,6 +54,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     migration_status
     isilon_name
     isilon_path
+    parent_folder
     date_created_in_isilon
     last_modified_in_isilon
     file_size
@@ -69,6 +78,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     migration_status
     isilon_name
     isilon_path
+    parent_folder
     date_created_in_isilon
     last_modified_in_isilon
     file_size

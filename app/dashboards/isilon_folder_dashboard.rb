@@ -9,9 +9,12 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # on pages throughout the dashboard.
   ATTRIBUTE_TYPES = {
     id: Field::Number,
-    full_path: Field::String,
+    full_path: Field::String.with_options(
+      truncate: 500),
+    child_folders: Field::HasMany,
+    isilon_assets: Field::HasMany,
     created_at: Field::DateTime,
-    updated_at: Field::DateTime,
+    updated_at: Field::DateTime
   }.freeze
 
   # COLLECTION_ATTRIBUTES
@@ -20,19 +23,14 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # By default, it's limited to four items to reduce clutter on index pages.
   # Feel free to add, remove, or rearrange items.
   COLLECTION_ATTRIBUTES = %i[
-    id
     full_path
-    created_at
-    updated_at
   ].freeze
 
   # SHOW_PAGE_ATTRIBUTES
   # an array of attributes that will be displayed on the model's show page.
   SHOW_PAGE_ATTRIBUTES = %i[
-    id
-    full_path
-    created_at
-    updated_at
+    child_folders
+    isilon_assets
   ].freeze
 
   # FORM_ATTRIBUTES
@@ -57,7 +55,7 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # Overwrite this method to customize how isilon folders are displayed
   # across all pages of the admin dashboard.
   #
-  # def display_resource(isilon_folder)
-  #   "IsilonFolder ##{isilon_folder.id}"
-  # end
+  def display_resource(isilon_folder)
+    isilon_folder.full_path
+  end
 end

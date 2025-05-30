@@ -20,7 +20,7 @@ class CreateIsilonAssets < ActiveRecord::Migration[7.2]
       # t.index :file_checksum, unique: true
 
       t.index :isilon_path, unique: true
-      t.references :isilon_folders, foreign_key: { to_table: :isilon_folders }
+      t.references :parent_folder, foreign_key: { to_table: :isilon_folders }
     end
   end
 end
