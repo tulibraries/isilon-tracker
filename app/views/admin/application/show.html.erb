@@ -47,7 +47,7 @@ as well as a link to its edit page.
 
         <% attributes.each do |attribute| %>
           <dd class="attribute-data attribute-data--<%=attribute.html_class%>">
-            <% binding.pry %>
+            <%# binding.pry %>
             <%= render_field attribute, page: page %></dd>
         <% end %>
     <% end %>

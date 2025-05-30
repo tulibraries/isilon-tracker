@@ -26,11 +26,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     preservica_reference_id: Field::String,
     parent_folder: Field::BelongsTo.with_options(
       class_name: "IsilonFolder",
-      searchable: true,
-      searchable_field: :full_path,
-      searchable_field_options: {
-        truncate: 500
-      }
+      foreign_key: "parent_folder_id"
     ),
     created_at: Field::String,
     updated_at: Field::String

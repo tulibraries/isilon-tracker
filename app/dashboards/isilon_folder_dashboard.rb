@@ -9,10 +9,19 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # on pages throughout the dashboard.
   ATTRIBUTE_TYPES = {
     id: Field::Number,
-    full_path: Field::String.with_options(
-      truncate: 500),
-    child_folders: Field::HasMany,
-    isilon_assets: Field::HasMany,
+    full_path: Field::String.with_options(truncate: 500),
+    parent_folder: Field::BelongsTo.with_options(
+      class_name: "IsilonFolder",
+      foreign_key: "parent_folder_id"
+    ),
+    child_folders: Field::HasMany.with_options(
+      class_name: "IsilonFolder",
+      foreign_key: "parent_folder_id"
+    ),
+    isilon_assets: Field::HasMany.with_options(
+      class_name: "IsilonAsset",
+      foreign_key: "parent_folder_id"
+    ),
     created_at: Field::DateTime,
     updated_at: Field::DateTime
   }.freeze
@@ -29,7 +38,6 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # SHOW_PAGE_ATTRIBUTES
   # an array of attributes that will be displayed on the model's show page.
   SHOW_PAGE_ATTRIBUTES = %i[
-    child_folders
     isilon_assets
   ].freeze
 
