@@ -29,7 +29,10 @@ module SyncService
           date_created_in_isilon:    row["CreatedAt"]
         )
 
-        directory_check(asset.isilon_path)
+        next if asset.isilon_path.count("/") < 4
+
+        directory_check(asset)
+        asset.isilon_folders_id = get_parent_folder(asset.isilon_path)
 
         if asset.save!
           imported += 1
@@ -41,26 +44,46 @@ module SyncService
       puts "Imported #{imported} IsilonAsset records."
     end
 
+    def check_volume(path)
+      first_row = CSV.read(path, headers: true).first
+      volume = first_row["Path"].split("/").compact_blank[1]
+
+      if Volume.exists?(name: volume)
+        stdout_and_log("Volume #{volume} already exists.")
+        volume
+      else
+        stdout_and_log("Creating volume: #{volume}")
+        new_volume = Volume.create!(name: volume)
+        new_volume
+      end
+    end
+
     def get_name(path)
       path.split("/").last
     end
 
-    def directory_check(path)
-      directories = path.split("/")[0..-2]
+    def get_parent_folder(path)
+      parent_path = "/" + path.split("/").compact_blank[0..-2].join("/")
+      IsilonFolder.find_by(full_path: parent_path)
+    end
+
+    def directory_check(asset)
+      parent_volume = check_volume(@csv_path)
+      directories = asset.isilon_path.split("/").compact_blank[0..-2]
       i = -2
-      directories.reverse.each_with_index do |dir, index|
+      directories.each_with_index do |dir, index|
         i = i-index
-        new_path = path.split("/")[0..i].join("/")
-        if IsilonFolder.exists?(full_path: new_path)
-          return
-        else
-          if new_path.present?
-            stdout_and_log("Creating isilon folder for: #{new_path}")
-            IsilonFolder.create!(
-              full_path: new_path
-            )
-          end
+        new_path = "/" + asset.isilon_path.split("/").compact_blank[0..i].join("/")
+        next if new_path.count("/") < 3
+        # binding.pry
+        folder = IsilonFolder.find_or_create_by(full_path: new_path) do |f|
+          f.volume = Volume.find_by(name: parent_volume)
+          f.parent_folder = IsilonFolder.find_or_create_by(full_path: new_path)
         end
+
+        asset.isilon_folders_id = folder
+
+        stdout_and_log("Created or found folder: #{folder.full_path}")
       end
     end
 

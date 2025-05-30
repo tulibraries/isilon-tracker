@@ -1,0 +1,10 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @volume %>
+
+<div>
+  <%= link_to "Edit this volume", edit_volume_path(@volume) %> |
+  <%= link_to "Back to volumes", volumes_path %>
+
+  <%= button_to "Destroy this volume", @volume, method: :delete %>
+</div>

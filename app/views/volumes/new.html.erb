@@ -1,0 +1,11 @@
+<% content_for :title, "New volume" %>
+
+<h1>New volume</h1>
+
+<%= render "form", volume: @volume %>
+
+<br>
+
+<div>
+  <%= link_to "Back to volumes", volumes_path %>
+</div>

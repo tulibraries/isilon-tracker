@@ -2,6 +2,7 @@ source "https://rubygems.org"
 gem "administrate"
 gem "administrate-field-ordered_has_many"
 gem "administrate-field-scoped_has_many"
+gem "administrate-field-nested_has_many"
 gem "csv"
 
 gem "rails", "~> 7.2.2"

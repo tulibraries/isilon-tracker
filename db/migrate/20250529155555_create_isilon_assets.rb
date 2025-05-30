@@ -4,8 +4,8 @@ class CreateIsilonAssets < ActiveRecord::Migration[7.2]
       t.timestamps
       t.string :file_size
       t.string :file_type
-      t.string :isilon_path
-      t.string :isilon_name
+      t.string :isilon_path, null: false
+      t.string :isilon_name, null: false
       t.string :last_modified_in_isilon
       t.string :date_created_in_isilon
       t.string :migration_status, default: "pending"
@@ -18,7 +18,9 @@ class CreateIsilonAssets < ActiveRecord::Migration[7.2]
       t.string :last_updated_by
       t.string :file_checksum
       # t.index :file_checksum, unique: true
+
       t.index :isilon_path, unique: true
+      t.references :isilon_folders, foreign_key: { to_table: :isilon_folders }
     end
   end
 end
