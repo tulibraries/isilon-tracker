@@ -44,13 +44,7 @@ to display a collection of resources in an HTML table.
           <% end %>
         </th>
       <% end %>
-      <%= render(
-        "collection_header_actions",
-        collection_presenter: collection_presenter,
-        page: page,
-        resources: resources,
-        table_title: "page-title"
-      ) %>
+      <td align="center">Asset Count</td>
     </tr>
   </thead>
 
@@ -74,8 +68,8 @@ to display a collection of resources in an HTML table.
               <%= render_field attribute %>
             <% end -%>
           </td>
-          <td class="cell-data cell-data--<%= attribute.html_class %>">
-            <%= resource.isilon_assets.count %>
+          <td align="center" class="cell-data cell-data--<%= attribute.html_class %>">
+            <%= resource.isilon_assets.count%>
           </td>
         <% end %>
 
