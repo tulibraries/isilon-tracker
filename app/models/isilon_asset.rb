@@ -1,2 +1,0 @@
-class IsilonAsset < ApplicationRecord
-end
