@@ -1,4 +1,5 @@
 source "https://rubygems.org"
+gem "csv"
 
 gem "rails", "~> 7.2.2"
 gem "jsbundling-rails"
