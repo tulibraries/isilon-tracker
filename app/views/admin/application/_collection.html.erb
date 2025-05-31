@@ -44,7 +44,16 @@ to display a collection of resources in an HTML table.
           <% end %>
         </th>
       <% end %>
-      <td align="center">Asset Count</td>
+      <%= render(
+        "collection_header_actions",
+        collection_presenter: collection_presenter,
+        page: page,
+        resources: resources,
+        table_title: "page-title"
+      ) if page.resource_name != "volume" %>
+      <% if page.resource_name == "volume" %>
+        <td align="center">Asset Count</td>
+      <% end %>
     </tr>
   </thead>
 
@@ -68,9 +77,12 @@ to display a collection of resources in an HTML table.
               <%= render_field attribute %>
             <% end -%>
           </td>
+          
+          <% if page.resource_name == "volume" %>
           <td align="center" class="cell-data cell-data--<%= attribute.html_class %>">
-            <%= resource.isilon_assets.count%>
+            <%= resource.isilon_assets.count %>
           </td>
+          <% end %>
         <% end %>
 
         <%# render(
