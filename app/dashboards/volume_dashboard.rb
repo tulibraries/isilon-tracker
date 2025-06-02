@@ -10,7 +10,7 @@ class VolumeDashboard < Administrate::BaseDashboard
   ATTRIBUTE_TYPES = {
     id: Field::Number,
     name: Field::String,
-    isilon_folders: Field::HasMany,
+    isilon_folders: Field::HasMany.with_options(limit: 20),
     created_at: Field::DateTime,
     updated_at: Field::DateTime
   }.freeze
