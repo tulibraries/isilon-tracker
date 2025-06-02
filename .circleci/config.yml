@@ -4,10 +4,10 @@ workflows:
   version: 2
   run_tests:
     jobs:
-      - run_tests
+      - lint_and_test
 
 jobs:
-  run_tests:
+  lint_and_test:
     docker:
       - image: cimg/ruby:3.4-node
         auth:
@@ -36,5 +36,5 @@ jobs:
 
       - run:
           name: Run ruby tests
-          command: |
+          0command: |
             bundle exec rspec spec
