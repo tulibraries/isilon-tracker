@@ -1,7 +1,6 @@
 version: 2.1
 
-workflows:
-  version: 2
+workflows: 
   run_tests:
     jobs:
       - lint_and_test
@@ -25,10 +24,6 @@ jobs:
       - run:
           name: Build app
           command: make up
-
-      - run:
-          name: Run linter
-          command: make lint
 
       - run:
           name: Run rubocop
