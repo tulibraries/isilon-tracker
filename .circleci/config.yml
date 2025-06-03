@@ -36,5 +36,5 @@ jobs:
 
       - run:
           name: Run ruby tests
-          0command: |
+          command: |
             bundle exec rspec spec
