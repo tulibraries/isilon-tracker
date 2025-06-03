@@ -1,6 +1,6 @@
 .PHONY: up check
 
-include .env.prod
+include .env
 
 IMAGE ?= tulibraries/isilon_tracker
 VERSION ?= $(DOCKER_IMAGE_VERSION)
