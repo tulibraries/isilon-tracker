@@ -1,0 +1,17 @@
+<%= form_with(model: isilon_folder) do |form| %>
+  <% if isilon_folder.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(isilon_folder.errors.count, "error") %> prohibited this isilon_folder from being saved:</h2>
+
+      <ul>
+        <% isilon_folder.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

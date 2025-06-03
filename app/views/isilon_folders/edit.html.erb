@@ -1,0 +1,12 @@
+<% content_for :title, "Editing isilon folder" %>
+
+<h1>Editing isilon folder</h1>
+
+<%= render "form", isilon_folder: @isilon_folder %>
+
+<br>
+
+<div>
+  <%= link_to "Show this isilon folder", @isilon_folder %> |
+  <%= link_to "Back to isilon folders", isilon_folders_path %>
+</div>

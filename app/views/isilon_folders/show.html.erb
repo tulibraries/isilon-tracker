@@ -1,0 +1,10 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @isilon_folder %>
+
+<div>
+  <%= link_to "Edit this isilon folder", edit_isilon_folder_path(@isilon_folder) %> |
+  <%= link_to "Back to isilon folders", isilon_folders_path %>
+
+  <%= button_to "Destroy this isilon folder", @isilon_folder, method: :delete %>
+</div>
