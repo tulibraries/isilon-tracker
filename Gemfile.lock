@@ -113,6 +113,7 @@ GEM
     cssbundling-rails (1.4.3)
       railties (>= 6.0.0)
     csv (3.3.5)
+    dalli (3.2.8)
     date (3.4.1)
     debug (1.10.0)
       irb (~> 1.10)
@@ -441,8 +442,10 @@ DEPENDENCIES
   bootsnap
   brakeman
   capybara
+  connection_pool
   cssbundling-rails
   csv
+  dalli
   debug
   factory_bot_rails
   jbuilder
