@@ -46,3 +46,9 @@ group :test do
   gem "simplecov-lcov"
   gem "webdrivers", "5.3.1"
 end
+
+# Required for memcached
+group :production do
+  gem "dalli"
+  gem "connection_pool"
+end
