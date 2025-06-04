@@ -19,6 +19,7 @@ DEFAULT_RUN_ARGS ?= -e "EXECJS_RUNTIME=Disabled" \
 		-e "SECRET_KEY_BASE=$(SECRET_KEY_BASE)" \
 		-e "RAILS_SERVE_STATIC_FILES=yes" \
 		-e "RAILS_LOG_TO_STDOUT=yes" \
+		-v ./storage:/app/storage \
 		--rm -it
 
 build:
