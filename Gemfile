@@ -52,3 +52,5 @@ group :production do
   gem "dalli"
   gem "connection_pool"
 end
+
+gem "pg", "~> 1.5"
