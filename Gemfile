@@ -47,6 +47,7 @@ group :test do
   gem "webdrivers", "5.3.1"
 end
 
+gem "devise", "~> 4.9"
 # Required for memcached
 group :production do
   gem "dalli"
