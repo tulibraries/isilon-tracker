@@ -54,3 +54,5 @@ group :production do
 end
 
 gem "pg", "~> 1.5"
+
+gem "okcomputer", "~> 1.19"
