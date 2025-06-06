@@ -1,4 +1,11 @@
-// Configure your import map in config/importmap.rb. Read more: https://github.com/rails/importmap-rails
-import "@hotwired/turbo-rails"
-import "./controllers"
-import * as bootstrap from "bootstrap"
+// jQuery (required by Wunderbaum)
+import $ from "jquery";
+window.$ = window.jQuery = $;
+
+import "jquery-ui-dist/jquery-ui";
+import "selectize";
+import "selectize/dist/css/selectize.css";
+
+import "@hotwired/turbo-rails";
+import "./controllers/index.js";
+import * as bootstrap from "bootstrap";

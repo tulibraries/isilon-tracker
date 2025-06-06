@@ -54,6 +54,6 @@ class VolumeDashboard < Administrate::BaseDashboard
   # across all pages of the admin dashboard.
   #
   def display_resource(volume)
-    volume.name
+    volume&.name.presence || "Volume ##{volume&.id || 'unknown'}"
   end
 end
