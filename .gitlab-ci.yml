@@ -41,7 +41,7 @@ tag:
   stage: tag
   extends: .tag_image
 
-qa_deploy:
+deploy:
   variables:
     IMAGE: $HARBOR/tulibraries/isilon-tracker
     RANCHER: rancher-np
@@ -53,4 +53,4 @@ qa_deploy:
   script:
     - *export_variables
     - helm pull oci://$HARBOR/tulibraries/charts/isilon-tracker --untar
-    - helm upgrade isilon-tracker oci://$HARBOR/tulibraries/charts/isilon-tracker --history-max=5 --namespace=isilon-tracker-qa --values isilon-tracker/values.yaml --set image.repository=$IMAGE:$VERSION
+    - helm upgrade isilon-tracker oci://$HARBOR/tulibraries/charts/isilon-tracker --history-max=5 --namespace=isilon-tracker --values isilon-tracker/values.yaml --set image.repository=$IMAGE:$VERSION
