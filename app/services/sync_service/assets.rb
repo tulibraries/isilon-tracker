@@ -37,7 +37,7 @@ module SyncService
         asset.parent_folder_id = get_parent_folder(asset.isilon_path)
 
         begin
-          asset.save!
+          imported += 1 if asset.save!
         rescue
           stdout_and_log("Failed to import asset #{asset.isilon_path}: #{asset.errors.full_messages.join(", ")}", level: :error)
         end
