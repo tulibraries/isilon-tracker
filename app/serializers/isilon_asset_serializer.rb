@@ -1,5 +1,5 @@
 class IsilonAssetSerializer < ActiveModel::Serializer
-  attributes :title, :folder, :children
+  attributes :title, :folder, :children, :key
 
   def title
     object.isilon_name
@@ -7,6 +7,10 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def folder
     false
+  end
+
+  def key
+    "asset-#{object.id}"
   end
 
   def children

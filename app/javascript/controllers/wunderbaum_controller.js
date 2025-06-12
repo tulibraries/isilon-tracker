@@ -1,7 +1,6 @@
 // app/javascript/controllers/wunderbaum_controller.js
 import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
-import "wunderbaum/dist/wunderbaum.css";
 
 export default class extends Controller {
   static values = { url: String };
@@ -11,20 +10,33 @@ export default class extends Controller {
       const res = await fetch(this.urlValue);
       const data = await res.json();
 
-      console.log("✅ Wunderbaum data:", data);
-
       new Wunderbaum({
         element: this.element,
         id: "filetree",
         source: data,
-        columns: [{ id: "*", title: "Name"}],
+        checkbox: true,
+        columns: [
+          { id: "*", title: "Name", width: "500px"},
+          { id: "status", title: "Status", width: "200px" },
+          { id: "assigned_to", title: "Assigned To", width: "400px" },
+
+        ],
+        render: function (e) {
+          const node = e.node;
+
+          for (const col of Object.values(e.renderColInfosById)) {
+            switch (col.id) {
+              default:
+                // Assumption: we named column.id === node.data.NAME
+                col.elem.textContent = node.data[col.id];
+                break;
+            }
+          }
+        },
         types: {},
         init: (e) => {
           // Example: auto-activate a node
           // e.tree.findFirst("SomeFolderName")?.setActive(true);
-        },
-        activate: (e) => {
-          console.log("Activated node:", e.node);
         }
       });
     } catch (err) {

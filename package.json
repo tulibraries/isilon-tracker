@@ -1,13 +1,14 @@
 {
   "name": "app",
   "private": true,
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  },
   "scripts": {
-    "build": "node esbuild.config.mjs",
-    "build:css:compile": "sass ./app/assets/stylesheets/application.bootstrap.scss:./app/assets/builds/application.css --no-source-map --load-path=node_modules",
-    "build:css:prefix": "postcss ./app/assets/builds/application.css --use=autoprefixer --output=./app/assets/builds/application.css",
-    "build:css": "yarn build:css:compile && yarn build:css:prefix",
-    "watch:css": "nodemon --watch ./app/assets/stylesheets/ --ext scss --exec \"yarn build:css\"",
-    "watch": "node esbuild.config.mjs --watch"
+    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets",
+    "build:css:compile": "mkdir -p app/assets/builds && yarn sass ./app/assets/stylesheets/application.css.scss:./app/assets/builds/application.css --no-source-map --load-path=node_modules && yarn sass ./app/assets/stylesheets/administrate/application.bootstrap.scss:./app/assets/builds/application.bootstrap.css --no-source-map --load-path=node_modules && yarn sass ./app/assets/stylesheets/administrate/wunderbaum.scss:./app/assets/builds/wunderbaum.css --no-source-map --load-path=node_modules",
+    "build:css:prefix": "postcss ./app/assets/builds/application.css --use=autoprefixer --output=./app/assets/builds/application.css && postcss ./app/assets/builds/application.bootstrap.css --use=autoprefixer --output=./app/assets/builds/application.bootstrap.css && postcss ./app/assets/builds/wunderbaum.css --use=autoprefixer --output=./app/assets/builds/wunderbaum.css",
+    "build:css": "yarn build:css:compile && yarn build:css:prefix"
   },
   "dependencies": {
     "@hotwired/stimulus": "^3.2.2",
@@ -16,16 +17,10 @@
     "autoprefixer": "^10.4.21",
     "bootstrap": "^5.3.6",
     "bootstrap-icons": "^1.13.1",
-    "esbuild": "^0.25.5",
-    "esbuild-rails": "^1.0.7",
-    "jquery": "^3.7.1",
-    "jquery-ui-dist": "^1.13.3",
     "nodemon": "^3.1.10",
     "postcss": "^8.5.3",
     "postcss-cli": "^11.0.1",
     "sass": "^1.89.0",
-    "selectize": "^0.12.6",
-    "stimulus-use": "^0.52.3",
     "wunderbaum": "^0.13.0"
   },
   "browserslist": [
