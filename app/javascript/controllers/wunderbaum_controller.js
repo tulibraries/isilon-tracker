@@ -15,8 +15,10 @@ export default class extends Controller {
         id: "filetree",
         source: data,
         checkbox: true,
+        selectMode: "hier",
+        lazy: true,
         columns: [
-          { id: "*", title: "Name", width: "500px"},
+          { id: "*", title: "Name", width: "500px" },
           { id: "status", title: "Status", width: "200px" },
           { id: "assigned_to", title: "Assigned To", width: "400px" },
 
@@ -33,6 +35,9 @@ export default class extends Controller {
             }
           }
         },
+        select: function (e) {
+          e.node.fixSelection3AfterClick(); // 👈 applies cascading selection logic
+        },
         types: {},
         init: (e) => {
           // Example: auto-activate a node
@@ -42,5 +47,6 @@ export default class extends Controller {
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
+    
   }
 }
