@@ -1,23 +1,25 @@
 source "https://rubygems.org"
-gem "administrate"
-gem "csv"
 
-gem "rails", "~> 7.2.2"
-gem "jsbundling-rails"
+gem "active_model_serializers"
+gem "administrate"
+gem "bootsnap", require: false
+gem "bootstrap"
 gem "cssbundling-rails"
+gem "csv"
+gem "jbuilder"
+gem "jsbundling-rails"
+gem "puma", ">= 5.0"
+gem "rails", "~> 7.2.2"
 gem "sprockets-rails"
 gem "sqlite3", ">= 2.1"
-gem "puma", ">= 5.0"
-gem "turbo-rails"
 gem "stimulus-rails"
-gem "jbuilder"
+gem "turbo-rails"
 gem "tzinfo-data", platforms: %i[ windows jruby ]
-gem "bootsnap", require: false
 # gem "image_processing", "~> 1.2"
 
 group :development, :test do
-  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
   gem "brakeman", require: false
+  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
   gem "pry"
   gem "pry-byebug"
   gem "pry-rails"
@@ -27,10 +29,10 @@ group :development, :test do
 end
 
 group :development do
-  gem "web-console"
+  gem "better_errors"
   gem "spring"
   gem "spring-watcher-listen"
-  gem "better_errors"
+  gem "web-console"
 end
 
 group :test do

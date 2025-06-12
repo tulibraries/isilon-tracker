@@ -1,7 +1,11 @@
 Rails.application.routes.draw do
   devise_for :users
   namespace :admin do
-      resources :volumes
+      resources :volumes do
+        member do
+          get :file_tree
+        end
+      end
       resources :isilon_folders
       resources :isilon_assets
 
