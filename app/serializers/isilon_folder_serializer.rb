@@ -35,4 +35,3 @@ class IsilonFolderSerializer < ActiveModel::Serializer
     folder_children + asset_children
   end
 end
-

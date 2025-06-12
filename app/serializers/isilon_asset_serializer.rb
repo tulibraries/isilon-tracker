@@ -17,4 +17,3 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     []
   end
 end
-

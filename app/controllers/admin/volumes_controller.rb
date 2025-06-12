@@ -1,6 +1,5 @@
 module Admin
   class VolumesController < Admin::ApplicationController
-
     def file_tree
       volume = Volume.find(params[:id])
       root_folders = volume.isilon_folders.where(parent_folder_id: nil)
@@ -8,8 +7,7 @@ module Admin
     end
 
     def show
-      @volume = Volume.find(params[:id])    
+      @volume = Volume.find(params[:id])
     end
-
   end
 end
