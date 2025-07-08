@@ -50,10 +50,10 @@ RUN apk add -U --no-cache \
     if [ "${RAILS_ENV}" = "production" ]; then rm -rf tmp/*; fi && \
     if [ "${RAILS_ENV}" = "production" ]; then apk del build-dependencies; fi && \
     rm -rf /var/cache/apk/ && \
-    chown nobody -R /app/tmp && \
-    chown nobody -R /app/log
+    mkdir -p /secure-tmp && chmod 700 /secure-tmp && \
+    mkdir -p /secure-tmp/log && chmod 700 /secure-tmp/log
 
-USER nobody
+USER 65534:65534
 
 ENTRYPOINT [".docker/app/entrypoint.sh"]
 EXPOSE 3000
