@@ -9,9 +9,10 @@
     </title>
     
     <%= render "stylesheet" %>
-    <%= stylesheet_link_tag "administrate/wunderbaum", "data-turbo-track": "reload" %>
-    <%= stylesheet_link_tag "application.bootstrap", "data-turbo-track": "reload" %>
+
+    <!-- wunderbaum -->
     <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+    <!-- end wunderbaum -->
 
     <%= csrf_meta_tags %>
     <%= csp_meta_tag if defined?(csp_meta_tag) %>
