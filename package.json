@@ -24,6 +24,9 @@
     "selectize": "^0.12.6",
     "wunderbaum": "^0.13.0"
   },
+  "resolutions": {
+    "minimist": "^1.2.6"
+  },
   "browserslist": [
     "defaults"
   ]
