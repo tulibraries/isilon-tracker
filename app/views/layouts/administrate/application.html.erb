@@ -9,6 +9,8 @@
     </title>
     
     <%= render "stylesheet" %>
+    
+    <%= stylesheet_link_tag("wunderbaum/dist/wunderbaum.css", media: "all", "data-turbo-track": "reload") %>
 
     <!-- wunderbaum -->
     <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
