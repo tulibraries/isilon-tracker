@@ -15,7 +15,7 @@ export default class extends Controller {
         id: "filetree",
         source: data,
         checkbox: true,
-        selectMode: "hier",
+        selectMode: 3, // 1=single, 2=multi, 3=hierarchical
         lazy: true,
         columns: [
           { id: "*", title: "Name", width: "500px" },

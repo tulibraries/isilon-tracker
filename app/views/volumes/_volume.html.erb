@@ -1,2 +1,15 @@
 <div id="<%= dom_id volume %>">
+
+  <h1>Isilon File Tree</h1>
+
+  <div
+    id="tree"
+    class="wb-tree"
+    data-controller="wunderbaum"
+    data-wunderbaum-url-value="<%= file_tree_admin_volume_path(@volume) %>"
+    style="height: 500px;"
+  ></div>
+
+
+
 </div>
