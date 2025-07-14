@@ -15,12 +15,10 @@ jobs:
         ruby: [ "3.4" ]
 
     steps:
-      - &checkout
-        name: Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - &ruby-setup
-        name: Set up Ruby
+      - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -37,8 +35,14 @@ jobs:
           ruby: ["3.4"]
 
     steps:
-      - *checkout
-      - *ruby-setup
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
 
       - name: Run rspec tests
         run: bundle exec rspec spec
