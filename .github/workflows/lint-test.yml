@@ -17,11 +17,11 @@ x-strategy:
 
 x-steps:
   setup-and-checkout: &setup
-    uses: actions/checkout@4
+    uses: actions/checkout@v4
   
   setup-ruby: &ruby-setup
     - name: Set up ruby
-      uses: ruby/setup-ruby@1
+      uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
