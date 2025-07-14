@@ -1,0 +1,17 @@
+name: "Setup Ruby + Bundler Cache"
+description: "Checkout the repo and install gems with caching"
+inputs:
+  ruby-version:
+    required: true
+    description: "The Ruby version to install"
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
