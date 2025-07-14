@@ -2,30 +2,24 @@ name: "lint-test"
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
+    types: [ opened, synchronize, reopened ]
+    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
   lint:
     runs-on: ubuntu-latest
-    strategy: &ruby-matrix
+    strategy:
       matrix:
           ruby: ["3.4"]
+          
     steps:
-      - &checkout
-        uses: actions/checkout@v4
-
-      - &ruby-setup
-        name: Set up ruby
-        uses: ruby/setup-ruby@v1
+      - name: Set up ruby
+        uses: ./.github/actions/setup-ruby
         with:
-          ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
+          ruby-version: "3.4"
 
       - name: Run rubocop
         run: bundle exec rubocop
@@ -33,11 +27,15 @@ jobs:
   test:
     needs: lint
     runs-on: ubuntu-latest
-    strategy: *ruby-matrix
-    
+    strategy:
+      matrix:
+          ruby: ["3.4"]
+
     steps:
-      - *checkout
-      - *ruby-setup
+      - name: Setup Ruby
+        uses: ./.github/actions/setup-ruby
+        with:
+          ruby-version: "3.4"
 
       - name: Run rspec tests
         run: bundle exec rspec spec
