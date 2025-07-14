@@ -21,6 +21,11 @@ jobs:
         with:
           ruby-version: "3.4"
 
+      - name: Debug list composite-action folder
+        run: |
+          echo "Workspace root: $GITHUB_WORKSPACE"
+          ls -R .github/actions
+
       - name: Run rubocop
         run: bundle exec rubocop
       
