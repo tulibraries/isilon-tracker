@@ -30,7 +30,7 @@ x-steps:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    strategy: *matrix-strategy
+    strategy: *matrix-ruby
     steps:
       - *setup
       - *ruby-setup
@@ -39,7 +39,7 @@ jobs:
       
   test:
     runs-on: ubuntu-latest
-    strategy: *matrix-strategy
+    strategy: *matrix-ruby
     steps:
       - *setup
       - *ruby-setup
