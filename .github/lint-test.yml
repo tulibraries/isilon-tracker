@@ -1,0 +1,45 @@
+name: Ruby CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+x-strategy:
+  matrix-ruby: &matrix-ruby
+    matrix:
+        ruby: ["3.4"]
+
+x-steps:
+  setup-and-checkout: &setup
+    uses: actions/checkout@4
+  
+  setup-ruby: &ruby-setup
+    - name: Set up ruby
+      uses: ruby/setup-ruby@1
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler-cache: true
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy: *matrix-strategy
+    steps:
+      - *setup
+      - *ruby-setup
+      - name: Run rubocop
+        run: bundle exec rubocop
+      
+  test:
+    runs-on: ubuntu-latest
+    strategy: *matrix-strategy
+    steps:
+      - *setup
+      - *ruby-setup
+      - name: Run rspec tests
+        run: bundle exec rspec spec
