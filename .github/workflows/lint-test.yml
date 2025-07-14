@@ -13,20 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-          ruby: ["3.4"]
-          
+        ruby: [ "3.4" ]
+
     steps:
-      - name: Set up ruby
-        uses: ./.github/actions/setup-ruby
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4"
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
 
-      - name: Debug list composite-action folder
-        run: |
-          echo "Workspace root: $GITHUB_WORKSPACE"
-          ls -R .github/actions
-
-      - name: Run rubocop
+      - name: Run RuboCop
         run: bundle exec rubocop
       
   test:
