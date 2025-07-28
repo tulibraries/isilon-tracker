@@ -1,19 +1,18 @@
 Rails.application.routes.draw do
   devise_for :users
   namespace :admin do
-      resources :volumes do
-        member do
-          get :file_tree
-        end
-      end
       resources :isilon_folders
       resources :isilon_assets
+      resources :volumes
 
       root to: "volumes#index"
     end
   resources :isilon_assets
   resources :isilon_folders
-  resources :volumes
+  
+  resources :volumes do
+    get :file_tree, on: :member
+  end
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
@@ -25,4 +24,5 @@ Rails.application.routes.draw do
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # Defines the root path route ("/")
+  root "volumes#index"
 end

@@ -23,7 +23,16 @@ export default class extends Controller {
           { id: "assigned_to", title: "Assigned To", width: "400px" },
 
         ],
+        icon: ({ node }) => {
+        // folders already get the folder icon, so:
+        if (!node.data.folder) {
+          // this covers *all* leaf nodes (your assets)
+          return "bi bi-files";
+        }
+      },
         render: function (e) {
+          console.log("NODE TYPE:", e.node);
+
           const node = e.node;
 
           for (const col of Object.values(e.renderColInfosById)) {
