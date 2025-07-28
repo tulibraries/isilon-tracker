@@ -9,7 +9,7 @@ Rails.application.routes.draw do
     end
   resources :isilon_assets
   resources :isilon_folders
-  
+
   resources :volumes do
     get :file_tree, on: :member
   end
