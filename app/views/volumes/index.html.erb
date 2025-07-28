@@ -6,11 +6,10 @@
 
 <div id="volumes">
   <% @volumes.each do |volume| %>
-    <%= render volume %>
+    
     <p>
-      <%= link_to "Show this volume", volume %>
+      <%= link_to volume.name, volume %>
     </p>
   <% end %>
 </div>
 
-<%= link_to "New volume", new_volume_path %>

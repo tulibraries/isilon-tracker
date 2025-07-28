@@ -10,12 +10,6 @@
     
     <%= render "stylesheet" %>
     
-    <%= stylesheet_link_tag("wunderbaum/dist/wunderbaum.css", media: "all", "data-turbo-track": "reload") %>
-
-    <!-- wunderbaum -->
-    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
-    <!-- end wunderbaum -->
-
     <%= csrf_meta_tags %>
     <%= csp_meta_tag if defined?(csp_meta_tag) %>
   </head>
