@@ -64,6 +64,6 @@ class IsilonFolderDashboard < Administrate::BaseDashboard
   # across all pages of the admin dashboard.
   #
   def display_resource(isilon_folder)
-    isilon_folder.full_path
+    isilon_folder&.full_path
   end
 end

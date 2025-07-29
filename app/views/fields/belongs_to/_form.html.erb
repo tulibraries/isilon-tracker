@@ -20,9 +20,8 @@ that displays all possible records to associate with.
   <%= f.label field.permitted_attribute %>
 </div>
 <div class="field-unit__field">
-  <%# binding.pry %>
   <%= link_to(
       field.display_associated_resource,
       [namespace, field.data],
-    ) %>
+    ) unless field.data.nil? %>
 </div>
