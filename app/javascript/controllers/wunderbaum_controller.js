@@ -31,7 +31,7 @@ export default class extends Controller {
             id:      "migration_status",
             title:   "Migration status",
             width:   "150px",    
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             html: `
               <select tabindex="-1">
                 <option value="pending" selected>Pending</option>
@@ -41,7 +41,7 @@ export default class extends Controller {
             id:      "assigned_to",
             title:   "Assigned To",
             width:   "150px",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             html: `
               <select tabindex="-1">
                 <option value="unassigned" selected>Unassigned</option>
@@ -49,20 +49,20 @@ export default class extends Controller {
           },
           { id: "file_size",
             title: "File size",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             width: "150px"
           },
           { id: "notes",
             title: "Notes",
             width: "500px",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             html: `<input type="text" tabindex="-1">`
           },
           {
             id:      "contentdm_collection",
             title:   "Contentdm Collection",
             width:   "150px",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             html: `
               <select tabindex="-1">
                 <option value="" selected></option>
@@ -72,7 +72,7 @@ export default class extends Controller {
             id:      "aspace_collection",
             title:   "ASpace Collection",
             width:   "150px",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             html: `
               <select tabindex="-1">
                 <option value="" selected></option>
@@ -80,20 +80,20 @@ export default class extends Controller {
           },
           { id: "preservica_reference_id",
             title: "Preservica Reference",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             width: "150px",
             html: `<input type="text" tabindex="-1">`
           },
           {
             id:      "aspace_linking_status",
             title:   "ASpace linking status",
-            width:   "50px",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            width:   "150px",
+            classes: "wb-helper-center",
             html:    `<input type="checkbox" tabindex="-1">`
           },
           { id: "isilon_date",
             title: "Isilon date created",
-            classes: "wb-helper-center wb-col-overflow-hidden",
+            classes: "wb-helper-center",
             width: "150px"
           },
         ],

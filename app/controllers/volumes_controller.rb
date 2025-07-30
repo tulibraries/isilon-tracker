@@ -18,6 +18,6 @@ class VolumesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def volume_params
-      params.fetch(:volume, {})
+      params.fetch(:volume, {}).permit(:name)
     end
 end
