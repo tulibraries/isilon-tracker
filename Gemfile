@@ -56,6 +56,6 @@ group :production do
   gem "connection_pool"
 end
 
-gem "pg", "~> 1.5"
+gem "pg", "~> 1.6"
 
 gem "okcomputer", "~> 1.19"
