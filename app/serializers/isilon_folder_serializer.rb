@@ -14,22 +14,28 @@ class IsilonFolderSerializer < ActiveModel::Serializer
   end
 
   def lazy
-  true
+    true
   end
 
   def children
-    # Serialize child folders recursively
+    # 1) sub-folders
     folder_children = object.child_folders.map do |child|
-      IsilonFolderSerializer.new(child, scope: scope, root: false).as_json
+      # This will recursively invoke IsilonFolderSerializer#children
+      IsilonFolderSerializer
+        .new(child, scope: scope, root: false)
+        .as_json
+        .merge(folder: true)
     end
 
-    # Add assets
+    # 2) leaf assets
     asset_children = object.isilon_assets.map do |asset|
-      {
-        title: asset.isilon_name,
-        folder: false,
-        children: []
-      }
+      IsilonAssetSerializer
+        .new(asset, scope: scope, root: false)
+        .as_json
+        .merge(
+          folder:   false,    # leaf node
+          children: []        # no deeper nesting
+        )
     end
 
     folder_children + asset_children
