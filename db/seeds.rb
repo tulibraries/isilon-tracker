@@ -25,4 +25,3 @@ migration_statuses.each do |status_attrs|
     status.active = true
   end
 end
-

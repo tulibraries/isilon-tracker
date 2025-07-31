@@ -16,4 +16,3 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
     expect(response.body).to include("Migrated")
   end
 end
-

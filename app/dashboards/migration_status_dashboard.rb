@@ -13,7 +13,7 @@ class MigrationStatusDashboard < Administrate::BaseDashboard
     default: Field::Boolean,
     name: Field::String,
     created_at: Field::DateTime,
-    updated_at: Field::DateTime,
+    updated_at: Field::DateTime
   }.freeze
 
   # COLLECTION_ATTRIBUTES
@@ -60,9 +60,9 @@ class MigrationStatusDashboard < Administrate::BaseDashboard
   #   }.freeze
   COLLECTION_FILTERS = {}.freeze
 
-  # Overwrite this method to customize how migration statuses are displayed
-  # across all pages of the admin dashboard.
-  #
+   # Overwrite this method to customize how migration statuses are displayed
+   # across all pages of the admin dashboard.
+   #
    def display_resource(migration_status)
      "#{migration_status.name}"
   end

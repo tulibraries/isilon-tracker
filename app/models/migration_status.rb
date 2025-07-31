@@ -16,4 +16,3 @@ class MigrationStatus < ApplicationRecord
     MigrationStatus.where.not(id: id).update_all(default: false)
   end
 end
-

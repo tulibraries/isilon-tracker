@@ -27,4 +27,3 @@ RSpec.describe IsilonAsset, type: :model do
     expect(asset).to be_valid
   end
 end
-
