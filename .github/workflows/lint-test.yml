@@ -50,11 +50,11 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
 
-      - name: Install yarn packages
-        run: bundle exec yarn install
+      - name: Run yarn
+        run: bundle exec yarn
 
-      - name: Build css
-        run: bundle exec yarn build:css
+      - name: Precompile assets
+        run: bin/rails assets:precompile
 
       - name: Run rspec tests
         run: bundle exec rspec spec
