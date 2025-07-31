@@ -1,10 +1,16 @@
 class IsilonAssetSerializer < ActiveModel::Serializer
-  attributes :title, :folder, :children, :key, :isilon_date, :migration_status,
+  include Rails.application.routes.url_helpers
+
+  attributes :title, :folder, :key, :isilon_date, :migration_status,
   :assigned_to, :file_size, :notes, :contentdm_collection, :aspace_collection,
-  :preservica_reference_id, :aspace_linking_status
+  :preservica_reference_id, :aspace_linking_status, :url, :lazy
 
   def title
     object.isilon_name
+  end
+
+  def url
+    admin_isilon_asset_url(object.id, host: "localhost:3000")
   end
 
   def folder
@@ -25,10 +31,6 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def key
     "asset-#{object.id}"
-  end
-
-  def children
-    []
   end
 
   def lazy

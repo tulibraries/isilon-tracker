@@ -3,7 +3,8 @@ import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
 export default class extends Controller {
-  static values = { url: String };
+  static values = { url: String, 
+                    volumeId: Number };
 
   async connect() {
     try {
@@ -17,6 +18,7 @@ export default class extends Controller {
         source:       data,
         checkbox:     true,
         keyboard:     true,
+        keyAttr: "id",
         autoActivate: true,
         columnsResizable: true, 
         selectMode:   "hier",
@@ -97,11 +99,20 @@ export default class extends Controller {
             width: "150px"
           },
         ],
-
+        
         icon: ({ node }) => {
           if (!node.data.folder) {
             return "bi bi-files";
           }
+        },
+
+        // Only when a folder is expanded, fetch *its* children
+        lazyLoad: (e) => {
+          const folderId = e.node.key;  // now a number, e.g. 123
+          return {
+            url: `/volumes/${this.volumeIdValue}/file_tree_children.json` +
+                `?parent_folder_id=${folderId}`
+          };
         },
 
         render(e) {
@@ -114,6 +125,10 @@ export default class extends Controller {
               value = "";
             }
             util.setValueToElem(colInfo.elem, value);
+          }
+
+          if (!isFolder) {
+            e.nodeElem.querySelector("span.wb-title").innerHTML = `<a href="${e.node.data.url}" class="asset-link">${e.node.title}</a>`;
           }
         },
 
