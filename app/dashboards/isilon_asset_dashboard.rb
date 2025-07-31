@@ -1,5 +1,6 @@
 require "administrate/base_dashboard"
 
+
 class IsilonAssetDashboard < Administrate::BaseDashboard
   # ATTRIBUTE_TYPES
   # a hash that describes the type of each of the model's fields.
@@ -21,7 +22,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     isilon_path: Field::String,
     last_modified_in_isilon: Field::String,
     last_updated_by: Field::String,
-    migration_status: Field::String,
+    migration_status: Field::BelongsTo,
     notes: Field::Text,
     preservica_reference_id: Field::String,
     parent_folder: Field::BelongsTo.with_options(

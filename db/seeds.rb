@@ -7,3 +7,22 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+# Seed the migration status table.
+migration_statuses = [
+  { name: "Needs review", default: true },
+  { name: "OK to migrate" },
+  { name: "Don’t migrate" },
+  { name: "Migrated" },
+  { name: "Migration in progress" },
+  { name: "Needs further investigation" },
+  { name: "Save elsewhere" }
+]
+
+migration_statuses.each do |status_attrs|
+  MigrationStatus.find_or_create_by!(name: status_attrs[:name]) do |status|
+    status.default = status_attrs[:default] || false
+    status.active = true
+  end
+end
+
