@@ -52,9 +52,6 @@ jobs:
 
       - name: Precompile assets
         run: bin/rails assets:precompile
-        env:
-          RAILS_ENV: production
-          SECRET_KEY_BASE: foo
 
       - name: Run rspec tests
         run: bundle exec rspec spec
