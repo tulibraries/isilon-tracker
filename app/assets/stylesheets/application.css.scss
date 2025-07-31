@@ -1,2 +1,10 @@
 @import "bootstrap/scss/bootstrap";
 @import "bootstrap-icons/font/bootstrap-icons"; //needed for wunderbaum ui
+
+div.wunderbaum div.wb-node-list {
+  font-size: 16px !important;    
+}
+
+.volume-name {
+  font-size: 24px;
+}

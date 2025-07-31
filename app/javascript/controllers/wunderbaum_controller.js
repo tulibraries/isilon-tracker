@@ -9,53 +9,123 @@ export default class extends Controller {
     try {
       const res = await fetch(this.urlValue);
       const data = await res.json();
+      console.log("Wunderbaum connect, url:", this.urlValue);
 
       new Wunderbaum({
-        element: this.element,
-        id: "filetree",
-        source: data,
-        checkbox: true,
-        selectMode: 3, // 1=single, 2=multi, 3=hierarchical
-        lazy: true,
+        element:      this.element,
+        id:           "filetree",
+        source:       data,
+        checkbox:     true,
+        keyboard:     true,
+        autoActivate: true,
+        columnsResizable: true, 
+        selectMode:   "hier",
+        lazy:         true,
         columns: [
-          { id: "*", title: "Name", width: "500px" },
-          { id: "status", title: "Status", width: "200px" },
-          { id: "assigned_to", title: "Assigned To", width: "400px" },
-
+          { id: "*",
+            title: "Filename",
+            width: "500px",
+            resizable: false
+          },
+          {
+            id:      "migration_status",
+            title:   "Migration status",
+            width:   "150px",    
+            classes: "wb-helper-center",
+            html: `
+              <select tabindex="-1">
+                <option value="pending" selected>Pending</option>
+              </select>`
+          },
+          {
+            id:      "assigned_to",
+            title:   "Assigned To",
+            width:   "150px",
+            classes: "wb-helper-center",
+            html: `
+              <select tabindex="-1">
+                <option value="unassigned" selected>Unassigned</option>
+              </select>`
+          },
+          { id: "file_size",
+            title: "File size",
+            classes: "wb-helper-center",
+            width: "150px"
+          },
+          { id: "notes",
+            title: "Notes",
+            width: "500px",
+            classes: "wb-helper-center",
+            html: `<input type="text" tabindex="-1">`
+          },
+          {
+            id:      "contentdm_collection",
+            title:   "Contentdm Collection",
+            width:   "150px",
+            classes: "wb-helper-center",
+            html: `
+              <select tabindex="-1">
+                <option value="" selected></option>
+              </select>`
+          },
+          {
+            id:      "aspace_collection",
+            title:   "ASpace Collection",
+            width:   "150px",
+            classes: "wb-helper-center",
+            html: `
+              <select tabindex="-1">
+                <option value="" selected></option>
+              </select>`
+          },
+          { id: "preservica_reference_id",
+            title: "Preservica Reference",
+            classes: "wb-helper-center",
+            width: "150px",
+            html: `<input type="text" tabindex="-1">`
+          },
+          {
+            id:      "aspace_linking_status",
+            title:   "ASpace linking status",
+            width:   "150px",
+            classes: "wb-helper-center",
+            html:    `<input type="checkbox" tabindex="-1">`
+          },
+          { id: "isilon_date",
+            title: "Isilon date created",
+            classes: "wb-helper-center",
+            width: "150px"
+          },
         ],
+
         icon: ({ node }) => {
-        // folders already get the folder icon, so:
-        if (!node.data.folder) {
-          // this covers *all* leaf nodes (your assets)
-          return "bi bi-files";
-        }
-      },
-        render: function (e) {
-          console.log("NODE TYPE:", e.node);
-
-          const node = e.node;
-
-          for (const col of Object.values(e.renderColInfosById)) {
-            switch (col.id) {
-              default:
-                // Assumption: we named column.id === node.data.NAME
-                col.elem.textContent = node.data[col.id];
-                break;
-            }
+          if (!node.data.folder) {
+            return "bi bi-files";
           }
         },
-        select: function (e) {
-          e.node.fixSelection3AfterClick(); // 👈 applies cascading selection logic
+
+        render(e) {
+          // Render each cell, hiding values for folders
+          const util = e.util;
+          const isFolder = e.node.data.folder === true;
+          for (const colInfo of Object.values(e.renderColInfosById)) {
+            let value = e.node.data[colInfo.id];
+            if (isFolder || value == null) {
+              value = "";
+            }
+            util.setValueToElem(colInfo.elem, value);
+          }
         },
-        types: {},
-        init: (e) => {
-          // Example: auto-activate a node
-          // e.tree.findFirst("SomeFolderName")?.setActive(true);
-        }
+
+        change(e) {
+          const util = e.util;
+          const colId = e.info.colId;
+          e.node.data[colId] = util.getValueFromElem(e.inputElem, true);
+        },
       });
+
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
-    
   }
 }
