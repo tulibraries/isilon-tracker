@@ -51,7 +51,7 @@ jobs:
           bundler-cache: true
 
       - name: Build css
-        run: bundle exec rails -s
+        run: bundle exec yarn build:css
 
       - name: Run rspec tests
         run: bundle exec rspec spec
