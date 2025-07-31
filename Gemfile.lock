@@ -264,6 +264,9 @@ GEM
     omniauth-oauth2 (1.8.0)
       oauth2 (>= 1.4, < 3)
       omniauth (~> 2.0)
+    omniauth-rails_csrf_protection (1.0.2)
+      actionpack (>= 4.2)
+      omniauth (~> 2.0)
     orderly (0.1.1)
       capybara (>= 1.1)
       rspec (>= 2.14)
@@ -528,8 +531,9 @@ DEPENDENCIES
   jbuilder
   jsbundling-rails
   okcomputer (~> 1.19)
-  omniauth (~> 2.1)
-  omniauth-google-oauth2 (~> 1.2)
+  omniauth
+  omniauth-google-oauth2
+  omniauth-rails_csrf_protection
   orderly
   pg (~> 1.6)
   pry
