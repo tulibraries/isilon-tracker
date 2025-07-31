@@ -51,7 +51,9 @@ jobs:
           bundler-cache: true
 
       - name: Precompile assets
-        run: bin/rails assets:precompile
+        run: |
+          yarn build:css:prod
+          bin/rails assets:precompile
 
       - name: Run rspec tests
         run: bundle exec rspec spec
