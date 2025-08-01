@@ -11,7 +11,8 @@ Rails.application.routes.draw do
   resources :isilon_folders
 
   resources :volumes do
-    get :file_tree, on: :member, defaults: { format: :json }
+    get :file_tree,          on: :member  # only root folders
+    get :file_tree_children, on: :member  # sub-folders + assets
   end
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

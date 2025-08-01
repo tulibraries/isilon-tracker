@@ -14,7 +14,6 @@ RSpec.describe IsilonAsset, type: :model do
     expect(asset.migration_status.name).to eq("Needs review")
   end
 
-
   it "associates with an aspace collection" do
     collection = AspaceCollection.create!(name: "Photographs")
     asset = IsilonAsset.create!(
@@ -25,7 +24,7 @@ RSpec.describe IsilonAsset, type: :model do
     )
     expect(asset.aspace_collection.name).to eq("Photographs")
   end
-
+]
   it "associates with an contentdm collection" do
     collection = ContentdmCollection.create!(name: "Photographs")
     asset = IsilonAsset.create!(
@@ -38,6 +37,7 @@ RSpec.describe IsilonAsset, type: :model do
   end
 
 
+]
   it "is valid with a migration_status_id" do
     asset = IsilonAsset.new(
       isilon_name: "Another File",
