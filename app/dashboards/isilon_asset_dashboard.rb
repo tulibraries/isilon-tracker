@@ -13,7 +13,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     aspace_collection: Field::BelongsTo,
     aspace_linking_status: Field::String,
     assigned_to: Field::String,
-    contentdm_collection: Field::String,
+    contentdm_collection: Field::BelongsTo,
     date_created_in_isilon: Field::String,
     file_checksum: Field::String,
     file_size: Field::String,
