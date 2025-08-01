@@ -17,6 +17,7 @@ export default class extends Controller {
         id: "filetree",
         source: data,
         checkbox: true,
+        fixedCol: true,
         keyboard: true,
         keyAttr: "id",
         autoActivate: true,
@@ -26,8 +27,7 @@ export default class extends Controller {
         columns: [
           { id: "*",
             title: "Filename",
-            width: "500px",
-            resizable: false
+            width: "500px"
           },
           {
             id:      "migration_status",
@@ -115,9 +115,13 @@ export default class extends Controller {
         },
 
         init: (e) => {
-          // e.tree.rootNode.children holds your top-level folder nodes
-          for (const folderNode of e.tree.rootNode.children) {
-            if (folderNode.data.folder) {
+          const root = e.tree?.rootNode;
+          const children = root?.children;
+
+          if (!Array.isArray(children)) return;
+
+          for (const folderNode of children) {
+            if (folderNode.data?.folder) {
               folderNode.load();
             }
           }
@@ -136,7 +140,7 @@ export default class extends Controller {
           }
 
           if (!isFolder) {
-            e.nodeElem.querySelector("span.wb-title").innerHTML = `<a href="${e.node.data.url}" class="asset-link">${e.node.title}</a>`;
+            e.nodeElem.querySelector("span.wb-title").innerHTML = `<a href="${e.node.data.url}" class="asset-link" data-turbo="false">${e.node.title}</a>`;
           }
         },
 
