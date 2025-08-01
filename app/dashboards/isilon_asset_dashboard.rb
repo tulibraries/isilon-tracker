@@ -10,7 +10,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   # on pages throughout the dashboard.
   ATTRIBUTE_TYPES = {
     id: Field::Number,
-    aspace_collection: Field::String,
+    aspace_collection: Field::BelongsTo,
     aspace_linking_status: Field::String,
     assigned_to: Field::String,
     contentdm_collection: Field::String,
