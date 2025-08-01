@@ -10,7 +10,15 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_07_10_183722) do
+ActiveRecord::Schema[7.2].define(version: 2025_07_31_202728) do
+  create_table "aspace_collections", force: :cascade do |t|
+    t.string "name"
+    t.boolean "active"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_aspace_collections_on_name"
+  end
+
   create_table "isilon_assets", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -20,9 +28,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_07_10_183722) do
     t.string "isilon_name", null: false
     t.string "last_modified_in_isilon"
     t.string "date_created_in_isilon"
-    t.string "migration_status", default: "pending"
     t.string "contentdm_collection"
-    t.string "aspace_collection"
     t.string "preservica_reference_id"
     t.string "aspace_linking_status"
     t.text "notes"
@@ -30,7 +36,11 @@ ActiveRecord::Schema[7.2].define(version: 2025_07_10_183722) do
     t.string "last_updated_by"
     t.string "file_checksum"
     t.integer "parent_folder_id"
+    t.integer "migration_status_id"
+    t.integer "aspace_collection_id"
+    t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
+    t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
   end
 
@@ -43,6 +53,15 @@ ActiveRecord::Schema[7.2].define(version: 2025_07_10_183722) do
     t.index ["full_path"], name: "index_isilon_folders_on_full_path", unique: true
     t.index ["parent_folder_id"], name: "index_isilon_folders_on_parent_folder_id"
     t.index ["volume_id"], name: "index_isilon_folders_on_volume_id"
+  end
+
+  create_table "migration_statuses", force: :cascade do |t|
+    t.string "name"
+    t.boolean "default"
+    t.boolean "active"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_migration_statuses_on_name"
   end
 
   create_table "users", force: :cascade do |t|
@@ -63,7 +82,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_07_10_183722) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "isilon_assets", "aspace_collections"
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
+  add_foreign_key "isilon_assets", "migration_statuses"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_folders", "volumes"
 end
