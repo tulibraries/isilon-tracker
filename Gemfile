@@ -60,3 +60,7 @@ end
 gem "pg", "~> 1.6"
 
 gem "okcomputer", "~> 1.19"
+
+gem "omniauth"
+gem "omniauth-google-oauth2"
+gem "omniauth-rails_csrf_protection"

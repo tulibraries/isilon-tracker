@@ -1,5 +1,5 @@
 module Admin
-  class VolumesController < Administrate::ApplicationController
+  class VolumesController < Admin::ApplicationController
     def show
       @volume = Volume.find(params[:id])
       super
