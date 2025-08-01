@@ -2,9 +2,8 @@ name: "lint-test"
 
 on:
   push:
-  pull_request:
-    types: [ opened, synchronize, reopened ]
-    branches: [ main ]
+    branches-ignore:
+      - main
   workflow_dispatch: {}
 
 concurrency:

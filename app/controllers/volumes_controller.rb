@@ -6,6 +6,17 @@ class VolumesController < ApplicationController
       render json: root_folders, each_serializer: IsilonFolderSerializer
     end
 
+    def file_tree_children
+      volume = Volume.find(params[:id])
+      parent_id = params.require(:parent_folder_id)
+
+      folders = volume.isilon_folders.where(parent_folder_id: parent_id)
+      assets  = volume.isilon_assets.where(parent_folder_id: parent_id)
+
+      resources = folders.to_a + assets.to_a
+      render json: resources
+    end
+
     def index
       @volumes = Volume.all
     end
@@ -18,6 +29,6 @@ class VolumesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def volume_params
-      params.fetch(:volume, {}).permit(:name)
+      params.fetch(:volume, {}).permit(:name, :id)
     end
 end

@@ -19,8 +19,8 @@ migration_statuses = [
   { name: "Save elsewhere" }
 ]
 
-
 puts "Seeding MigrationStatuses..."
+
 migration_statuses.each do |status_attrs|
   MigrationStatus.find_or_create_by!(name: status_attrs[:name]) do |status|
     status.default = status_attrs[:default] || false
@@ -28,8 +28,6 @@ migration_statuses.each do |status_attrs|
   end
 end
 puts "Seeded #{MigrationStatus.count} MigrationStatuses."
-puts
-
 
 require 'csv'
 
