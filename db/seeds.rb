@@ -7,3 +7,39 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+# Seed the migration status table.
+migration_statuses = [
+  { name: "Needs review", default: true },
+  { name: "OK to migrate" },
+  { name: "Don’t migrate" },
+  { name: "Migrated" },
+  { name: "Migration in progress" },
+  { name: "Needs further investigation" },
+  { name: "Save elsewhere" }
+]
+
+puts "Seeding MigrationStatuses..."
+
+migration_statuses.each do |status_attrs|
+  MigrationStatus.find_or_create_by!(name: status_attrs[:name]) do |status|
+    status.default = status_attrs[:default] || false
+    status.active = true
+  end
+end
+puts "Seeded #{MigrationStatus.count} MigrationStatuses."
+
+require 'csv'
+
+puts "Seeding AspaceCollections..."
+file_path = Rails.root.join("db", "data", "aspace-collection.csv")
+
+CSV.foreach(file_path) do |row|
+  name = row[0].strip
+  next if name.blank?
+
+  AspaceCollection.find_or_create_by!(name: name) do |collection|
+    collection.active = true
+  end
+end
+puts "Seeded #{AspaceCollection.count} AspaceCollections."
