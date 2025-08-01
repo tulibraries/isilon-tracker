@@ -8,9 +8,6 @@ FROM "${BASE_IMAGE}"
 
 WORKDIR /app
 
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile && yarn cache clean --all
-
 COPY . .
 
 ENV LD_PRELOAD="libjemalloc.so.2" \
@@ -48,7 +45,6 @@ RUN apk add -U --no-cache \
     bundle install --jobs=8 && \
     find "$GEM_HOME" -name Gemfile.lock -exec rm "{}" \; && \
     find "$GEM_HOME" -name yarn.lock -exec rm "{}" \; && \
-    yarn build:css:prod && \
     bundle exec rails assets:precompile && \
     if [ "${RAILS_ENV}" = "production" ]; then rm -rf node_modules; fi && \
     if [ "${RAILS_ENV}" = "production" ]; then rm -rf tmp/*; fi && \
