@@ -6,6 +6,12 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
 
   let!(:aspace_collection) { AspaceCollection.create!(name: "Aspace Foo", active: true) }
 
+  let!(:user) { FactoryBot.create(:user) }
+
+  before do
+    sign_in user  # ⬅️ Sign in the user before each request
+  end
+
   it "renders the edit form with migration_status select" do
     asset = IsilonAsset.create!(
       isilon_name: "Test Asset",
