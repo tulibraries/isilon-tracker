@@ -3,7 +3,8 @@ import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
 export default class extends Controller {
-  static values = { url: String };
+  static values = { url: String, 
+                    volumeId: Number };
 
   async connect() {
     try {
@@ -12,15 +13,16 @@ export default class extends Controller {
       console.log("Wunderbaum connect, url:", this.urlValue);
 
       new Wunderbaum({
-        element:      this.element,
-        id:           "filetree",
-        source:       data,
-        checkbox:     true,
-        keyboard:     true,
+        element: this.element,
+        id: "filetree",
+        source: data,
+        checkbox: true,
+        keyboard: true,
+        keyAttr: "id",
         autoActivate: true,
         columnsResizable: true, 
-        selectMode:   "hier",
-        lazy:         true,
+        selectMode: "hier",
+        lazy: true,
         columns: [
           { id: "*",
             title: "Filename",
@@ -97,15 +99,32 @@ export default class extends Controller {
             width: "150px"
           },
         ],
-
+        
         icon: ({ node }) => {
           if (!node.data.folder) {
             return "bi bi-files";
           }
         },
 
+        // tell Wunderbaum how to fetch one folder’s children
+        lazyLoad: (e) => {
+          return {
+            url: `/volumes/${this.volumeIdValue}/file_tree_children.json` +
+                `?parent_folder_id=${encodeURIComponent(e.node.data.id)}`,
+          };
+        },
+
+        init: (e) => {
+          // e.tree.rootNode.children holds your top-level folder nodes
+          for (const folderNode of e.tree.rootNode.children) {
+            if (folderNode.data.folder) {
+              folderNode.load();
+            }
+          }
+        },
+
         render(e) {
-          // Render each cell, hiding values for folders
+          // Render each cell, hiding asset values for folders
           const util = e.util;
           const isFolder = e.node.data.folder === true;
           for (const colInfo of Object.values(e.renderColInfosById)) {
@@ -114,6 +133,10 @@ export default class extends Controller {
               value = "";
             }
             util.setValueToElem(colInfo.elem, value);
+          }
+
+          if (!isFolder) {
+            e.nodeElem.querySelector("span.wb-title").innerHTML = `<a href="${e.node.data.url}" class="asset-link">${e.node.title}</a>`;
           }
         },
 

@@ -37,12 +37,13 @@ end
 
 group :test do
   gem "capybara"
+  gem "cuprite"
   gem "factory_bot_rails"
+  gem "launchy"
   gem "orderly"
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
   gem "rspec-rails"
-  gem "selenium-webdriver"
   gem "shoulda-matchers", "~> 6.5"
   gem "simplecov"
   gem "simplecov-lcov"
