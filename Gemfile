@@ -26,6 +26,7 @@ group :development, :test do
   gem "rubocop", require: false
   gem "rubocop-rails", require: false
   gem "rubocop-rails-omakase", require: false
+  gem "rspec-rails"
 end
 
 group :development do
@@ -43,7 +44,6 @@ group :test do
   gem "orderly"
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
-  gem "rspec-rails"
   gem "shoulda-matchers", "~> 6.5"
   gem "simplecov"
   gem "simplecov-lcov"
