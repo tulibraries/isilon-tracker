@@ -43,4 +43,3 @@ CSV.foreach(file_path) do |row|
   end
 end
 puts "Seeded #{AspaceCollection.count} AspaceCollections."
-
