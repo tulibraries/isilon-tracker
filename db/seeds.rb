@@ -45,3 +45,19 @@ CSV.foreach(file_path) do |row|
   end
 end
 puts "Seeded #{AspaceCollection.count} AspaceCollections."
+puts
+
+
+puts "Seeding ContentdmCollections..."
+csv_path = Rails.root.join("db", "data", "contentdm_collection.csv")
+
+CSV.foreach(csv_path, headers: true, col_sep: "\t") do |row|
+  name = row["Collection"].to_s.strip
+  next if name.blank?
+
+  ContentdmCollection.find_or_create_by!(name: name) do |collection|
+    collection.active = true
+  end
+end
+
+puts "Seeded #{ContentdmCollection.count} ContentdmCollections."
