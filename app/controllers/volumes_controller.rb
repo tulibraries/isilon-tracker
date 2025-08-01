@@ -6,25 +6,19 @@ class VolumesController < ApplicationController
       render json: root_folders, each_serializer: IsilonFolderSerializer
     end
 
-    def index
-      @volumes = Volume.all
-    end
-
     def file_tree_children
-      volume    = Volume.find(params[:id])
+      volume = Volume.find(params[:id])
       parent_id = params.require(:parent_folder_id)
 
       folders = volume.isilon_folders.where(parent_folder_id: parent_id)
-      assets  = volume.isilon_assets  .where(parent_folder_id: parent_id)
+      assets  = volume.isilon_assets.where(parent_folder_id: parent_id)
 
-      folder_json = ActiveModelSerializers::SerializableResource
-                    .new(folders, each_serializer: IsilonFolderSerializer)
-                    .as_json
-      asset_json  = ActiveModelSerializers::SerializableResource
-                    .new(assets,  each_serializer: IsilonAssetSerializer)
-                    .as_json
+      resources = folders.to_a + assets.to_a
+      render json: resources
+    end
 
-      render json: (folder_json + asset_json)
+    def index
+      @volumes = Volume.all
     end
 
   private

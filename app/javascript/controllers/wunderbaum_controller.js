@@ -13,16 +13,16 @@ export default class extends Controller {
       console.log("Wunderbaum connect, url:", this.urlValue);
 
       new Wunderbaum({
-        element:      this.element,
-        id:           "filetree",
-        source:       data,
-        checkbox:     true,
-        keyboard:     true,
+        element: this.element,
+        id: "filetree",
+        source: data,
+        checkbox: true,
+        keyboard: true,
         keyAttr: "id",
         autoActivate: true,
         columnsResizable: true, 
-        selectMode:   "hier",
-        lazy:         true,
+        selectMode: "hier",
+        lazy: true,
         columns: [
           { id: "*",
             title: "Filename",
@@ -124,7 +124,7 @@ export default class extends Controller {
         },
 
         render(e) {
-          // Render each cell, hiding values for folders
+          // Render each cell, hiding asset values for folders
           const util = e.util;
           const isFolder = e.node.data.folder === true;
           for (const colInfo of Object.values(e.renderColInfosById)) {

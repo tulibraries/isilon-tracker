@@ -10,7 +10,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   end
 
   def url
-    admin_isilon_asset_url(object.id, host: "localhost:3000")
+    admin_isilon_asset_url(object.id)
   end
 
   def folder
