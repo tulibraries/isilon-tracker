@@ -34,6 +34,6 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   end
 
   def lazy
-    true
+    false
   end
 end

@@ -106,13 +106,21 @@ export default class extends Controller {
           }
         },
 
-        // Only when a folder is expanded, fetch *its* children
+        // tell Wunderbaum how to fetch one folder’s children
         lazyLoad: (e) => {
-          const folderId = e.node.key;  // now a number, e.g. 123
           return {
             url: `/volumes/${this.volumeIdValue}/file_tree_children.json` +
-                `?parent_folder_id=${folderId}`
+                `?parent_folder_id=${encodeURIComponent(e.node.data.id)}`,
           };
+        },
+
+        init: (e) => {
+          // e.tree.rootNode.children holds your top-level folder nodes
+          for (const folderNode of e.tree.rootNode.children) {
+            if (folderNode.data.folder) {
+              folderNode.load();
+            }
+          }
         },
 
         render(e) {
