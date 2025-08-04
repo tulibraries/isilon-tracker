@@ -7,8 +7,8 @@ Rails.application.routes.draw do
 
   namespace :admin do
       resources :isilon_folders, except: [ :destroy ]
-      resources :isilon_assets, except: [ :destroy ]
-      resources :volumes, except: [ :destroy, :edit ]
+      resources :isilon_assets, except: [ :destroy, :new ]
+      resources :volumes, except: [ :destroy, :edit, :new ]
       resources :aspace_collections
       resources :contentdm_collections
       resources :users, only: [ :index, :show, :edit, :update, :destroy ]
