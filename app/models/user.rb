@@ -7,8 +7,8 @@ class User < ApplicationRecord
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
   enum active: {
-    inactive: 'inactive',
-    active: 'active'
+    inactive: "inactive",
+    active: "active"
   }, _suffix: true
 
 
