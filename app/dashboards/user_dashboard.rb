@@ -9,9 +9,9 @@ class UserDashboard < Administrate::BaseDashboard
   # on pages throughout the dashboard.
   ATTRIBUTE_TYPES = {
     id: Field::Number,
-    active: Field::Select.with_options(searchable: false, collection: ->(field) { field.resource.class.send(field.attribute.to_s.pluralize).keys }),
+    status: Field::Select.with_options(searchable: false, collection: ->(field) { field.resource.class.send(field.attribute.to_s.pluralize).keys }),
     email: Field::String,
-    encrypted_password: Field::String,
+    password: Field::Password.with_options(searchable: false),
     name: Field::String,
     provider: Field::String,
     remember_created_at: Field::DateTime,
@@ -31,7 +31,7 @@ class UserDashboard < Administrate::BaseDashboard
     id
     name
     email
-    active
+    status
   ].freeze
 
   # SHOW_PAGE_ATTRIBUTES
@@ -40,8 +40,7 @@ class UserDashboard < Administrate::BaseDashboard
     id
     name
     email
-    active
-    encrypted_password
+    status
     provider
     remember_created_at
     reset_password_sent_at
@@ -57,7 +56,8 @@ class UserDashboard < Administrate::BaseDashboard
   FORM_ATTRIBUTES = %i[
     name
     email
-    active
+    password
+    status
   ].freeze
 
   # COLLECTION_FILTERS
