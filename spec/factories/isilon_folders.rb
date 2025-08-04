@@ -4,6 +4,6 @@ FactoryBot.define do
   factory :isilon_folder do
     volume
     parent_folder { nil }
-    full_path { "Folder Name" }
+    full_path { "/volume/#{volume.id}/folder" }
   end
 end
