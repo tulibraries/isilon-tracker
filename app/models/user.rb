@@ -6,6 +6,15 @@ class User < ApplicationRecord
          :timeoutable,
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
+  enum active: {
+    inactive: "inactive",
+    active: "active"
+  }, _suffix: true
+
+
+  validates :active, inclusion: { in: actives.keys }
+  validates :name, presence: true
+
   def title
     email
   end
