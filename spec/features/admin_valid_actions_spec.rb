@@ -1,7 +1,6 @@
 require "rails_helper"
 
 RSpec.describe "Admin IsilonFolder dashboard", type: :feature do
-
   let!(:folder) { FactoryBot.create(:isilon_folder) }
   let!(:asset) { FactoryBot.create(:isilon_asset) }
   let!(:volume) { FactoryBot.create(:volume) }
@@ -53,6 +52,4 @@ RSpec.describe "Admin IsilonFolder dashboard", type: :feature do
     visit admin_volume_path(volume)
     expect(page).not_to have_link("Edit")
   end
-
-
 end
