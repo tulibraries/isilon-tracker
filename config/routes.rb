@@ -9,11 +9,17 @@ Rails.application.routes.draw do
       resources :isilon_folders, except: [ :destroy ]
       resources :isilon_assets, except: [ :destroy ]
       resources :volumes, except: [ :destroy, :edit ]
+      resources :aspace_collections
+      resources :contentdm_collections
+
       root to: "volumes#index"
     end
 
   resources :isilon_assets
   resources :isilon_folders
+  resources :aspace_collections
+  resources :contentdm_collections
+
   resources :volumes do
     get :file_tree,          on: :member  # only root folders
     get :file_tree_children, on: :member  # sub-folders + assets
