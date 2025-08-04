@@ -19,7 +19,6 @@ RSpec.describe "Admin IsilonFolder dashboard", type: :feature do
 
   it "folder: does show the edit link" do
     visit admin_isilon_folders_path
-    save_and_open_page
     expect(page).to have_link("Edit")
     visit admin_isilon_folder_path(folder)
     expect(page).to have_link("Edit")
