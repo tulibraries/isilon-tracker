@@ -11,7 +11,7 @@ class UserDashboard < Administrate::BaseDashboard
     id: Field::Number,
     status: Field::Select.with_options(searchable: false, collection: ->(field) { field.resource.class.send(field.attribute.to_s.pluralize).keys }),
     email: Field::String,
-    encrypted_password: Field::String,
+    password: Field::Password.with_options(searchable: false),
     name: Field::String,
     provider: Field::String,
     remember_created_at: Field::DateTime,
@@ -41,7 +41,6 @@ class UserDashboard < Administrate::BaseDashboard
     name
     email
     status
-    encrypted_password
     provider
     remember_created_at
     reset_password_sent_at
@@ -57,6 +56,7 @@ class UserDashboard < Administrate::BaseDashboard
   FORM_ATTRIBUTES = %i[
     name
     email
+    password
     status
   ].freeze
 
