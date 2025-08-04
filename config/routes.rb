@@ -6,9 +6,9 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
-      resources :isilon_folders
-      resources :isilon_assets
-      resources :volumes
+      resources :isilon_folders, except: [ :destroy ]
+      resources :isilon_assets, except: [ :destroy ]
+      resources :volumes, except: [ :destroy, :edit ]
       resources :aspace_collections
       resources :contentdm_collections
       resources :users, only: [ :index, :show, :edit, :update, :destroy ]
@@ -25,6 +25,7 @@ Rails.application.routes.draw do
     get :file_tree,          on: :member  # only root folders
     get :file_tree_children, on: :member  # sub-folders + assets
   end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
