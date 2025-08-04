@@ -6,7 +6,7 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
-      resources :isilon_folders, except: [ :destroy]
+      resources :isilon_folders, except: [ :destroy ]
       resources :isilon_assets, except: [ :destroy ]
       resources :volumes, except: [ :destroy, :edit ]
       root to: "volumes#index"
