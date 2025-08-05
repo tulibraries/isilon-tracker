@@ -63,5 +63,5 @@ puts "Seeded #{ContentdmCollection.count} ContentdmCollections."
 # Initial user
 
 User.create!([
-      {email: "templelibraries@gmail.com", password: "skngpa55", reset_password_token: nil, reset_password_sent_at: nil, remember_created_at: nil, provider: nil, uid: nil, name: nil, status: "inactive"},
+      {email: "templelibraries@gmail.com", remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active"}
 ])
