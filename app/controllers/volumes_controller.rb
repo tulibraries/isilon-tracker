@@ -1,5 +1,7 @@
 class VolumesController < ApplicationController
   before_action :set_volume, only: %i[ show ]
+  before_action :authenticate_user, only: %i[ show ]
+
     def file_tree
       volume = Volume.find(params[:id])
       root_folders = volume.isilon_folders.where(parent_folder_id: nil)
