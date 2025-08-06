@@ -10,7 +10,9 @@ class VolumeDashboard < Administrate::BaseDashboard
   ATTRIBUTE_TYPES = {
     id: Field::Number,
     name: Field::String,
-    isilon_folders: Field::HasMany.with_options(limit: 20),
+    top_level_folders: Field::HasMany.with_options(
+      limit: 20
+    ),
     created_at: Field::DateTime,
     updated_at: Field::DateTime
   }.freeze
@@ -28,7 +30,7 @@ class VolumeDashboard < Administrate::BaseDashboard
   # an array of attributes that will be displayed on the model's show page.
   SHOW_PAGE_ATTRIBUTES = %i[
     name
-    isilon_folders
+    top_level_folders
   ].freeze
 
   # FORM_ATTRIBUTES
