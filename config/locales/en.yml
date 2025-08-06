@@ -28,6 +28,4 @@
 #       enabled: "ON"
 
 en:
-  errors:
-    messages:
-      user_not_registered: "User Not registered. Please contact a server administrator for a user account"
+  hello: "Hello world"

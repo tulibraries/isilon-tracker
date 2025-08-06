@@ -18,10 +18,6 @@ class User < ApplicationRecord
     email
   end
 
-  def password_required?
-    false
-  end
-
   def self.from_omniauth(access_token)
     data = access_token.info
     User.where(email: data["email"]).first
