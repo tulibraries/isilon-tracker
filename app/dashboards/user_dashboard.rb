@@ -38,11 +38,7 @@ class UserDashboard < Administrate::BaseDashboard
     name
     email
     status
-    provider
     remember_created_at
-    uid
-    created_at
-    updated_at
   ].freeze
 
   # FORM_ATTRIBUTES
