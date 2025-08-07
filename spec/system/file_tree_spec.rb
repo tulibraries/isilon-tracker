@@ -7,6 +7,18 @@ RSpec.describe "Volume File Tree", type: :system, js: true do
     driven_by :cuprite
   end
 
+  let!(:user) do
+    user = FactoryBot.create(:user)
+  end
+
+  before do
+    login_as(user, scope: :user)
+  end
+
+  after do
+    logout(user)
+  end
+
   let!(:volume) { create(:volume, name: "TestVol") }
   let!(:root_folder) do
     create(:isilon_folder,
