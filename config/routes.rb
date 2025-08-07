@@ -20,6 +20,7 @@ Rails.application.routes.draw do
   resources :isilon_folders
   resources :aspace_collections
   resources :contentdm_collections
+  resources :migration_statuses, only: [ :index ]
 
   resources :volumes do
     get :file_tree,          on: :member  # only root folders
