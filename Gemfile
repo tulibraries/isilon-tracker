@@ -44,6 +44,7 @@ group :test do
   gem "orderly"
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
+  gem "selenium-webdriver"
   gem "shoulda-matchers", "~> 6.5"
   gem "simplecov"
   gem "simplecov-lcov"
@@ -60,3 +61,7 @@ end
 gem "pg", "~> 1.6"
 
 gem "okcomputer", "~> 1.19"
+
+gem "omniauth"
+gem "omniauth-google-oauth2"
+gem "omniauth-rails_csrf_protection"

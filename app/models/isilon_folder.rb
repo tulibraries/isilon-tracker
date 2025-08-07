@@ -13,4 +13,14 @@ class IsilonFolder < ApplicationRecord
       end
     end
   end
+
+  def breadcrumb_trail
+    crumbs = []
+    current = self
+    while current
+      crumbs.unshift(current)
+      current = current.parent_folder
+    end
+    crumbs
+  end
 end

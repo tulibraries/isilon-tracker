@@ -59,3 +59,9 @@ CSV.foreach(csv_path, headers: true, col_sep: "\t") do |row|
 end
 
 puts "Seeded #{ContentdmCollection.count} ContentdmCollections."
+
+# Initial user
+
+User.create!([
+      { email: "templelibraries@gmail.com", remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
+])

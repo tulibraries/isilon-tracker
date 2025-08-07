@@ -8,6 +8,13 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
 
   let!(:contentdm_collection) { ContentdmCollection.create!(name: "Contentdm Foo", active: true) }
 
+  let!(:user) { FactoryBot.create(:user) }
+
+  before do
+    sign_in user  # ⬅️ Sign in the user before each request
+  end
+
+
   it "renders the edit form with migration_status select" do
     asset = IsilonAsset.create!(
       isilon_name: "Test Asset",

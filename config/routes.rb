@@ -1,20 +1,32 @@
 Rails.application.routes.draw do
-  devise_for :users
+  devise_for :users, controllers: { omniauth_callbacks: "users/omniauth_callbacks" }
+
+  devise_scope :user do
+    get "/users/sign_out" => "devise/sessions#destroy"
+  end
+
   namespace :admin do
-      resources :isilon_folders
-      resources :isilon_assets
-      resources :volumes
+      resources :isilon_folders, except: [ :destroy, :new  ]
+      resources :isilon_assets, except: [ :destroy, :new ]
+      resources :volumes, except: [ :destroy, :edit, :new ]
+      resources :aspace_collections
+      resources :contentdm_collections
+      resources :users, only: [ :index, :show, :new, :create, :edit, :update ]
 
       root to: "volumes#index"
     end
+
   resources :isilon_assets
   resources :isilon_folders
+  resources :aspace_collections
+  resources :contentdm_collections
 
   resources :volumes do
     get :file_tree,          on: :member  # only root folders
     get :file_tree_children, on: :member  # sub-folders + assets
     get :file_tree_search, on: :member
   end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
