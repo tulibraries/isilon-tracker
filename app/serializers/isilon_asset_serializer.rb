@@ -3,7 +3,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   attributes :title, :folder, :key, :isilon_date, :migration_status,
   :assigned_to, :file_size, :notes, :contentdm_collection, :aspace_collection,
-  :preservica_reference_id, :aspace_linking_status, :url, :lazy
+  :preservica_reference_id, :aspace_linking_status, :url, :lazy, :path
 
   def title
     object.isilon_name
@@ -35,5 +35,19 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def lazy
     false
+  end
+
+  def path
+    return [] unless object.respond_to?(:parent_folder)
+
+    ids = []
+    current = object.parent_folder
+
+    while current
+      ids.unshift(current.id)
+      current = current.parent_folder
+    end
+
+    ids
   end
 end

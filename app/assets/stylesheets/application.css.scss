@@ -1,6 +1,37 @@
 @import "bootstrap/scss/bootstrap";
 @import "bootstrap-icons/font/bootstrap-icons"; //needed for wunderbaum ui
 
+:root {
+  --wb-font-family: system-ui, sans-serif;
+  --wb-font-size: 0.95rem;
+
+  --wb-header-border-color: #dee2e6;
+  --wb-header-line-height: 1.5;
+  --wb-header-height: 40px;
+
+  --wb-cell-padding: 10px 14px;
+  --wb-cell-line-height: 1.6;
+  --wb-row-height: auto;
+
+  --wb-row-hover-bg: #f1f3f5;
+  --wb-border-color: transparent;
+  --wb-border-radius: 0;
+
+  --wb-input-padding: 5px 8px;
+  --wb-input-font-size: 0.9rem;
+}
+
+.wunderbaum {
+  --wb-header-color: #dbeafe;              
+  --wb-header-text-color: #212529;        
+  --wb-header-font-weight: 600;
+  --wb-header-font-size: 1rem;
+  --wb-header-line-height: 1.5;
+  --wb-header-height: 40px;
+  --wb-header-shadow: none;
+  --wb-border-color: #dee2e6;
+}
+
 div.wunderbaum div.wb-node-list {
   font-size: 16px !important;    
 }
@@ -12,4 +43,160 @@ div.wunderbaum div.wb-node-list {
 a {
   color: #0B5394;
   text-decoration: none;
+}
+
+#tree-filter-row label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #212529;
+  white-space: nowrap;
+}
+
+#tree-filter-row label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #212529;
+  white-space: nowrap;
+}
+
+#tree-filter {
+  width: 30%;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+  background-color: #f9f9f9;
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+}
+
+#tree-filter:focus {
+  outline: none;
+  border-color: #007bff;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px; /* Matches typical input height */
+  width: 38px;
+  padding: 0;
+  border: 1px solid #ced4da;
+  background-color: #f8f9fa;
+  color: #495057;
+  border-radius: 0.375rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.icon-button:hover {
+  background-color: #e2e6ea;
+  border-color: #adb5bd;
+}
+
+.icon-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+}
+
+/* HEADER ENHANCEMENTS */
+.wunderbaum .wb-tree .wb-header .wb-col {
+  background-color: var(--wb-header-bg) !important;
+  color: var(--wb-header-color) !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid var(--wb-border-color)!important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: var(--wb-header-shadow) !important;
+  padding-top: 4px !important;
+}
+
+.wunderbaum .wb-tree div.wb-header span.wb-col-title {
+  background-color: var(--wb-header-bg) !important;
+  padding: 5px 8px !important;
+}
+
+.wunderbaum .wb-tree .wb-header .wb-col + .wb-col {
+  border-left: none !important;
+}
+
+div.wunderbaum div.wb-header span.wb-col.wb-active {
+  background-color: #dbeafe !important;
+}
+
+.wb-tree .wb-cell select,
+.wb-tree .wb-cell input[type="text"],
+.wb-tree .wb-cell input[type="checkbox"] {
+  padding: 5px 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* ROW HEIGHT AND CELL PADDING */
+.wunderbaum .wb-tree .wb-cell {
+  vertical-align: middle !important;
+  border-bottom: 1px solid var(--wb-border-color);
+}
+
+/* Prevent overlapping select arrows */
+.wunderbaum .wb-tree select {
+  appearance: auto !important;
+  padding: 5px 8px;
+  font-size: 0.9rem;
+}
+
+.wunderbaum .wb-tree .wb-row:hover {
+  background-color: #f1f3f5;
+}
+
+.wb-tree .wb-active {
+  background-color: #e9ecef;
+}
+
+.wb-tree .wb-col-sep {
+  display: none;
+}
+
+.wb-tree {
+  border: none !important;
+  box-shadow: none !important;
+  font-family: system-ui, sans-serif !important;
+}
+
+.wunderbaum .wb-tree .wb-row {
+  min-height: 40px !important;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.wb-match .wb-title {
+  background-color: #fffbcc;
+  font-weight: bold;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.popup-select {
+  padding: 6px 12px;
+  padding-right: 36px; /* More space for arrow */
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #333;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+
+  /* Custom arrow */
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23000' xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 20px;
 }
