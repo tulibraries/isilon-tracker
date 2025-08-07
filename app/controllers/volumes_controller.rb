@@ -3,7 +3,14 @@ class VolumesController < ApplicationController
     def file_tree
       volume = Volume.find(params[:id])
       root_folders = volume.isilon_folders.where(parent_folder_id: nil)
-      render json: root_folders, each_serializer: IsilonFolderSerializer
+      migration_statuses = MigrationStatus.all.each_with_object({}) { |ms, h| h[ms.id] = ms.name }
+      render json: {
+        root_folders: ActiveModelSerializers::SerializableResource.new(
+          root_folders,
+          each_serializer: IsilonFolderSerializer
+        ),
+        migration_statuses: migration_statuses
+      }
     end
 
     def file_tree_children
@@ -25,10 +32,5 @@ class VolumesController < ApplicationController
     # Use callbacks to share common setup or constraints between actions.
     def set_volume
       @volume = Volume.find(params[:id])
-    end
-
-    # Only allow a list of trusted parameters through.
-    def volume_params
-      params.fetch(:volume, {}).permit(:name, :id)
     end
 end

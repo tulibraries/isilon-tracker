@@ -36,4 +36,8 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   def lazy
     false
   end
+
+  def migration_status
+    object.migration_status&.id.to_s
+  end
 end
