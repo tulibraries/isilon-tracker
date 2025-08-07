@@ -11,6 +11,7 @@ class AspaceCollectionDashboard < Administrate::BaseDashboard
     id: Field::Number,
     active: Field::Boolean,
     name: Field::String,
+    isilon_assets: Field::HasMany,
     created_at: Field::DateTime,
     updated_at: Field::DateTime
   }.freeze
@@ -27,10 +28,8 @@ class AspaceCollectionDashboard < Administrate::BaseDashboard
   # SHOW_PAGE_ATTRIBUTES
   # an array of attributes that will be displayed on the model's show page.
   SHOW_PAGE_ATTRIBUTES = %i[
-    id
     name
-    created_at
-    updated_at
+    isilon_assets
   ].freeze
 
   # FORM_ATTRIBUTES
@@ -38,6 +37,7 @@ class AspaceCollectionDashboard < Administrate::BaseDashboard
   # on the model's form (`new` and `edit`) pages.
   FORM_ATTRIBUTES = %i[
     name
+    active
   ].freeze
 
   # COLLECTION_FILTERS
