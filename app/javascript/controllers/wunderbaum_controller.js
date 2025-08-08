@@ -44,7 +44,7 @@ export default class extends Controller {
       }));
 
       // build a standalone HTML select (not needed for Wunderbaum grid editing)
-      function buildMigrationStatusSelect(options, status, selectName) {
+      function buildSelectList(options, status, selectName) {
         const select = document.createElement("select");
         select.name = selectName;
         options.forEach(opt => {
@@ -170,7 +170,7 @@ export default class extends Controller {
               let selectElem;
               switch (colInfo.id) {
                 case "migration_status":
-                  selectElem = buildMigrationStatusSelect(
+                  selectElem = buildSelectList(
                     migrationStatusOptions,
                     value,
                     "migration_status"
@@ -179,7 +179,7 @@ export default class extends Controller {
                   colInfo.elem.appendChild(selectElem);
                   break;
                 case "aspace_collection":
-                  selectElem = buildMigrationStatusSelect(
+                  selectElem = buildSelectList(
                     aspaceCollectionOptions,
                     value,
                     "aspace_collection"
@@ -188,7 +188,7 @@ export default class extends Controller {
                   colInfo.elem.appendChild(selectElem);
                   break;
                 case "contentdm_collection":
-                  selectElem = buildMigrationStatusSelect(
+                  selectElem = buildSelectList(
                     contentdmCollectionOptions,
                     value,
                     "contentdm_collection"
@@ -197,7 +197,7 @@ export default class extends Controller {
                   colInfo.elem.appendChild(selectElem);
                   break;
                 case "assigned_to":
-                  selectElem = buildMigrationStatusSelect(
+                  selectElem = buildSelectList(
                     userOptions,
                     value,
                     "assigned_to"
