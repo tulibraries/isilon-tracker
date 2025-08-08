@@ -37,7 +37,6 @@ class ContentdmCollectionDashboard < Administrate::BaseDashboard
   # on the model's form (`new` and `edit`) pages.
   FORM_ATTRIBUTES = %i[
     name
-    active
   ].freeze
 
   # COLLECTION_FILTERS
