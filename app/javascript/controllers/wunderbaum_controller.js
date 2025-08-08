@@ -9,16 +9,18 @@ export default class extends Controller {
   async connect() {
     try {
       // Fetch tree data and migration statuses
-      const [treeRes, statusRes, aspaceRes, contentdmRes] = await Promise.all([
+      const [treeRes, statusRes, aspaceRes, contentdmRes, usersRes] = await Promise.all([
         fetch(this.urlValue),
         fetch("/migration_statuses.json"),
         fetch("/aspace_collections.json"),
-        fetch("/contentdm_collections.json")
+        fetch("/contentdm_collections.json"),
+        fetch("/users.json")
       ]);
       const data = await treeRes.json();
       const migrationStatuses = await statusRes.json();
       const aspaceCollections = await aspaceRes.json();
       const contentdmCollections = await contentdmRes.json();
+      const users = await usersRes.json();
 
       // Build options arrays for Wunderbaum select columns
       const migrationStatusOptions = Object.entries(migrationStatuses).map(([id, name]) => ({
@@ -36,15 +38,20 @@ export default class extends Controller {
         label: name
       }));
 
+      const userOptions = Object.entries(users).map(([id, name]) => ({
+        value: String(id),
+        label: name || email // Use name if available, otherwise email
+      }));
+
       // build a standalone HTML select (not needed for Wunderbaum grid editing)
-      function buildMigrationStatusSelect(migrationStatusOptions, assignedStatus) {
+      function buildMigrationStatusSelect(options, status, selectName) {
         const select = document.createElement("select");
-        select.name = "migration_status";
-        migrationStatusOptions.forEach(opt => {
+        select.name = selectName;
+        options.forEach(opt => {
           const option = document.createElement("option");
           option.value = opt.value;
           option.textContent = opt.label;
-          if (String(opt.value) === String(assignedStatus)) {
+          if (String(opt.value) === String(status)) {
             option.selected = true;
           }
           select.appendChild(option);
@@ -81,11 +88,7 @@ export default class extends Controller {
             id:      "assigned_to",
             title:   "Assigned To",
             width:   "150px",
-            classes: "wb-helper-center",
-            html: `
-              <select tabindex="-1">
-                <option value="unassigned" selected>Unassigned</option>
-              </select>`
+            classes: "wb-helper-center"
           },
           { id: "file_size",
             title: "File size",
@@ -167,33 +170,41 @@ export default class extends Controller {
               let selectElem;
               switch (colInfo.id) {
                 case "migration_status":
-                  // Build and inject the select element
                   selectElem = buildMigrationStatusSelect(
                     migrationStatusOptions,
-                    value
+                    value,
+                    "migration_status"
                   );
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(selectElem);
                   break;
                 case "aspace_collection":
-                  // Build and inject the select element
                   selectElem = buildMigrationStatusSelect(
                     aspaceCollectionOptions,
-                    value
+                    value,
+                    "aspace_collection"
                   );
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(selectElem);
                   break;
                 case "contentdm_collection":
-                  // Build and inject the select element
                   selectElem = buildMigrationStatusSelect(
                     contentdmCollectionOptions,
-                    value
+                    value,
+                    "contentdm_collection"
                   );
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(selectElem);
                   break;
-                // Add more cases for other custom columns if needed
+                case "assigned_to":
+                  selectElem = buildMigrationStatusSelect(
+                    userOptions,
+                    value,
+                    "assigned_to"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                  break;
                 default:
                   if (value == null) value = "";
                   util.setValueToElem(colInfo.elem, value);
