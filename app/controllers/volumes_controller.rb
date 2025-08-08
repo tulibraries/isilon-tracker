@@ -1,6 +1,5 @@
 class VolumesController < ApplicationController
   before_action :set_volume, only: %i[ show ]
-  before_action :authenticate_user!, only: %i[ show ]
 
     def file_tree
       volume = Volume.find(params[:id])
