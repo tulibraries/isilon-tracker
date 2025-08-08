@@ -3,13 +3,11 @@ class VolumesController < ApplicationController
     def file_tree
       volume = Volume.find(params[:id])
       root_folders = volume.isilon_folders.where(parent_folder_id: nil)
-      migration_statuses = MigrationStatus.all.each_with_object({}) { |ms, h| h[ms.id] = ms.name }
       render json: {
         root_folders: ActiveModelSerializers::SerializableResource.new(
           root_folders,
           each_serializer: IsilonFolderSerializer
-        ),
-        migration_statuses: migration_statuses
+        )
       }
     end
 
