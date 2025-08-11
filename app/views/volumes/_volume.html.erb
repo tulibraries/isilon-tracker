@@ -2,6 +2,20 @@
 
   <h1 class="volume-name"><%= "Volume: #{volume.name}" %></h1>
 
+  <div id="tree-filter-row">
+    <label for="tree-filter">Filter:</label>
+    <input
+      id="tree-filter"
+      type="search"
+      placeholder="Enter search pattern"
+      autofocus
+    />
+
+    <button type="button" class="icon-button" title="Hide unmatched nodes">
+      <i class="bi bi-filter-square search-icon"></i>
+    </button>
+  </div>
+
   <div
     id="tree"
     class="wb-tree isilon-tree"

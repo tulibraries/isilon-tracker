@@ -3,7 +3,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   attributes :title, :folder, :key, :isilon_date, :migration_status,
   :assigned_to, :file_size, :notes, :contentdm_collection, :aspace_collection,
-  :preservica_reference_id, :aspace_linking_status, :url, :lazy
+  :preservica_reference_id, :aspace_linking_status, :url, :lazy, :parent_folder_id, :isilon_name
 
   def title
     object.isilon_name
