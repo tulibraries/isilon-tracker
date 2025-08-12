@@ -10,7 +10,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   end
 
   def key
-    object.id
+    "a-#{object.id}"
   end
 
   def url

@@ -1,186 +1,162 @@
+// app/javascript/controllers/wunderbaum_controller.js
 import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
 export default class extends Controller {
-  static values = { url: String, 
-                    volumeId: Number };
-  columnFilters = new Map();
-  childrenPromiseCache = new Map();
-  childrenCache = new Map();
-  MAX_MATCHES = 200;
+  static values = { url: String, volumeId: Number };
 
-  disconnect() {
-    document.removeEventListener("click", this.handleFilterCommandClick);
-  }
+  // State
+  columnFilters = new Map();
+  assetsLoadedFor = new Set();         // folderId -> loaded once?
+  currentFilterPredicate = null;
+  currentFilterOpts = null;
+  currentQuery = "";
+
+  _filterTimer = null;
+  _filterSeq = 0;
+
+  // Track folders we expanded due to the active filter (so we can collapse on clear)
+  expandedByFilter = new Set();
 
   async connect() {
-    document.addEventListener("click", this.handleFilterCommandClick);
-
     try {
-      const res = await fetch(this.urlValue);
-      const data = await res.json();
-      console.log("Wunderbaum connect, url:", this.urlValue);
+      const res = await fetch(this.urlValue, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      });
+      const source = await res.json();
 
       this.tree = new Wunderbaum({
         element: this.element,
-        autoActivate: true,
-        checkbox: true,
-        columnsResizable: true, 
-        fixedCol: true,
         id: "tree",
         keyboard: true,
+        autoActivate: true,
+        checkbox: true,
         lazy: true,
         selectMode: "hier",
-        source: data,
-        columns: [
-          { id: "*",
-            title: "Filename",
-            width: "500px"
-          },
-          {
-            id:      "migration_status",
-            classes: "wb-helper-center",
-            filterable: true,
-            title:   "Migration status",
-            width:   "150px",    
-            html: `
-              <select tabindex="-1">
-                <option value="pending" selected>Pending</option>
-              </select>`
-          },
-          {
-            id:      "assigned_to",
-            classes: "wb-helper-center",
-            filterable: true,
-            title:   "Assigned To",
-            width:   "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="unassigned" selected>Unassigned</option>
-              </select>`
-          },
-          { id: "file_size",
-            classes: "wb-helper-center",
-            title: "File size",
-            width: "150px"
-          },
-          { id: "notes",
-            classes: "wb-helper-center",
-            title: "Notes",
-            width: "500px",
-            html: `<input type="text" tabindex="-1">`
-          },
-          {
-            id:      "contentdm_collection",
-            classes: "wb-helper-center",
-            filterable: true,
-            title:   "Contentdm Collection",
-            width:   "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="" selected></option>
-              </select>`
-          },
-          {
-            id:      "aspace_collection",
-            classes: "wb-helper-center",
-            filterable: true,
-            title:   "ASpace Collection",
-            width:   "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="" selected></option>
-              </select>`
-          },
-          { id: "preservica_reference_id",
-            classes: "wb-helper-center",
-            title: "Preservica Reference",
-            width: "150px",
-            html: `<input type="text" tabindex="-1">`
-          },
-          {
-            id:      "aspace_linking_status",
-            classes: "wb-helper-center",
-            filterable: true,
-            title:   "ASpace linking status",
-            width:   "150px",
-            html:    `<input type="checkbox" tabindex="-1">`
-          },
-          { id: "isilon_date",
-            classes: "wb-helper-center",
-            title: "Isilon date created",
-            width: "150px"
-          },
-        ],
+        columnsResizable: true,
+        fixedCol: true,
+
+        // If your nodes don't include `key`, uncomment the next line:
+        // keyMap: { key: "id", title: "title" },
 
         filter: {
           autoApply: true,
-          autoExpand: true,
+          autoExpand: false,     // we expand selectively after filtering
           matchBranch: true,
           fuzzy: false,
           hideExpanders: false,
           highlight: false,
           leavesOnly: false,
-          mode: "dim",
+          mode: "dim",           // "hide" is faster; keep "dim" if you prefer the look
           noData: true,
-          menu: true
+          menu: true,
         },
-        
+
+        // ---- Columns (unchanged from your snippet) ----
+        columns: [
+          { id: "*", title: "Filename", width: "500px" },
+          {
+            id: "migration_status",
+            classes: "wb-helper-center",
+            filterable: true,
+            title: "Migration status",
+            width: "150px",
+            html: `
+              <select tabindex="-1">
+                <option value="pending" selected>Pending</option>
+              </select>`,
+          },
+          {
+            id: "assigned_to",
+            classes: "wb-helper-center",
+            filterable: true,
+            title: "Assigned To",
+            width: "150px",
+            html: `
+              <select tabindex="-1">
+                <option value="unassigned" selected>Unassigned</option>
+              </select>`,
+          },
+          { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
+          {
+            id: "notes",
+            classes: "wb-helper-center",
+            title: "Notes",
+            width: "500px",
+            html: `<input type="text" tabindex="-1">`,
+          },
+          {
+            id: "contentdm_collection",
+            classes: "wb-helper-center",
+            filterable: true,
+            title: "Contentdm Collection",
+            width: "150px",
+            html: `
+              <select tabindex="-1">
+                <option value="" selected></option>
+              </select>`,
+          },
+          {
+            id: "aspace_collection",
+            classes: "wb-helper-center",
+            filterable: true,
+            title: "ASpace Collection",
+            width: "150px",
+            html: `
+              <select tabindex="-1">
+                <option value="" selected></option>
+              </select>`,
+          },
+          {
+            id: "preservica_reference_id",
+            classes: "wb-helper-center",
+            title: "Preservica Reference",
+            width: "150px",
+            html: `<input type="text" tabindex="-1">`,
+          },
+          {
+            id: "aspace_linking_status",
+            classes: "wb-helper-center",
+            filterable: true,
+            title: "ASpace linking status",
+            width: "150px",
+            html: `<input type="checkbox" tabindex="-1">`,
+          },
+          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
+        ],
+
         icon: ({ node }) => {
-          if (!node.data.folder) {
-            return "bi bi-files";
-          }
+          if (!node.data.folder) return "bi bi-files";
         },
 
-  lazyLoad: (e) => {
-  const node = e.node;
-  if (!node?.data?.folder) return [];
+        // ---- FAST: folders lazy-load via URL ----
+        lazyLoad: (e) => {
+          if (!e.node?.data?.folder) return [];
+          const id = e.node.data.id; // folder id expected by server
+          return {
+            url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(id)}`,
+            options: { headers: { Accept: "application/json" }, credentials: "same-origin" },
+          };
+        },
 
-  const parentId = String(node.key ?? node.data.id);
+        // ---- Assets load when a folder is expanded (once) ----
+        expand: async (e) => {
+          const node = e.node;
+          if (!node?.data?.folder) return;
 
-  // Reuse in-flight promise
-  let p = this.childrenPromiseCache.get(parentId);
-  if (!p) {
-    const base = `/volumes/${this.volumeIdValue}`;
-    const fetchJson = (url) =>
-      fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" })
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`); return r.json(); });
+          await this._ensureAssetsForFolder(String(node.key ?? node.data.id));
 
-    p = Promise.all([
-      fetchJson(`${base}/file_tree_folders?parent_folder_id=${encodeURIComponent(parentId)}`),
-      fetchJson(`${base}/file_tree_assets?parent_folder_id=${encodeURIComponent(parentId)}`)
-    ]).then(([folders, assets]) => {
-      const out = (folders || []).concat(assets || []);
-      this.childrenCache.set(parentId, out);
-      this.childrenPromiseCache.delete(parentId);
-      return out;
-    }).catch((err) => {
-      console.warn("lazyLoad failed:", err);
-      this.childrenPromiseCache.delete(parentId);
-      return [];
-    });
+          // If a filter is active, re-run so new rows participate, and keep matches visible
+          this._reapplyFilterIfAny();
+        },
 
-    this.childrenPromiseCache.set(parentId, p);
-  }
-  return p;
-},
+        // Class API signature
+        postProcess: (e) => {
+          e.result = e.response;
+        },
 
-
-
-
-
-
-        // init: (e) => {
-        //   const root = e.tree?.rootNode;
-        //   const children = root?.children;
-        //   if (!Array.isArray(children)) return;
-        //   for (const folderNode of children) {
-        //     if (folderNode.data?.folder) {
-        //       folderNode.load();
-        //     }
-        //   }
-        // },
-
+        // ---- Your render logic ----
         render: (e) => {
           const isFolder = e.node.data.folder === true;
 
@@ -191,14 +167,10 @@ export default class extends Controller {
             const value = isFolder || rawValue == null ? "" : String(rawValue);
 
             const hasInteractive = colInfo.elem.querySelector("input, select, textarea");
-            if (!hasInteractive) {
-              colInfo.elem.innerHTML = value;
-            }
+            if (!hasInteractive) colInfo.elem.innerHTML = value;
 
             const select = colInfo.elem.querySelector("select");
-            if (select) {
-              select.value = select.querySelector("option[selected]")?.value ?? "";
-            }
+            if (select) select.value = select.querySelector("option[selected]")?.value ?? "";
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
@@ -215,259 +187,280 @@ export default class extends Controller {
             const colId = e.info.colDef.id;
             const colIdx = e.info.colIdx;
             const allCols = this.element.querySelectorAll(".wb-header .wb-col");
-
             const colCell = allCols[colIdx];
-            if (!colCell) {
-              return;
-            }
+            if (!colCell) return;
 
             const icon = colCell.querySelector("[data-command='filter']");
-            if (!icon) {
-              return;
-            }
+            if (!icon) return;
 
             this.showDropdownFilter(icon, colId);
           }
         },
 
-        change(e) {
+        change: (e) => {
           const util = e.util;
           const colId = e.info.colId;
           e.node.data[colId] = util.getValueFromElem(e.inputElem, true);
         },
+
+        // Initial root
+        source,
       });
 
-      this.setupInlineFilter();
-
+      this._setupInlineFilter();
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
   }
 
-  setupInlineFilter() {
-  var input = document.getElementById("tree-filter");
-  if (!input) return;
+  // ---------------- Deep, complete filtering ----------------
 
-  var debounceTimer = null;
-  var inflight = null;   // AbortController for background fetch
-  var seq = 0;           // stale-response guard
+  _setupInlineFilter() {
+    const input = document.getElementById("tree-filter");
+    if (!input) return;
 
-  function reapply(self) {
-    if (typeof self.applyAllColumnFilters === "function") {
-      self.applyAllColumnFilters();
-    } else if (self.tree && typeof self.tree.reapplyFilter === "function") {
-      self.tree.reapplyFilter();
-    }
+    input.addEventListener("input", () => {
+      clearTimeout(this._filterTimer);
+      this._filterTimer = setTimeout(() => this._runDeepFilter(input.value || ""), 300);
+    });
   }
 
-  // Find a node by key (string-safe)
-  function findNodeByKey(self, id) {
-    var key = String(id);
-    var n = self.tree && typeof self.tree.getNodeByKey === "function" ? self.tree.getNodeByKey(key) : null;
-    if (n) return n;
-    if (self.tree && typeof self.tree.visit === "function") {
-      self.tree.visit(function(node) {
-        if (String(node.key) === key) { n = node; return false; }
-      });
-    }
-    return n;
-  }
+  async _runDeepFilter(raw) {
+    const mySeq = ++this._filterSeq;
+    const q = (raw || "").trim().toLowerCase();
+    this.currentQuery = q;
 
-  // Load a folder node's children via lazy (folders only)
-  async function ensureFolderChildrenLoaded(self, folderNode) {
-    if (!folderNode) return;
-    if (folderNode.lazy && !folderNode.children) {
-      await folderNode.loadLazy();
-    }
-  }
-
-  // Ensure a single chain of folder IDs is loaded in order (root -> ... -> targetFolder)
-  async function ensureChainLoaded(self, ids, mySeq) {
-    for (var i = 0; i < ids.length; i++) {
-      if (mySeq !== seq) return; // stale
-      var id = ids[i];
-      var node = findNodeByKey(self, id);
-      if (!node) return; // parent not present; stop this chain
-      await ensureFolderChildrenLoaded(self, node);
-      // Let DOM update and reapply current predicate so new rows participate
-      reapply(self);
-      await new Promise(function(resolve){ requestAnimationFrame(resolve); });
-    }
-  }
-
-  // Fetch assets for a folder and add them as children if missing
-  async function ensureAssetsPresent(self, parentFolderId) {
-    var parentNode = findNodeByKey(self, parentFolderId);
-    if (!parentNode) return;
-
-    // Make sure folder children (folders) are loaded so we don't clobber
-    await ensureFolderChildrenLoaded(self, parentNode);
-
-    // Build a quick set of existing child keys to avoid duplicates
-    var existing = {};
-    if (parentNode.children && parentNode.children.length) {
-      for (var i = 0; i < parentNode.children.length; i++) {
-        var ch = parentNode.children[i];
-        existing[String(ch.key)] = true;
-      }
-    }
-
-    // Fetch assets for this folder
-    var url = "/volumes/" + self.volumeIdValue + "/file_tree_assets.json?parent_folder_id=" + encodeURIComponent(parentFolderId);
-    var res = await fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" });
-    if (!res.ok) return;
-    var assets = await res.json();
-    if (!Array.isArray(assets) || assets.length === 0) return;
-
-    // Prepare nodes for any assets that aren't already present
-    var toAdd = [];
-    for (var j = 0; j < assets.length; j++) {
-      var a = assets[j];
-      var key = String(a.id);
-      if (!existing[key]) {
-        toAdd.push(a); // assumes serializer already gives {id, title, folder:false, url, parent_folder_id}
-        existing[key] = true;
-      }
-    }
-
-    if (toAdd.length) {
-      // Wunderbaum supports addChildren on a node
-      if (typeof parentNode.addChildren === "function") {
-        parentNode.addChildren(toAdd);
-      } else if (typeof parentNode.addChild === "function") {
-        for (var k = 0; k < toAdd.length; k++) parentNode.addChild(toAdd[k]);
-      }
-    }
-
-    // Expand so asset rows render (needed for filtering/highlighting to see them)
-    if (!parentNode.expanded && typeof parentNode.setExpanded === "function") {
-      parentNode.setExpanded(true);
-    }
-
-    // Reapply predicate so these rows are considered
-    reapply(self);
-    await new Promise(function(resolve){ requestAnimationFrame(resolve); });
-  }
-
-  // Fetch matches from split endpoints and normalize
-  async function fetchMatches(self, q, signal) {
-    var foldersRes = await fetch(
-      "/volumes/" + self.volumeIdValue + "/file_tree_folders_search?q=" + encodeURIComponent(q),
-      { headers: { Accept: "application/json" }, credentials: "same-origin", signal: signal }
-    );
-    var assetsRes  = await fetch(
-      "/volumes/" + self.volumeIdValue + "/file_tree_assets_search?q=" + encodeURIComponent(q),
-      { headers: { Accept: "application/json" }, credentials: "same-origin", signal: signal }
-    );
-
-    var folders = foldersRes.ok ? await foldersRes.json() : [];
-    var assets  = assetsRes.ok  ? await assetsRes.json()  : [];
-
-    var folderHits = Array.isArray(folders) ? folders.map(function(f) {
-      return Object.assign({}, f, { folder: true,  path: Array.isArray(f.path) ? f.path : [] });
-    }) : [];
-
-    var assetHits = Array.isArray(assets) ? assets.map(function(a) {
-      return Object.assign({}, a, { folder: false, path: Array.isArray(a.path) ? a.path : [] });
-    }) : [];
-
-    return folderHits.concat(assetHits);
-  }
-
-  input.addEventListener("input", function(e) {
-    var self = this; // WRONG in normal functions; fix by binding to controller
-  }.bind(this)); // bind controller so `this` works inside
-
-  // Real handler (with debounce)
-  input.addEventListener("input", (e) => {
-    var query = (e.target.value || "").trim().toLowerCase();
-    this.currentQuery = query;
-
-    // Immediately use the same filter path your popups use (what "worked" before)
-    reapply(this);
-
-    if (!query) {
-      if (inflight && typeof inflight.abort === "function") inflight.abort();
+    // Clear: reset filter & collapse what we expanded due to filter
+    if (!q && this.columnFilters.size === 0) {
+      this.currentFilterPredicate = null;
+      this.currentFilterOpts = null;
+      this.tree.clearFilter();
+      this._collapseFilterExpansions();
       return;
     }
 
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-      var mySeq = ++seq;
+    // 1) Server search to get ALL matches (folders + assets)
+    const [folders, assets] = await Promise.all([
+      fetch(`/volumes/${this.volumeIdValue}/file_tree_folders_search?q=${encodeURIComponent(q)}`,
+            { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then(r => r.ok ? r.json() : []),
+      fetch(`/volumes/${this.volumeIdValue}/file_tree_assets_search?q=${encodeURIComponent(q)}`,
+            { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then(r => r.ok ? r.json() : []),
+    ]);
+    if (mySeq !== this._filterSeq) return;
 
-      if (inflight && typeof inflight.abort === "function") inflight.abort();
-      inflight = new AbortController();
+    // 2) Build the set S of folders to hydrate
+    const S = new Set();
+    for (const r of [...folders, ...assets]) {
+      const path = Array.isArray(r.path) ? r.path : [];
+      for (const id of path) S.add(String(id));
+    }
+    for (const f of folders) S.add(String(f.id));
+    for (const a of assets) {
+      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
+      if (pid != null) S.add(String(pid));
+    }
+    const parentIds = Array.from(S);
 
-      try {
-        var matches = await fetchMatches(this, query, inflight.signal);
-        if (mySeq !== seq) return;
+    // 3) Hydrate children for S in batches (folders + assets)
+    await this._hydrateChildrenForParents(parentIds, mySeq);
 
-        // 1) Ensure all ancestor chains exist (folders only lazy load)
-        for (var rIdx = 0; rIdx < matches.length; rIdx++) {
-          var r = matches[rIdx];
-          var path = Array.isArray(r.path) ? r.path : [];
-          if (path.length) {
-            // load each ancestor step-by-step
-            var chain = [];
-            for (var p = 0; p < path.length; p++) {
-              var id = String(path[p]);
-              chain.push(id);
-            }
-            await ensureChainLoaded(this, chain, mySeq);
-          }
-        }
-
-        // 2) Ensure matched folders themselves are loaded (so their immediate children are there)
-        for (var i = 0; i < matches.length; i++) {
-          var mf = matches[i];
-          if (mf && mf.folder === true) {
-            var folderNode = findNodeByKey(this, mf.id);
-            if (folderNode) {
-              await ensureFolderChildrenLoaded(this, folderNode);
-              // don't auto-expand folders here; let your predicate decide visibility
-              reapply(this);
-              await new Promise(function(resolve){ requestAnimationFrame(resolve); });
-            }
-          }
-        }
-
-        // 3) Ensure parents of matched assets have their assets present (and expand them)
-        for (var j = 0; j < matches.length; j++) {
-          var ma = matches[j];
-          if (ma && ma.folder !== true) {
-            var pid = (ma.parent_folder_id != null) ? ma.parent_folder_id :
-                      (ma.folder_id != null) ? ma.folder_id :
-                      (ma.parent_id != null) ? ma.parent_id : null;
-            if (pid == null) continue;
-            await ensureAssetsPresent(this, pid);
-          }
-        }
-
-        // Final reapply so the client filter reflects everything we just added
-        reapply(this);
-
-      } catch (err) {
-        // ignore AbortError; keep client-side filter behavior
-      } finally {
-        inflight = null;
+    // 4) Apply predicate to everything now in memory
+    const predicate = (node) => {
+      if (q) {
+        const t = (node.title || "").toLowerCase();
+        if (!t.includes(q)) return false;
       }
-    }, 250);
-  });
-}
+      for (const [colId, val] of this.columnFilters.entries()) {
+        const nv = node.data[colId];
+        if (nv == null || String(nv).toLowerCase() !== String(val).toLowerCase()) return false;
+      }
+      return true;
+    };
+    const opts = { leavesOnly: false, matchBranch: true, mode: "dim" };
+    this.currentFilterPredicate = predicate;
+    this.currentFilterOpts = opts;
+    this.tree.filterNodes(predicate, opts);
 
+    // 5) Expand EACH match chain root->…->parent, awaiting lazy loads.
+    await this._expandAllMatchChains(folders, assets);
 
+    // Optional: open a few matched folders to reveal their immediate children
+    this._autoExpandSomeMatchingFolders(20);
+  }
 
-  
+  // ---------------- Helpers: hydration & expansion ----------------
 
+  async _hydrateChildrenForParents(parentIds, mySeq, batchSize = 25) {
+    if (!parentIds.length) return;
+    const base = `/volumes/${this.volumeIdValue}`;
+
+    for (let i = 0; i < parentIds.length; i += batchSize) {
+      if (mySeq !== this._filterSeq) return;
+      const ids = parentIds.slice(i, i + batchSize);
+      const qs = ids.map(id => `parent_ids[]=${encodeURIComponent(id)}`).join("&");
+
+      // If your backend DOES NOT support parent_ids[], uncomment per-id fallback below
+      const [childFolders, childAssets] = await Promise.all([
+        fetch(`${base}/file_tree_folders.json?${qs}`, { headers: { Accept: "application/json" }, credentials: "same-origin" })
+          .then(r => r.ok ? r.json() : []),
+        fetch(`${base}/file_tree_assets.json?${qs}`,  { headers: { Accept: "application/json" }, credentials: "same-origin" })
+          .then(r => r.ok ? r.json() : []),
+      ]);
+
+      // Fallback per-id (slower):
+      // const childFolders = (await Promise.all(ids.map(id =>
+      //   fetch(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(id)}`, { headers: {Accept:"application/json"}, credentials:"same-origin" })
+      //     .then(r => r.ok ? r.json() : [])))).flat();
+      // const childAssets = (await Promise.all(ids.map(id =>
+      //   fetch(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(id)}`, { headers: {Accept:"application/json"}, credentials:"same-origin" })
+      //     .then(r => r.ok ? r.json() : [])))).flat();
+
+      const byParent = new Map(); // pid -> nodes
+      for (const n of [...childFolders, ...childAssets]) {
+        const pid = String(n.parent_folder_id ?? n.parent_id ?? "");
+        if (!pid) continue;
+        if (!byParent.has(pid)) byParent.set(pid, []);
+        byParent.get(pid).push(n);
+      }
+
+      // Attach to any matching parent already present in the tree
+      for (const pid of ids) {
+        const parentNode = this._findNodeByKeyOrId(pid);
+        if (!parentNode) continue;
+
+        const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.id)));
+        const kids = byParent.get(pid) || [];
+        const toAdd = kids.filter(k => !existing.has(String(k.key ?? k.id)));
+        if (toAdd.length) parentNode.addChildren?.(toAdd);
+      }
+
+      // Yield to UI
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
+  // Find node robustly by 'key' or fallback to data.id
+  _findNodeByKeyOrId(id) {
+    const key = String(id);
+    let n = this.tree.getNodeByKey?.(key);
+    if (n) return n;
+    this.tree.visit((node) => {
+      if (String(node.key ?? node.data?.id) === key) { n = node; return false; }
+    });
+    return n;
+  }
+
+  async _expandPath(pathIds) {
+    for (const id of pathIds.map(String)) {
+      const node = this._findNodeByKeyOrId(id);
+      if (!node) return; // Parent not attached (should be after hydration)
+      if (node.lazy && !node.children) {
+        try { await node.loadLazy(); } catch (_) {}
+      }
+      if (!node.expanded) {
+        node.setExpanded?.(true);
+        this.expandedByFilter.add(String(node.key ?? node.data.id));
+      }
+      // Ensure assets for this folder so leaf matches can show
+      await this._ensureAssetsForFolder(String(node.key ?? node.data.id));
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
+  async _expandAllMatchChains(folderHits, assetHits, chunkSize = 15) {
+    const chains = [];
+
+    // Folders: ancestors + this folder
+    for (const f of folderHits) {
+      const path = Array.isArray(f.path) ? f.path.map(String) : [];
+      chains.push([...path, String(f.id)]);
+    }
+    // Assets: ancestors + parent folder
+    for (const a of assetHits) {
+      const path = Array.isArray(a.path) ? a.path.map(String) : [];
+      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
+      if (pid != null) chains.push([...path, String(pid)]);
+    }
+
+    // Dedup
+    const seen = new Set();
+    const uniq = [];
+    for (const c of chains) {
+      const k = c.join(">");
+      if (!seen.has(k)) { seen.add(k); uniq.push(c); }
+    }
+
+    // Expand in small batches; reapply predicate as we go
+    for (let i = 0; i < uniq.length; i += chunkSize) {
+      const batch = uniq.slice(i, i + chunkSize);
+      await Promise.all(batch.map(c => this._expandPath(c)));
+      this._reapplyFilterIfAny();
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
+  async _ensureAssetsForFolder(folderId) {
+    const id = String(folderId);
+    if (this.assetsLoadedFor.has(id)) return;
+
+    const node = this._findNodeByKeyOrId(id);
+    if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(id); return; }
+
+    const url = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(id)}`;
+    const r = await fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" });
+    if (!r.ok) { this.assetsLoadedFor.add(id); return; }
+
+    const assets = await r.json();
+    if (Array.isArray(assets) && assets.length) {
+      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.id)));
+      const toAdd = assets.filter(a => !existing.has(String(a.key ?? a.id)));
+      if (toAdd.length) node.addChildren?.(toAdd);
+    }
+
+    this.assetsLoadedFor.add(id);
+  }
+
+  _reapplyFilterIfAny() {
+    if (this.currentFilterPredicate) {
+      this.tree.filterNodes(this.currentFilterPredicate, this.currentFilterOpts || {});
+    }
+  }
+
+  _autoExpandSomeMatchingFolders(cap = 20) {
+    if (!this.currentFilterPredicate || !this.tree) return;
+    let expanded = 0;
+    this.tree.visit((node) => {
+      if (expanded >= cap) return false;
+      const isFolder = node.data?.folder === true;
+      if (!isFolder) return;
+      let matched = false;
+      try { matched = this.currentFilterPredicate(node); } catch (_) {}
+      if (!matched) return;
+      if (!node.expanded) {
+        node.setExpanded(true);
+        this.expandedByFilter.add(String(node.key ?? node.data.id));
+        expanded += 1;
+      }
+    });
+  }
+
+  _collapseFilterExpansions() {
+    // Collapse only what we expanded due to filter (leave user-expansions alone)
+    for (const key of this.expandedByFilter) {
+      const node = this._findNodeByKeyOrId(key);
+      if (node && node.expanded) node.setExpanded(false);
+    }
+    this.expandedByFilter.clear();
+  }
+
+  // ---------------- Column popup filter (unchanged from your code) ----------------
 
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
     const existing = document.querySelector(popupSelector);
-
-    if (existing) {
-      existing.remove();
-      return;
-    }
+    if (existing) { existing.remove(); return; }
 
     const popup = document.createElement("div");
     popup.classList.add("wb-popup");
@@ -476,7 +469,7 @@ export default class extends Controller {
     const select = document.createElement("select");
     select.classList.add("popup-select");
 
-    const colDef = this.tree.columns.find(c => c.id === colId);
+    const colDef = this.tree.columns.find((c) => c.id === colId);
 
     if (colId === "aspace_linking_status") {
       select.innerHTML = `
@@ -485,17 +478,12 @@ export default class extends Controller {
         <option value="">⨉ Clear Filter</option>
       `;
     } else if (colDef?.html?.includes("<select")) {
-      const tempWrapper = document.createElement("div");
-      tempWrapper.innerHTML = colDef.html;
-      const originalSelect = tempWrapper.querySelector("select");
-
-      if (originalSelect) {
-        for (const opt of originalSelect.options) {
-          select.appendChild(opt.cloneNode(true));
-        }
-
-        const hasClear = Array.from(select.options).some(opt => opt.value === "");
-        if (!hasClear) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = colDef.html;
+      const original = tmp.querySelector("select");
+      if (original) {
+        for (const opt of original.options) select.appendChild(opt.cloneNode(true));
+        if (!Array.from(select.options).some((o) => o.value === "")) {
           select.appendChild(new Option("⨉ Clear Filter", ""));
         }
       }
@@ -505,90 +493,47 @@ export default class extends Controller {
         const val = node.data[colId];
         if (val != null) values.add(val);
       });
-
       const sorted = [...values].map(String).sort();
       select.innerHTML =
-        sorted.map(v => `<option value="${v}">${v}</option>`).join("") +
+        sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
         `<option value="">⨉ Clear Filter</option>`;
     }
 
     select.addEventListener("change", (e) => {
       const selectedValue = e.target.value;
-
-      if (selectedValue === "") {
-        this.columnFilters.delete(colId);
-      } else {
-        this.columnFilters.set(colId, selectedValue);
-      }
-
-      this.applyAllColumnFilters();
+      if (selectedValue === "") this.columnFilters.delete(colId);
+      else this.columnFilters.set(colId, selectedValue);
+      // re-run deep filter with the same query text
+      this._runDeepFilter(this.currentQuery);
     });
 
     popup.appendChild(select);
     document.body.appendChild(popup);
 
-    const updatePopupPosition = () => {
-      const iconRect = anchorEl.getBoundingClientRect();
+    const updatePos = () => {
+      const r = anchorEl.getBoundingClientRect();
       popup.style.position = "absolute";
-      popup.style.left = `${window.scrollX + iconRect.left}px`;
-      popup.style.top = `${window.scrollY + iconRect.top - popup.offsetHeight - 4}px`;
+      popup.style.left = `${window.scrollX + r.left}px`;
+      popup.style.top = `${window.scrollY + r.top - popup.offsetHeight - 4}px`;
       popup.style.zIndex = "1000";
     };
+    requestAnimationFrame(updatePos);
 
-    requestAnimationFrame(updatePopupPosition);
-
-    const reposition = () => requestAnimationFrame(updatePopupPosition);
+    const reposition = () => requestAnimationFrame(updatePos);
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
 
-    const observer = new MutationObserver(() => {
+    const obs = new MutationObserver(() => {
       if (!document.body.contains(popup)) {
         window.removeEventListener("scroll", reposition, true);
         window.removeEventListener("resize", reposition);
-        observer.disconnect();
+        obs.disconnect();
       }
     });
-    observer.observe(document.body, { childList: true });
-
+    obs.observe(document.body, { childList: true });
   }
 
-  applyAllColumnFilters() {
-    if (!this.tree) return;
-
-    const query = this.currentQuery?.toLowerCase();
-    const activeFilters = this.columnFilters;
-
-    this.tree.visit((node) => {
-      node.span?.classList.remove("wb-match");
-    });
-
-    if (activeFilters.size === 0 && !query) {
-      this.tree.clearFilter();
-      return;
-    }
-
-    this.tree.filterNodes((node) => {
-      if (query && !node.title?.toLowerCase().includes(query)) {
-        return false;
-      }
-
-      for (const [colId, value] of activeFilters.entries()) {
-        const nodeVal = node.data[colId];
-        if (
-          nodeVal == null ||
-          String(nodeVal).toLowerCase() !== value.toLowerCase()
-        ) {
-          return false;
-        }
-      }
-
-      node.span?.classList.add("wb-match");
-      return true;
-    }, {
-      leavesOnly: false,
-      matchBranch: true,
-      mode: "dim"
-    });
+  disconnect() {
+    clearTimeout(this._filterTimer);
   }
-
-} 
+}

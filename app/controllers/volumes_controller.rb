@@ -8,23 +8,27 @@ class VolumesController < ApplicationController
   end
 
   def file_tree_folders
-    volume    = Volume.find(params[:id])
-    parent_id = params[:parent_folder_id].presence # optional for root
+    volume = Volume.find(params[:id])
+    ids    = Array(params[:parent_ids]).presence&.map!(&:to_i)
+    pid    = params[:parent_folder_id].presence&.to_i
 
-    folders = volume.isilon_folders.where(parent_folder_id: parent_id)
+    scope = volume.isilon_folders
+    scope = scope.where(parent_folder_id: ids) if ids.present?
+    scope = scope.where(parent_folder_id: pid) if pid
 
-    render json: folders, each_serializer: IsilonFolderSerializer
+    render json: scope, each_serializer: IsilonFolderSerializer
   end
 
   def file_tree_assets
-    volume    = Volume.find(params[:id])
-    parent_id = params[:parent_folder_id].presence # optional for root
+    volume = Volume.find(params[:id])
+    ids    = Array(params[:parent_ids]).presence&.map!(&:to_i)
+    pid    = params[:parent_folder_id].presence&.to_i
 
-    assets = volume.isilon_assets
-                    .where(parent_folder_id: parent_id)
-                    .includes(:parent_folder)
+    scope = volume.isilon_assets.includes(:parent_folder)
+    scope = scope.where(parent_folder_id: ids) if ids.present?
+    scope = scope.where(parent_folder_id: pid) if pid
 
-    render json: assets, each_serializer: IsilonAssetSerializer
+    render json: scope, each_serializer: IsilonAssetSerializer
   end
 
   def file_tree_folders_search
