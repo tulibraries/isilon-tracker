@@ -1,5 +1,5 @@
 @import "bootstrap/scss/bootstrap";
-@import "bootstrap-icons/font/bootstrap-icons"; //needed for wunderbaum ui
+@import "bootstrap-icons/font/bootstrap-icons";
 
 :root {
   --wb-font-family: system-ui, sans-serif;
@@ -183,7 +183,7 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 
 .popup-select {
   padding: 6px 12px;
-  padding-right: 36px; /* More space for arrow */
+  padding-right: 36px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -209,4 +209,15 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   background: #d4edda;
   font: 12px/1.6 system-ui, sans-serif;
   vertical-align: middle;
+}
+
+.wb-no-results {
+  position: absolute;
+  inset: 48px 16px 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
 }

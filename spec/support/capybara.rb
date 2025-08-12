@@ -11,4 +11,10 @@ Capybara.register_driver :cuprite do |app|
     window_size: [ 1200, 800 ],
     headless: true
   )
+
+  RSpec.configure do |config|
+    config.before(:each, type: :system) do
+      driven_by :cuprite
+    end
+  end
 end
