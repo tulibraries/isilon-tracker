@@ -1,4 +1,3 @@
-// app/javascript/controllers/wunderbaum_controller.js
 import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
@@ -6,6 +5,9 @@ export default class extends Controller {
   static values = { url: String, 
                     volumeId: Number };
   columnFilters = new Map();
+  childrenPromiseCache = new Map();
+  childrenCache = new Map();
+  MAX_MATCHES = 200;
 
   disconnect() {
     document.removeEventListener("click", this.handleFilterCommandClick);
@@ -26,7 +28,6 @@ export default class extends Controller {
         columnsResizable: true, 
         fixedCol: true,
         id: "tree",
-        keyAttr: "id",
         keyboard: true,
         lazy: true,
         selectMode: "hier",
@@ -131,19 +132,54 @@ export default class extends Controller {
           }
         },
 
-        init: (e) => {
-          const root = (e.tree.getRootNode && e.tree.getRootNode()) || e.tree.root;
-          if (root && root.lazy && !root.children) {
-            root.loadLazy();
-          }
-        },
+  lazyLoad: (e) => {
+  const node = e.node;
+  if (!node?.data?.folder) return [];
 
-        lazyLoad: (e) => {
-          return {
-            url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(e.node.data.id)}`,
-            options: { headers: { Accept: "application/json" } }
-          };
-        },
+  const parentId = String(node.key ?? node.data.id);
+
+  // Reuse in-flight promise
+  let p = this.childrenPromiseCache.get(parentId);
+  if (!p) {
+    const base = `/volumes/${this.volumeIdValue}`;
+    const fetchJson = (url) =>
+      fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`); return r.json(); });
+
+    p = Promise.all([
+      fetchJson(`${base}/file_tree_folders?parent_folder_id=${encodeURIComponent(parentId)}`),
+      fetchJson(`${base}/file_tree_assets?parent_folder_id=${encodeURIComponent(parentId)}`)
+    ]).then(([folders, assets]) => {
+      const out = (folders || []).concat(assets || []);
+      this.childrenCache.set(parentId, out);
+      this.childrenPromiseCache.delete(parentId);
+      return out;
+    }).catch((err) => {
+      console.warn("lazyLoad failed:", err);
+      this.childrenPromiseCache.delete(parentId);
+      return [];
+    });
+
+    this.childrenPromiseCache.set(parentId, p);
+  }
+  return p;
+},
+
+
+
+
+
+
+        // init: (e) => {
+        //   const root = e.tree?.rootNode;
+        //   const children = root?.children;
+        //   if (!Array.isArray(children)) return;
+        //   for (const folderNode of children) {
+        //     if (folderNode.data?.folder) {
+        //       folderNode.load();
+        //     }
+        //   }
+        // },
 
         render: (e) => {
           const isFolder = e.node.data.folder === true;
@@ -208,118 +244,220 @@ export default class extends Controller {
     }
   }
 
-setupInlineFilter() {
-  const input = document.getElementById("tree-filter");
+  setupInlineFilter() {
+  var input = document.getElementById("tree-filter");
   if (!input) return;
 
-  let debounceTimer = null;
-  let inflight = null; // AbortController for preload fetch
-  let seq = 0;         // stale-response guard
+  var debounceTimer = null;
+  var inflight = null;   // AbortController for background fetch
+  var seq = 0;           // stale-response guard
 
-  // Re-apply *your* filter/predicate/highlighting
-  const reapply = () => {
-    if (this.tree?.reapplyFilter) this.tree.reapplyFilter();
-    else this.applyAllColumnFilters?.();
-  };
+  function reapply(self) {
+    if (typeof self.applyAllColumnFilters === "function") {
+      self.applyAllColumnFilters();
+    } else if (self.tree && typeof self.tree.reapplyFilter === "function") {
+      self.tree.reapplyFilter();
+    }
+  }
 
-  // Find node by key (string-safe), walking tree if needed
-  const findNodeById = (id) => {
-    const key = String(id);
-    let n = this.tree.getNodeByKey?.(key);
+  // Find a node by key (string-safe)
+  function findNodeByKey(self, id) {
+    var key = String(id);
+    var n = self.tree && typeof self.tree.getNodeByKey === "function" ? self.tree.getNodeByKey(key) : null;
     if (n) return n;
-    this.tree.visit(node => {
-      if (String(node.key) === key) { n = node; return false; }
-    });
+    if (self.tree && typeof self.tree.visit === "function") {
+      self.tree.visit(function(node) {
+        if (String(node.key) === key) { n = node; return false; }
+      });
+    }
     return n;
-  };
+  }
 
-  // Ensure a single chain of ids is loaded in order (root->...->target)
-  const ensureChainLoaded = async (ids, mySeq) => {
-    for (const id of ids) {
-      if (mySeq !== seq) return; // stale keystroke, stop
-      const node = findNodeById(id);
-      if (!node) return; // parent not present yet; bail for this chain
-      if (node.lazy && !node.children && !node.data.__preloadedForSearch) {
-        await node.loadLazy();
-        node.data.__preloadedForSearch = true;
-        reapply();                         // newly added children now get highlighted
-        await new Promise(requestAnimationFrame); // let DOM paint
+  // Load a folder node's children via lazy (folders only)
+  async function ensureFolderChildrenLoaded(self, folderNode) {
+    if (!folderNode) return;
+    if (folderNode.lazy && !folderNode.children) {
+      await folderNode.loadLazy();
+    }
+  }
+
+  // Ensure a single chain of folder IDs is loaded in order (root -> ... -> targetFolder)
+  async function ensureChainLoaded(self, ids, mySeq) {
+    for (var i = 0; i < ids.length; i++) {
+      if (mySeq !== seq) return; // stale
+      var id = ids[i];
+      var node = findNodeByKey(self, id);
+      if (!node) return; // parent not present; stop this chain
+      await ensureFolderChildrenLoaded(self, node);
+      // Let DOM update and reapply current predicate so new rows participate
+      reapply(self);
+      await new Promise(function(resolve){ requestAnimationFrame(resolve); });
+    }
+  }
+
+  // Fetch assets for a folder and add them as children if missing
+  async function ensureAssetsPresent(self, parentFolderId) {
+    var parentNode = findNodeByKey(self, parentFolderId);
+    if (!parentNode) return;
+
+    // Make sure folder children (folders) are loaded so we don't clobber
+    await ensureFolderChildrenLoaded(self, parentNode);
+
+    // Build a quick set of existing child keys to avoid duplicates
+    var existing = {};
+    if (parentNode.children && parentNode.children.length) {
+      for (var i = 0; i < parentNode.children.length; i++) {
+        var ch = parentNode.children[i];
+        existing[String(ch.key)] = true;
       }
     }
-  };
 
+    // Fetch assets for this folder
+    var url = "/volumes/" + self.volumeIdValue + "/file_tree_assets.json?parent_folder_id=" + encodeURIComponent(parentFolderId);
+    var res = await fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" });
+    if (!res.ok) return;
+    var assets = await res.json();
+    if (!Array.isArray(assets) || assets.length === 0) return;
+
+    // Prepare nodes for any assets that aren't already present
+    var toAdd = [];
+    for (var j = 0; j < assets.length; j++) {
+      var a = assets[j];
+      var key = String(a.id);
+      if (!existing[key]) {
+        toAdd.push(a); // assumes serializer already gives {id, title, folder:false, url, parent_folder_id}
+        existing[key] = true;
+      }
+    }
+
+    if (toAdd.length) {
+      // Wunderbaum supports addChildren on a node
+      if (typeof parentNode.addChildren === "function") {
+        parentNode.addChildren(toAdd);
+      } else if (typeof parentNode.addChild === "function") {
+        for (var k = 0; k < toAdd.length; k++) parentNode.addChild(toAdd[k]);
+      }
+    }
+
+    // Expand so asset rows render (needed for filtering/highlighting to see them)
+    if (!parentNode.expanded && typeof parentNode.setExpanded === "function") {
+      parentNode.setExpanded(true);
+    }
+
+    // Reapply predicate so these rows are considered
+    reapply(self);
+    await new Promise(function(resolve){ requestAnimationFrame(resolve); });
+  }
+
+  // Fetch matches from split endpoints and normalize
+  async function fetchMatches(self, q, signal) {
+    var foldersRes = await fetch(
+      "/volumes/" + self.volumeIdValue + "/file_tree_folders_search?q=" + encodeURIComponent(q),
+      { headers: { Accept: "application/json" }, credentials: "same-origin", signal: signal }
+    );
+    var assetsRes  = await fetch(
+      "/volumes/" + self.volumeIdValue + "/file_tree_assets_search?q=" + encodeURIComponent(q),
+      { headers: { Accept: "application/json" }, credentials: "same-origin", signal: signal }
+    );
+
+    var folders = foldersRes.ok ? await foldersRes.json() : [];
+    var assets  = assetsRes.ok  ? await assetsRes.json()  : [];
+
+    var folderHits = Array.isArray(folders) ? folders.map(function(f) {
+      return Object.assign({}, f, { folder: true,  path: Array.isArray(f.path) ? f.path : [] });
+    }) : [];
+
+    var assetHits = Array.isArray(assets) ? assets.map(function(a) {
+      return Object.assign({}, a, { folder: false, path: Array.isArray(a.path) ? a.path : [] });
+    }) : [];
+
+    return folderHits.concat(assetHits);
+  }
+
+  input.addEventListener("input", function(e) {
+    var self = this; // WRONG in normal functions; fix by binding to controller
+  }.bind(this)); // bind controller so `this` works inside
+
+  // Real handler (with debounce)
   input.addEventListener("input", (e) => {
-    const query = e.target.value.trim().toLowerCase();
+    var query = (e.target.value || "").trim().toLowerCase();
     this.currentQuery = query;
 
-    // Always set the filter the same way your popup does
-    this.applyAllColumnFilters?.();
+    // Immediately use the same filter path your popups use (what "worked" before)
+    reapply(this);
 
-    // If empty, cancel any pending preload work
     if (!query) {
-      if (inflight) inflight.abort();
+      if (inflight && typeof inflight.abort === "function") inflight.abort();
       return;
     }
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
-      const mySeq = ++seq;
+      var mySeq = ++seq;
 
-      // cancel prior background request
-      if (inflight) inflight.abort();
+      if (inflight && typeof inflight.abort === "function") inflight.abort();
       inflight = new AbortController();
 
       try {
-        // Use server search ONLY to know which chains to load
-        const res = await fetch(
-          `/volumes/${this.volumeIdValue}/file_tree_search?q=${encodeURIComponent(query)}`,
-          { headers: { Accept: "application/json" }, credentials: "same-origin", signal: inflight.signal }
-        );
-        if (!res.ok) return;
-        const matches = await res.json();
-        if (mySeq !== seq) return; // stale response
+        var matches = await fetchMatches(this, query, inflight.signal);
+        if (mySeq !== seq) return;
 
-        // Build ordered chains for each match:
-        //   ancestors path [...], then target folder id:
-        //   - folder hit: target = folder.id
-        //   - asset hit:  target = asset.parent_folder_id
-        const chains = [];
-        for (const r of matches) {
-          const path = Array.isArray(r.path) ? r.path.map(String) : [];
-          const targetId =
-            r.folder === true
-              ? String(r.id)
-              : String(r.parent_folder_id ?? r.folder_id ?? r.parent_id ?? "");
-          const chain = [...path, targetId].filter(Boolean);
-          // Deduplicate consecutive dupes, just in case
-          const compact = [];
-          for (const id of chain) if (compact[compact.length - 1] !== id) compact.push(id);
-          if (compact.length) chains.push(compact);
+        // 1) Ensure all ancestor chains exist (folders only lazy load)
+        for (var rIdx = 0; rIdx < matches.length; rIdx++) {
+          var r = matches[rIdx];
+          var path = Array.isArray(r.path) ? r.path : [];
+          if (path.length) {
+            // load each ancestor step-by-step
+            var chain = [];
+            for (var p = 0; p < path.length; p++) {
+              var id = String(path[p]);
+              chain.push(id);
+            }
+            await ensureChainLoaded(this, chain, mySeq);
+          }
         }
 
-        // Load each chain sequentially (breadth-first across chains would also work;
-        // sequential keeps requests sane and avoids race conditions)
-        for (const chain of chains) {
-          if (mySeq !== seq) return;
-          await ensureChainLoaded(chain, mySeq);
+        // 2) Ensure matched folders themselves are loaded (so their immediate children are there)
+        for (var i = 0; i < matches.length; i++) {
+          var mf = matches[i];
+          if (mf && mf.folder === true) {
+            var folderNode = findNodeByKey(this, mf.id);
+            if (folderNode) {
+              await ensureFolderChildrenLoaded(this, folderNode);
+              // don't auto-expand folders here; let your predicate decide visibility
+              reapply(this);
+              await new Promise(function(resolve){ requestAnimationFrame(resolve); });
+            }
+          }
         }
 
-        // Final pass to catch anything appended at the tail
-        reapply();
-        setTimeout(reapply, 0);
+        // 3) Ensure parents of matched assets have their assets present (and expand them)
+        for (var j = 0; j < matches.length; j++) {
+          var ma = matches[j];
+          if (ma && ma.folder !== true) {
+            var pid = (ma.parent_folder_id != null) ? ma.parent_folder_id :
+                      (ma.folder_id != null) ? ma.folder_id :
+                      (ma.parent_id != null) ? ma.parent_id : null;
+            if (pid == null) continue;
+            await ensureAssetsPresent(this, pid);
+          }
+        }
+
+        // Final reapply so the client filter reflects everything we just added
+        reapply(this);
 
       } catch (err) {
-        if (err?.name !== "AbortError") {
-          // ignore hard failures; client-side filtering still active
-        }
+        // ignore AbortError; keep client-side filter behavior
       } finally {
-        if (inflight && inflight.signal?.aborted === false) inflight = null;
+        inflight = null;
       }
     }, 250);
   });
 }
 
 
+
+  
 
 
   showDropdownFilter(anchorEl, colId) {

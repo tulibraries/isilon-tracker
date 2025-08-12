@@ -1,52 +1,58 @@
 class VolumesController < ApplicationController
   before_action :set_volume, only: %i[ show file_tree_folders ]
-    def file_tree
-      volume = Volume.find(params[:id])
-      root_folders = volume.isilon_folders.where(parent_folder_id: nil)
-      render json: root_folders, each_serializer: IsilonFolderSerializer
-    end
 
-    def file_tree_folders
-  volume    = Volume.find(params[:id] || params[:volume_id])
-  parent_id = params.require(:parent_folder_id)
+  def file_tree
+    volume = Volume.find(params[:id])
+    root_folders = volume.isilon_folders.where(parent_folder_id: nil)
+    render json: root_folders, each_serializer: IsilonFolderSerializer
+  end
 
-  folders = volume.isilon_folders.where(parent_folder_id: parent_id)
-  assets  = volume.isilon_assets.where(parent_folder_id: parent_id)
+  def file_tree_folders
+    volume    = Volume.find(params[:id])
+    parent_id = params[:parent_folder_id].presence # optional for root
 
-  folder_json = ActiveModelSerializers::SerializableResource.new(
-    folders, each_serializer: IsilonFolderSerializer
-  ).as_json
+    folders = volume.isilon_folders.where(parent_folder_id: parent_id)
 
-  asset_json = ActiveModelSerializers::SerializableResource.new(
-    assets, each_serializer: IsilonAssetSerializer
-  ).as_json
+    render json: folders, each_serializer: IsilonFolderSerializer
+  end
 
-  render json: folder_json + asset_json
-end
+  def file_tree_assets
+    volume    = Volume.find(params[:id])
+    parent_id = params[:parent_folder_id].presence # optional for root
 
-  def file_tree_search
-  volume = Volume.find(params[:id] || params[:volume_id])
-  q = params[:q].to_s.downcase
+    assets = volume.isilon_assets
+                    .where(parent_folder_id: parent_id)
+                    .includes(:parent_folder)
 
-  folders = volume.isilon_folders.where("LOWER(full_path) LIKE ?", "%#{q}%")
-  assets  = volume.isilon_assets.where("LOWER(isilon_name) LIKE ?", "%#{q}%")
+    render json: assets, each_serializer: IsilonAssetSerializer
+  end
 
-  folder_json = ActiveModelSerializers::SerializableResource
-                  .new(folders, each_serializer: IsilonFolderSerializer).as_json
-  asset_json  = ActiveModelSerializers::SerializableResource
-                  .new(assets, each_serializer: IsilonAssetSerializer).as_json
+  def file_tree_folders_search
+    volume = Volume.find(params[:id])
+    q = params[:q].to_s.strip
+    return render(json: []) if q.blank?
 
-  payload = folder_json + asset_json
-  render json: payload, adapter: nil  # ensure AMS doesn’t try to re-serialize hashes
-end
+    folders = volume.isilon_folders
+                    .where("LOWER(full_path) LIKE ?", "%#{q.downcase}%")
 
+    render json: folders, each_serializer: IsilonFolderSerializer
+  end
 
+  def file_tree_assets_search
+    volume = Volume.find(params[:id])
+    q = params[:q].to_s.strip
+    return render(json: []) if q.blank?
 
+    assets = volume.isilon_assets
+                   .where("LOWER(isilon_name) LIKE ?", "%#{q.downcase}%")
+                   .includes(:parent_folder)
 
+    render json: assets, each_serializer: IsilonAssetSerializer
+  end
 
-    def index
-      @volumes = Volume.all
-    end
+  def index
+    @volumes = Volume.all
+  end
 
   private
     # Use callbacks to share common setup or constraints between actions.
@@ -56,6 +62,6 @@ end
 
     # Only allow a list of trusted parameters through.
     def volume_params
-      params.fetch(:volume, {}).permit(:name, :id)
+      params.fetch(:volume, {}).permit(:name, :id, :parent_folder_id)
     end
 end
