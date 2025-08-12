@@ -1,28 +1,26 @@
-// app/javascript/controllers/wunderbaum_controller.js
+
 import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
 export default class extends Controller {
   static values = { url: String, volumeId: Number };
 
-  // State
   columnFilters = new Map();
-  assetsLoadedFor = new Set();         // folderId -> loaded once?
+  assetsLoadedFor = new Set();
+  expandedByFilter = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
 
+  inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
-
-  // Track folders we expanded due to the active filter (so we can collapse on clear)
-  expandedByFilter = new Set();
 
   async connect() {
     try {
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
-        credentials: "same-origin",
+        credentials: "same-origin"
       });
       const source = await res.json();
 
@@ -37,23 +35,19 @@ export default class extends Controller {
         columnsResizable: true,
         fixedCol: true,
 
-        // If your nodes don't include `key`, uncomment the next line:
-        // keyMap: { key: "id", title: "title" },
-
         filter: {
           autoApply: true,
-          autoExpand: false,     // we expand selectively after filtering
+          autoExpand: false,
           matchBranch: true,
           fuzzy: false,
           hideExpanders: false,
           highlight: false,
           leavesOnly: false,
-          mode: "dim",           // "hide" is faster; keep "dim" if you prefer the look
+          mode: "dim",
           noData: true,
-          menu: true,
+          menu: true
         },
 
-        // ---- Columns (unchanged from your snippet) ----
         columns: [
           { id: "*", title: "Filename", width: "500px" },
           {
@@ -65,7 +59,7 @@ export default class extends Controller {
             html: `
               <select tabindex="-1">
                 <option value="pending" selected>Pending</option>
-              </select>`,
+              </select>`
           },
           {
             id: "assigned_to",
@@ -76,7 +70,7 @@ export default class extends Controller {
             html: `
               <select tabindex="-1">
                 <option value="unassigned" selected>Unassigned</option>
-              </select>`,
+              </select>`
           },
           { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
           {
@@ -84,7 +78,7 @@ export default class extends Controller {
             classes: "wb-helper-center",
             title: "Notes",
             width: "500px",
-            html: `<input type="text" tabindex="-1">`,
+            html: `<input type="text" tabindex="-1">`
           },
           {
             id: "contentdm_collection",
@@ -95,7 +89,7 @@ export default class extends Controller {
             html: `
               <select tabindex="-1">
                 <option value="" selected></option>
-              </select>`,
+              </select>`
           },
           {
             id: "aspace_collection",
@@ -106,14 +100,14 @@ export default class extends Controller {
             html: `
               <select tabindex="-1">
                 <option value="" selected></option>
-              </select>`,
+              </select>`
           },
           {
             id: "preservica_reference_id",
             classes: "wb-helper-center",
             title: "Preservica Reference",
             width: "150px",
-            html: `<input type="text" tabindex="-1">`,
+            html: `<input type="text" tabindex="-1">`
           },
           {
             id: "aspace_linking_status",
@@ -121,42 +115,33 @@ export default class extends Controller {
             filterable: true,
             title: "ASpace linking status",
             width: "150px",
-            html: `<input type="checkbox" tabindex="-1">`,
+            html: `<input type="checkbox" tabindex="-1">`
           },
-          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
+          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" }
         ],
 
         icon: ({ node }) => {
           if (!node.data.folder) return "bi bi-files";
         },
 
-        // ---- FAST: folders lazy-load via URL ----
         lazyLoad: (e) => {
           if (!e.node?.data?.folder) return [];
-          const id = e.node.data.id; // folder id expected by server
+          const id = e.node.data.key ?? e.node.data.id;
           return {
-            url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(id)}`,
-            options: { headers: { Accept: "application/json" }, credentials: "same-origin" },
+            url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(String(id))}`,
+            options: { headers: { Accept: "application/json" }, credentials: "same-origin" }
           };
         },
 
-        // ---- Assets load when a folder is expanded (once) ----
         expand: async (e) => {
           const node = e.node;
           if (!node?.data?.folder) return;
-
-          await this._ensureAssetsForFolder(String(node.key ?? node.data.id));
-
-          // If a filter is active, re-run so new rows participate, and keep matches visible
+          await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), this._filterSeq);
           this._reapplyFilterIfAny();
         },
 
-        // Class API signature
-        postProcess: (e) => {
-          e.result = e.response;
-        },
+        postProcess: (e) => { e.result = e.response; },
 
-        // ---- Your render logic ----
         render: (e) => {
           const isFolder = e.node.data.folder === true;
 
@@ -189,10 +174,8 @@ export default class extends Controller {
             const allCols = this.element.querySelectorAll(".wb-header .wb-col");
             const colCell = allCols[colIdx];
             if (!colCell) return;
-
             const icon = colCell.querySelector("[data-command='filter']");
             if (!icon) return;
-
             this.showDropdownFilter(icon, colId);
           }
         },
@@ -203,8 +186,7 @@ export default class extends Controller {
           e.node.data[colId] = util.getValueFromElem(e.inputElem, true);
         },
 
-        // Initial root
-        source,
+        source
       });
 
       this._setupInlineFilter();
@@ -213,7 +195,10 @@ export default class extends Controller {
     }
   }
 
-  // ---------------- Deep, complete filtering ----------------
+  disconnect() {
+    clearTimeout(this._filterTimer);
+    this._cancelInflight();
+  }
 
   _setupInlineFilter() {
     const input = document.getElementById("tree-filter");
@@ -223,34 +208,45 @@ export default class extends Controller {
       clearTimeout(this._filterTimer);
       this._filterTimer = setTimeout(() => this._runDeepFilter(input.value || ""), 300);
     });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        input.value = "";
+        this._runDeepFilter("");
+      }
+    });
   }
 
   async _runDeepFilter(raw) {
+    this._cancelInflight();
     const mySeq = ++this._filterSeq;
+
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
 
-    // Clear: reset filter & collapse what we expanded due to filter
     if (!q && this.columnFilters.size === 0) {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.tree.clearFilter();
       this._collapseFilterExpansions();
+      this._setLoading(false);
       return;
     }
 
-    // 1) Server search to get ALL matches (folders + assets)
-    const [folders, assets] = await Promise.all([
-      fetch(`/volumes/${this.volumeIdValue}/file_tree_folders_search?q=${encodeURIComponent(q)}`,
-            { headers: { Accept: "application/json" }, credentials: "same-origin" })
-        .then(r => r.ok ? r.json() : []),
-      fetch(`/volumes/${this.volumeIdValue}/file_tree_assets_search?q=${encodeURIComponent(q)}`,
-            { headers: { Accept: "application/json" }, credentials: "same-origin" })
-        .then(r => r.ok ? r.json() : []),
-    ]);
+    this._setLoading(true, "Searching…");
+
+    const searchCtrl = this._beginFetchGroup();
+    let folders = [], assets = [];
+    try {
+      [folders, assets] = await Promise.all([
+        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?q=${encodeURIComponent(q)}`, searchCtrl).catch(() => []),
+        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?q=${encodeURIComponent(q)}`,  searchCtrl).catch(() => []),
+      ]);
+    } finally {
+      this.inflightControllers.delete(searchCtrl);
+    }
     if (mySeq !== this._filterSeq) return;
 
-    // 2) Build the set S of folders to hydrate
     const S = new Set();
     for (const r of [...folders, ...assets]) {
       const path = Array.isArray(r.path) ? r.path : [];
@@ -261,12 +257,60 @@ export default class extends Controller {
       const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
       if (pid != null) S.add(String(pid));
     }
-    const parentIds = Array.from(S);
 
-    // 3) Hydrate children for S in batches (folders + assets)
-    await this._hydrateChildrenForParents(parentIds, mySeq);
+    const parentKeys = Array.from(S);
+    const BATCH = 20;
+    const totalBatches = Math.max(1, Math.ceil(parentKeys.length / BATCH));
 
-    // 4) Apply predicate to everything now in memory
+    for (let i = 0; i < parentKeys.length; i += BATCH) {
+      if (mySeq !== this._filterSeq) return;
+
+      const idx = Math.floor(i / BATCH) + 1;
+      this._setLoading(true, `Loading results… (${idx}/${totalBatches})`);
+
+      const ids = parentKeys.slice(i, i + BATCH);
+      const ctrl = this._beginFetchGroup();
+      try {
+        const results = await Promise.all(ids.map(async (pid) => {
+          const base = `/volumes/${this.volumeIdValue}`;
+          const [childFolders, childAssets] = await Promise.all([
+            this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
+            this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`,  ctrl).catch(() => []),
+          ]);
+          return { pid, childFolders, childAssets };
+        }));
+
+        if (mySeq !== this._filterSeq) return;
+
+        for (const { pid, childFolders, childAssets } of results) {
+          const parentNode = this._findNodeByKey(pid);
+          if (!parentNode) continue;
+
+          const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+          const toAdd = [...(childFolders || []), ...(childAssets || [])]
+            .filter(n => !existing.has(String(n.key ?? n.id)));
+          if (toAdd.length) parentNode.addChildren?.(toAdd);
+        }
+      } finally {
+        this.inflightControllers.delete(ctrl);
+      }
+
+      this._applyPredicate(q);
+      await new Promise(r => requestAnimationFrame(r));
+    }
+
+    if (mySeq !== this._filterSeq) return;
+
+    this._applyPredicate(q);
+
+    await this._expandAllMatchChainsCancellable(folders, assets, mySeq, 10);
+
+    this._autoExpandSomeMatchingFolders(20);
+
+    this._setLoading(false);
+  }
+
+  _applyPredicate(q) {
     const predicate = (node) => {
       if (q) {
         const t = (node.title || "").toLowerCase();
@@ -282,149 +326,144 @@ export default class extends Controller {
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
-
-    // 5) Expand EACH match chain root->…->parent, awaiting lazy loads.
-    await this._expandAllMatchChains(folders, assets);
-
-    // Optional: open a few matched folders to reveal their immediate children
-    this._autoExpandSomeMatchingFolders(20);
-  }
-
-  // ---------------- Helpers: hydration & expansion ----------------
-
-  async _hydrateChildrenForParents(parentIds, mySeq, batchSize = 25) {
-    if (!parentIds.length) return;
-    const base = `/volumes/${this.volumeIdValue}`;
-
-    for (let i = 0; i < parentIds.length; i += batchSize) {
-      if (mySeq !== this._filterSeq) return;
-      const ids = parentIds.slice(i, i + batchSize);
-      const qs = ids.map(id => `parent_ids[]=${encodeURIComponent(id)}`).join("&");
-
-      // If your backend DOES NOT support parent_ids[], uncomment per-id fallback below
-      const [childFolders, childAssets] = await Promise.all([
-        fetch(`${base}/file_tree_folders.json?${qs}`, { headers: { Accept: "application/json" }, credentials: "same-origin" })
-          .then(r => r.ok ? r.json() : []),
-        fetch(`${base}/file_tree_assets.json?${qs}`,  { headers: { Accept: "application/json" }, credentials: "same-origin" })
-          .then(r => r.ok ? r.json() : []),
-      ]);
-
-      // Fallback per-id (slower):
-      // const childFolders = (await Promise.all(ids.map(id =>
-      //   fetch(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(id)}`, { headers: {Accept:"application/json"}, credentials:"same-origin" })
-      //     .then(r => r.ok ? r.json() : [])))).flat();
-      // const childAssets = (await Promise.all(ids.map(id =>
-      //   fetch(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(id)}`, { headers: {Accept:"application/json"}, credentials:"same-origin" })
-      //     .then(r => r.ok ? r.json() : [])))).flat();
-
-      const byParent = new Map(); // pid -> nodes
-      for (const n of [...childFolders, ...childAssets]) {
-        const pid = String(n.parent_folder_id ?? n.parent_id ?? "");
-        if (!pid) continue;
-        if (!byParent.has(pid)) byParent.set(pid, []);
-        byParent.get(pid).push(n);
-      }
-
-      // Attach to any matching parent already present in the tree
-      for (const pid of ids) {
-        const parentNode = this._findNodeByKeyOrId(pid);
-        if (!parentNode) continue;
-
-        const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.id)));
-        const kids = byParent.get(pid) || [];
-        const toAdd = kids.filter(k => !existing.has(String(k.key ?? k.id)));
-        if (toAdd.length) parentNode.addChildren?.(toAdd);
-      }
-
-      // Yield to UI
-      await new Promise(r => requestAnimationFrame(r));
-    }
-  }
-
-  // Find node robustly by 'key' or fallback to data.id
-  _findNodeByKeyOrId(id) {
-    const key = String(id);
-    let n = this.tree.getNodeByKey?.(key);
-    if (n) return n;
-    this.tree.visit((node) => {
-      if (String(node.key ?? node.data?.id) === key) { n = node; return false; }
-    });
-    return n;
-  }
-
-  async _expandPath(pathIds) {
-    for (const id of pathIds.map(String)) {
-      const node = this._findNodeByKeyOrId(id);
-      if (!node) return; // Parent not attached (should be after hydration)
-      if (node.lazy && !node.children) {
-        try { await node.loadLazy(); } catch (_) {}
-      }
-      if (!node.expanded) {
-        node.setExpanded?.(true);
-        this.expandedByFilter.add(String(node.key ?? node.data.id));
-      }
-      // Ensure assets for this folder so leaf matches can show
-      await this._ensureAssetsForFolder(String(node.key ?? node.data.id));
-      await new Promise(r => requestAnimationFrame(r));
-    }
-  }
-
-  async _expandAllMatchChains(folderHits, assetHits, chunkSize = 15) {
-    const chains = [];
-
-    // Folders: ancestors + this folder
-    for (const f of folderHits) {
-      const path = Array.isArray(f.path) ? f.path.map(String) : [];
-      chains.push([...path, String(f.id)]);
-    }
-    // Assets: ancestors + parent folder
-    for (const a of assetHits) {
-      const path = Array.isArray(a.path) ? a.path.map(String) : [];
-      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
-      if (pid != null) chains.push([...path, String(pid)]);
-    }
-
-    // Dedup
-    const seen = new Set();
-    const uniq = [];
-    for (const c of chains) {
-      const k = c.join(">");
-      if (!seen.has(k)) { seen.add(k); uniq.push(c); }
-    }
-
-    // Expand in small batches; reapply predicate as we go
-    for (let i = 0; i < uniq.length; i += chunkSize) {
-      const batch = uniq.slice(i, i + chunkSize);
-      await Promise.all(batch.map(c => this._expandPath(c)));
-      this._reapplyFilterIfAny();
-      await new Promise(r => requestAnimationFrame(r));
-    }
-  }
-
-  async _ensureAssetsForFolder(folderId) {
-    const id = String(folderId);
-    if (this.assetsLoadedFor.has(id)) return;
-
-    const node = this._findNodeByKeyOrId(id);
-    if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(id); return; }
-
-    const url = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(id)}`;
-    const r = await fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" });
-    if (!r.ok) { this.assetsLoadedFor.add(id); return; }
-
-    const assets = await r.json();
-    if (Array.isArray(assets) && assets.length) {
-      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.id)));
-      const toAdd = assets.filter(a => !existing.has(String(a.key ?? a.id)));
-      if (toAdd.length) node.addChildren?.(toAdd);
-    }
-
-    this.assetsLoadedFor.add(id);
   }
 
   _reapplyFilterIfAny() {
     if (this.currentFilterPredicate) {
       this.tree.filterNodes(this.currentFilterPredicate, this.currentFilterOpts || {});
+    }
+  }
+
+  _findNodeByKey(key) {
+    const skey = String(key);
+    let n = this.tree.getNodeByKey?.(skey);
+    if (n) return n;
+    this.tree.visit((node) => {
+      const k = String(node.key ?? node.data?.key ?? node.data?.id);
+      if (k === skey) { n = node; return false; }
+    });
+    return n;
+  }
+
+  async _hydrateSingleParentByKey(parentKey, mySeq) {
+    if (mySeq !== this._filterSeq) return;
+    const pid = String(parentKey);
+    const base = `/volumes/${this.volumeIdValue}`;
+
+    const ctrl = this._beginFetchGroup();
+    try {
+      const [childFolders, childAssets] = await Promise.all([
+        this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
+        this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`,  ctrl).catch(() => []),
+      ]);
+      if (mySeq !== this._filterSeq) return;
+
+      const parentNode = this._findNodeByKey(pid);
+      if (!parentNode) return;
+
+      const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+      const toAdd = [...(childFolders || []), ...(childAssets || [])]
+        .filter(n => !existing.has(String(n.key ?? n.id)));
+      if (toAdd.length) parentNode.addChildren?.(toAdd);
+    } finally {
+      this.inflightControllers.delete(ctrl);
+    }
+  }
+
+  async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
+    const k = String(folderKey);
+    if (this.assetsLoadedFor.has(k)) return;
+
+    const node = this._findNodeByKey(k);
+    if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(k); return; }
+
+    const ctrl = this._beginFetchGroup();
+    try {
+      const url = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(k)}`;
+      const assets = await this._fetchJson(url, ctrl);
+      if (mySeq !== this._filterSeq) return;
+
+      if (Array.isArray(assets) && assets.length) {
+        const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+        const toAdd = assets.filter(a => !existing.has(String(a.key ?? a.id)));
+        if (toAdd.length) node.addChildren?.(toAdd);
+      }
+    } catch {
+      // ignore
+    } finally {
+      this.inflightControllers.delete(ctrl);
+      this.assetsLoadedFor.add(k);
+    }
+  }
+
+  async _expandPathCancellable(pathIds, mySeq) {
+    const hops = pathIds.map(id => String(id));
+
+    for (let i = 0; i < hops.length; i++) {
+      if (mySeq !== this._filterSeq) return;
+
+      const hopKey = hops[i];
+      let node = this._findNodeByKey(hopKey);
+
+      if (!node) {
+        const parentKey = i > 0 ? hops[i - 1] : null;
+        if (parentKey != null) {
+          await this._hydrateSingleParentByKey(parentKey, mySeq);
+          node = this._findNodeByKey(hopKey);
+        }
+        if (!node) return;
+      }
+
+      if (!node.children || node.children.length === 0) {
+        await this._hydrateSingleParentByKey(hopKey, mySeq);
+      }
+
+      if ((!node.children || node.children.length === 0) && node.lazy) {
+        try { await node.loadLazy(); } catch {}
+      }
+
+      if (!node.expanded) {
+        node.setExpanded?.(true);
+        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
+      }
+
+      await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), mySeq);
+
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
+  async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
+    const chains = [];
+
+    for (const f of folderHits) {
+      const path = Array.isArray(f.path) ? f.path : [];
+      chains.push([...path, f.id]);
+    }
+    for (const a of assetHits) {
+      const path = Array.isArray(a.path) ? a.path : [];
+      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
+      if (pid != null) chains.push([...path, pid]);
+    }
+
+    const seen = new Set(), uniq = [];
+    for (const c of chains) {
+      const k = c.map(x => String(x)).join(">");
+      if (!seen.has(k)) { seen.add(k); uniq.push(c); }
+    }
+
+    for (let i = 0; i < uniq.length; i += chunkSize) {
+      if (mySeq !== this._filterSeq) return;
+
+      const batch = uniq.slice(i, i + chunkSize);
+      await Promise.all(batch.map(chain => this._expandPathCancellable(chain, mySeq)));
+
+      this._reapplyFilterIfAny();
+
+      const done = Math.min(i + chunkSize, uniq.length);
+      this._setLoading(true, `Loading results… (${done}/${uniq.length})`);
+
+      await new Promise(r => requestAnimationFrame(r));
     }
   }
 
@@ -440,22 +479,19 @@ export default class extends Controller {
       if (!matched) return;
       if (!node.expanded) {
         node.setExpanded(true);
-        this.expandedByFilter.add(String(node.key ?? node.data.id));
+        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
         expanded += 1;
       }
     });
   }
 
   _collapseFilterExpansions() {
-    // Collapse only what we expanded due to filter (leave user-expansions alone)
     for (const key of this.expandedByFilter) {
-      const node = this._findNodeByKeyOrId(key);
+      const node = this._findNodeByKey(key);
       if (node && node.expanded) node.setExpanded(false);
     }
     this.expandedByFilter.clear();
   }
-
-  // ---------------- Column popup filter (unchanged from your code) ----------------
 
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
@@ -503,7 +539,6 @@ export default class extends Controller {
       const selectedValue = e.target.value;
       if (selectedValue === "") this.columnFilters.delete(colId);
       else this.columnFilters.set(colId, selectedValue);
-      // re-run deep filter with the same query text
       this._runDeepFilter(this.currentQuery);
     });
 
@@ -533,7 +568,47 @@ export default class extends Controller {
     obs.observe(document.body, { childList: true });
   }
 
-  disconnect() {
-    clearTimeout(this._filterTimer);
+  _beginFetchGroup() {
+    const ctrl = new AbortController();
+    this.inflightControllers.add(ctrl);
+    return ctrl;
   }
+
+  _cancelInflight() {
+    for (const c of this.inflightControllers) { try { c.abort(); } catch {} }
+    this.inflightControllers.clear();
+  }
+
+  async _fetchJson(url, ctrl) {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+      signal: ctrl?.signal
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.json();
+  }
+
+  _setLoading(isLoading, text = "Loading…") {
+    const filterBtnIcon = document.querySelector(".icon-button .search-icon");
+
+    if (!isLoading) {
+      document.querySelector(".wb-loading")?.remove();
+      return;
+    }
+
+    if (!filterBtnIcon) {
+      console.warn("Filter button icon not found, cannot place loading indicator");
+      return;
+    }
+
+    let el = document.querySelector(".wb-loading");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "wb-loading";
+      filterBtnIcon.closest("button")?.insertAdjacentElement("afterend", el);
+    }
+    el.textContent = text;
+  }
+
 }

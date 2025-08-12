@@ -49,9 +49,9 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     return [] unless pf
 
     if pf.ancestors.respond_to?(:pluck)
-      pf.ancestors.pluck(:id) + [pf.id]
+      pf.ancestors.pluck(:id) + [ pf.id ]
     else
-      Array(pf.ancestors).map { |n| n.is_a?(Integer) ? n : n.id } + [pf.id]
+      Array(pf.ancestors).map { |n| n.is_a?(Integer) ? n : n.id } + [ pf.id ]
     end
   end
 end

@@ -6,7 +6,7 @@ class IsilonFolderSerializer < ActiveModel::Serializer
   end
 
   def key
-    object.id
+    object.id.to_s
   end
 
   def folder
