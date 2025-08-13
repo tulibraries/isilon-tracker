@@ -62,9 +62,10 @@ puts "Seeded #{ContentdmCollection.count} ContentdmCollections."
 
 # Initial root user
 
+root_email = "templelibraries@gmail.com"
 User.create!([
-      { email: "templelibraries@gmail.com", remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
-])
+      { email: root_email, remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
+]) unless User.exists?(email: root_email)
 
 # Initial staff users
 
@@ -74,8 +75,15 @@ if user_list.present?
   emails = user_list.split(',').map(&:strip)
 
   emails.each do |email|
-    user = User.find_or_create_by(email: email, status: "active")
-    puts "Seeded user: #{user.email}"
+    if User.exists?(email: email)
+      puts "User already exists: #{email}"
+    else
+      User.create!(
+        email: email,
+        status: "active"
+      )
+      puts "Seeded user: #{email}"
+    end
   end
 else
   puts "IMT_USER_LIST environment variable is not set or empty."
