@@ -3,6 +3,12 @@
 require "rails_helper"
 
 RSpec.describe "file tree filtering", type: :system, js: true do
+  before do
+    driven_by :cuprite
+    sign_in user
+  end
+
+  let!(:user)   { create(:user, email: "tester@temple.edu") }
   let!(:volume) { create(:volume) }
 
   # Build a deep folder chain and one asset at the leaf:
@@ -86,7 +92,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
     # Clear query (your controller collapses expansions it opened)
-    fill_in "tree-filter", with: ""
+    find("#tree-filter").send_keys(:escape)
 
     expect(page).to have_no_css(".wb-loading", wait: 6)
     expect(page).to have_no_content("scan_beta_001.tif", wait: 6)

@@ -4,6 +4,9 @@ require "rails_helper"
 
 RSpec.describe "Volumes file tree endpoints", type: :request do
   let!(:volume) { create(:volume) }
+  let!(:user)   { create(:user, email: "tester@temple.edu") }
+
+  before { sign_in user }
 
   let!(:root) do
     create(:isilon_folder, volume: volume, parent_folder: nil, full_path: "/LibraryBeta")

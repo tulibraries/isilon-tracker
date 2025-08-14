@@ -3,6 +3,7 @@
 require "capybara/cuprite"
 
 Capybara.javascript_driver = :cuprite
+Capybara.default_max_wait_time = 5
 
 Capybara.register_driver :cuprite do |app|
   Capybara::Cuprite::Driver.new(
@@ -11,10 +12,4 @@ Capybara.register_driver :cuprite do |app|
     window_size: [ 1200, 800 ],
     headless: true
   )
-
-  RSpec.configure do |config|
-    config.before(:each, type: :system) do
-      driven_by :cuprite
-    end
-  end
 end
