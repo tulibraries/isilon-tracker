@@ -22,8 +22,11 @@ Rails.application.routes.draw do
   resources :contentdm_collections
 
   resources :volumes do
-    get :file_tree,          on: :member  # only root folders
-    get :file_tree_children, on: :member  # sub-folders + assets
+    get :file_tree, on: :member
+    get :file_tree_folders, on: :member
+    get :file_tree_assets, on: :member
+    get :file_tree_folders_search, on: :member
+    get :file_tree_assets_search, on: :member
   end
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

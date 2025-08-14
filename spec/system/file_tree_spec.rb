@@ -5,20 +5,10 @@ require "rails_helper"
 RSpec.describe "Volume File Tree", type: :system, js: true do
   before do
     driven_by :cuprite
+    sign_in user
   end
 
-  let!(:user) do
-    user = FactoryBot.create(:user)
-  end
-
-  before do
-    login_as(user, scope: :user)
-  end
-
-  after do
-    logout(user)
-  end
-
+  let!(:user)   { create(:user, email: "tester@temple.edu") }
   let!(:volume) { create(:volume, name: "TestVol") }
   let!(:root_folder) do
     create(:isilon_folder,
