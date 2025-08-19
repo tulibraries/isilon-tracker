@@ -72,13 +72,29 @@ export default class extends Controller {
                 <option value="unassigned" selected>Unassigned</option>
               </select>`
           },
-          { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
           {
             id: "notes",
             classes: "wb-helper-center",
             title: "Notes",
             width: "500px",
             html: `<input type="text" tabindex="-1">`
+          },
+          {
+            id: "file_type",
+            classes: "wb-helper-center",
+            title: "File type",
+            width: "150px",
+            html: `<input type="text" tabindex="-1">`
+          },
+          { id: "file_size",
+            classes: "wb-helper-center",
+            title: "File size",
+            width: "150px"
+          },
+          { id: "isilon_date",
+            classes: "wb-helper-center",
+            title: "Isilon date created",
+            width: "150px"
           },
           {
             id: "contentdm_collection",
@@ -117,7 +133,6 @@ export default class extends Controller {
             width: "150px",
             html: `<input type="checkbox" tabindex="-1">`
           },
-          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" }
         ],
 
         icon: ({ node }) => {
