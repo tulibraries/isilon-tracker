@@ -1,8 +1,8 @@
 class IsilonAssetSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
 
-  attributes :title, :folder, :isilon_date, :migration_status, :key,
-  :assigned_to, :file_size, :file_type, :notes, :contentdm_collection, :aspace_collection,
+  attributes :title, :folder, :key, :isilon_date, :migration_status,
+  :assigned_to, :file_size, :notes, :contentdm_collection, :aspace_collection,
   :preservica_reference_id, :aspace_linking_status, :url, :lazy, :parent_folder_id, :isilon_name, :path
 
   def title
@@ -33,12 +33,12 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     object.aspace_linking_status || false
   end
 
-  def key
-    "asset-#{object.id}"
-  end
-
   def lazy
     false
+  end
+
+  def migration_status
+    object.migration_status&.id.to_s
   end
 
   def path

@@ -1,4 +1,3 @@
-
 import { Controller } from "@hotwired/stimulus";
 import { Wunderbaum } from "wunderbaum";
 
@@ -58,7 +57,7 @@ export default class extends Controller {
             width: "150px",
             html: `
               <select tabindex="-1">
-                <option value="pending" selected>Pending</option>
+                <option value="1" selected>Needs Review</option>
               </select>`
           },
           {
@@ -69,7 +68,7 @@ export default class extends Controller {
             width: "150px",
             html: `
               <select tabindex="-1">
-                <option value="unassigned" selected>Unassigned</option>
+                <option value="assigned_to" selected>unassigned</option>
               </select>`
           },
           {
@@ -158,27 +157,93 @@ export default class extends Controller {
         postProcess: (e) => { e.result = e.response; },
 
         render: (e) => {
+          const util = e.util;
           const isFolder = e.node.data.folder === true;
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
-            colInfo.elem.dataset.colId = colInfo.id;
             const colId = colInfo.id;
-            const rawValue = e.node.data[colId];
-            const value = isFolder || rawValue == null ? "" : String(rawValue);
+            let value = e.node.data[colId];
 
-            const hasInteractive = colInfo.elem.querySelector("input, select, textarea");
-            if (!hasInteractive) colInfo.elem.innerHTML = value;
+            if (!isFolder) {
+              let selectElem;
 
-            const select = colInfo.elem.querySelector("select");
-            if (select) select.value = select.querySelector("option[selected]")?.value ?? "";
+              switch (colId) {
+                case "migration_status":
+                  if (this.migrationStatusOptions) {
+                    selectElem = this._buildSelectList(
+                      this.migrationStatusOptions,
+                      value,
+                      "migration_status"
+                    );
+                    colInfo.elem.innerHTML = "";
+                    colInfo.elem.appendChild(selectElem);
+                  } else {
+                    util.setValueToElem(colInfo.elem, value ?? "");
+                  }
+                  break;
+
+                case "aspace_collection":
+                  if (this.aspaceCollectionOptions) {
+                    selectElem = this._buildSelectList(
+                      this.aspaceCollectionOptions,
+                      value,
+                      "aspace_collection"
+                    );
+                    colInfo.elem.innerHTML = "";
+                    colInfo.elem.appendChild(selectElem);
+                  } else {
+                    util.setValueToElem(colInfo.elem, value ?? "");
+                  }
+                  break;
+
+                case "contentdm_collection":
+                  if (this.contentdmCollectionOptions) {
+                    selectElem = this._buildSelectList(
+                      this.contentdmCollectionOptions,
+                      value,
+                      "contentdm_collection"
+                    );
+                    colInfo.elem.innerHTML = "";
+                    colInfo.elem.appendChild(selectElem);
+                  } else {
+                    util.setValueToElem(colInfo.elem, value ?? "");
+                  }
+                  break;
+
+                case "assigned_to":
+                  if (this.userOptions) {
+                    let effectiveValue = value;
+                    if (effectiveValue == null || effectiveValue === "" || effectiveValue === "0") {
+                      effectiveValue = "unassigned";
+                      e.node.data.assigned_to = effectiveValue; // keep data in sync
+                    }
+                    selectElem = this._buildSelectList(
+                      this.userOptions,
+                      effectiveValue,
+                      "assigned_to"
+                    );
+                    colInfo.elem.innerHTML = "";
+                    colInfo.elem.appendChild(selectElem);
+                  } else {
+                    util.setValueToElem(colInfo.elem, value ?? "Unassigned");
+                  }
+                  break;
+
+                default:
+                  util.setValueToElem(colInfo.elem, value ?? "");
+              }
+            } else {
+              util.setValueToElem(colInfo.elem, "");
+            }
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
-          const title = e.node.title || "";
           if (titleElem) {
-            titleElem.innerHTML = isFolder
-              ? title
-              : `<a href="${e.node.data.url}" class="asset-link" data-turbo="false">${title}</a>`;
+            if (isFolder) {
+              titleElem.textContent = e.node.title || "";
+            } else {
+              titleElem.innerHTML = `<a href="${e.node.data.url}" class="asset-link" data-turbo="false">${e.node.title}</a>`;
+            }
           }
         },
 
@@ -195,6 +260,19 @@ export default class extends Controller {
           }
         },
 
+        buttonClick: (e) => {
+          if (e.command === "filter") {
+            const colId = e.info.colDef.id;
+            const colIdx = e.info.colIdx;
+            const allCols = this.element.querySelectorAll(".wb-header .wb-col");
+            const colCell = allCols[colIdx];
+            if (!colCell) return;
+            const icon = colCell.querySelector("[data-command='filter']");
+            if (!icon) return;
+            this.showDropdownFilter(icon, colId);
+          }
+        },
+        
         change: (e) => {
           const util = e.util;
           const colId = e.info.colId;
@@ -203,6 +281,11 @@ export default class extends Controller {
 
         source
       });
+
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions");
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions");
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions");
+      this._fetchOptions("/users.json", "userOptions");
 
       this._setupInlineFilter();
     } catch (err) {
@@ -401,10 +484,29 @@ export default class extends Controller {
       if (Array.isArray(assets) && assets.length) {
         const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
         const toAdd = assets.filter(a => !existing.has(String(a.key ?? a.id)));
-        if (toAdd.length) node.addChildren?.(toAdd);
+        if (toAdd.length) {
+          const BATCH_SIZE = 200;
+          let i = 0;
+
+          const addChunk = () => {
+            const slice = toAdd.slice(i, i + BATCH_SIZE);
+            node.addChildren?.(slice);
+            i += BATCH_SIZE;
+
+            if (i < toAdd.length) {
+              requestAnimationFrame(addChunk);
+            } else {
+              this.assetsLoadedFor.add(k);
+              console.log(`Finished adding ${toAdd.length} assets to folder ${k}`);
+            }
+          };
+
+          requestAnimationFrame(addChunk);
+        } else {
+          this.assetsLoadedFor.add(k);
+        }
       }
     } catch {
-      // ignore
     } finally {
       this.inflightControllers.delete(ctrl);
       this.assetsLoadedFor.add(k);
@@ -508,6 +610,25 @@ export default class extends Controller {
     this.expandedByFilter.clear();
   }
 
+  _buildSelectList(options, currentValue, selectName) {
+    const select = document.createElement("select");
+    select.name = selectName;
+
+    const normalized = String(currentValue ?? "");
+
+    options.forEach(opt => {
+      const option = document.createElement("option");
+      option.value = String(opt.value);
+      option.textContent = opt.label;
+      if (String(opt.value) === normalized) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    });
+
+    return select;
+  }
+  
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
     const existing = document.querySelector(popupSelector);
@@ -520,24 +641,32 @@ export default class extends Controller {
     const select = document.createElement("select");
     select.classList.add("popup-select");
 
-    const colDef = this.tree.columns.find((c) => c.id === colId);
+    let opts = null;
+    switch (colId) {
+      case "migration_status":
+        opts = this.migrationStatusOptions;
+        break;
+      case "aspace_collection":
+        opts = this.aspaceCollectionOptions;
+        break;
+      case "contentdm_collection":
+        opts = this.contentdmCollectionOptions;
+        break;
+      case "assigned_to":
+        opts = this.userOptions;
+        break;
+    }
 
-    if (colId === "aspace_linking_status") {
+    if (opts) {
+      select.innerHTML =
+        opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("") +
+        `<option value="">⨉ Clear Filter</option>`;
+    } else if (colId === "aspace_linking_status") {
       select.innerHTML = `
         <option value="true">True</option>
         <option value="false">False</option>
         <option value="">⨉ Clear Filter</option>
       `;
-    } else if (colDef?.html?.includes("<select")) {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = colDef.html;
-      const original = tmp.querySelector("select");
-      if (original) {
-        for (const opt of original.options) select.appendChild(opt.cloneNode(true));
-        if (!Array.from(select.options).some((o) => o.value === "")) {
-          select.appendChild(new Option("⨉ Clear Filter", ""));
-        }
-      }
     } else {
       const values = new Set();
       this.tree.visit((node) => {
@@ -624,6 +753,31 @@ export default class extends Controller {
       filterBtnIcon.closest("button")?.insertAdjacentElement("afterend", el);
     }
     el.textContent = text;
+  }
+  
+  async _fetchOptions(url, targetProp) {
+    try {
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      const data = await res.json();
+
+      let opts = Object.entries(data).map(([id, name]) => ({
+        value: String(id),
+        label: name
+      }));
+
+      if (targetProp === "userOptions") {
+        opts.unshift({ value: "unassigned", label: "Unassigned" });
+      }
+
+      this[targetProp] = opts;
+
+      if (this.tree?.header) {
+        this.tree.header.render(); // refresh header filters
+      }
+    } catch (err) {
+      console.error("Failed to fetch options for", url, err);
+    }
   }
 
 }
