@@ -3,6 +3,7 @@
 require "capybara/cuprite"
 
 Capybara.javascript_driver = :cuprite
+Capybara.default_max_wait_time = 5
 
 Capybara.register_driver :cuprite do |app|
   Capybara::Cuprite::Driver.new(

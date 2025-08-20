@@ -14,6 +14,7 @@ module SyncService
       @log = Logger.new("log/isilon-sync.log")
       @stdout = Logger.new($stdout)
       @parent_volume = check_volume(@csv_path)
+      @default_status = MigrationStatus.find_by(default: true) || stdout_and_log("No default migration_status found. Please ensure one exists with default: true.")
       stdout_and_log(%(Syncing assets from #{@csv_path}))
     end
 
@@ -30,6 +31,7 @@ module SyncService
           last_modified_in_isilon:   row["ModifiedAt"],
           date_created_in_isilon:    row["CreatedAt"],
           parent_folder_id:          get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1]).id,
+          migration_status_id:       @default_status&.id
         )
 
         if directory_check(asset)

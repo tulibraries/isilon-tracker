@@ -14,7 +14,7 @@ class IsilonFolder < ApplicationRecord
       end
     end
   end
-  
+
   def breadcrumb_trail
     crumbs = []
     current = self
