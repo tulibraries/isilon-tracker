@@ -260,6 +260,19 @@ export default class extends Controller {
           }
         },
 
+        buttonClick: (e) => {
+          if (e.command === "filter") {
+            const colId = e.info.colDef.id;
+            const colIdx = e.info.colIdx;
+            const allCols = this.element.querySelectorAll(".wb-header .wb-col");
+            const colCell = allCols[colIdx];
+            if (!colCell) return;
+            const icon = colCell.querySelector("[data-command='filter']");
+            if (!icon) return;
+            this.showDropdownFilter(icon, colId);
+          }
+        },
+        
         change: (e) => {
           const util = e.util;
           const colId = e.info.colId;
@@ -615,7 +628,7 @@ export default class extends Controller {
 
     return select;
   }
-
+  
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
     const existing = document.querySelector(popupSelector);
@@ -741,7 +754,7 @@ export default class extends Controller {
     }
     el.textContent = text;
   }
-
+  
   async _fetchOptions(url, targetProp) {
     try {
       const res = await fetch(url, { headers: { Accept: "application/json" } });

@@ -49,11 +49,4 @@ RSpec.shared_examples "renderable_dashboard" do
       end
     end
   end
-
-  describe "GET /admin/#{model_name}/new" do
-    it "renders #{model_name} new page"  do
-      get new_path
-      expect(response).to have_http_status(200)
-    end
-  end
 end

@@ -9,6 +9,10 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     object.isilon_name
   end
 
+  def key
+    "a-#{object.id}"
+  end
+
   def url
     admin_isilon_asset_url(object.id)
   end
@@ -27,10 +31,6 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def aspace_linking_status
     object.aspace_linking_status || false
-  end
-
-  def key
-    "asset-#{object.id}"
   end
 
   def lazy
