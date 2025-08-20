@@ -5,6 +5,16 @@ class IsilonFolder < ApplicationRecord
   has_many :isilon_assets, foreign_key: "parent_folder_id"
   belongs_to :migration_status, optional: true
 
+  def ancestors
+    current = self
+    [].tap do |list|
+      while current.parent_folder
+        current = current.parent_folder
+        list.unshift(current)
+      end
+    end
+  end
+  
   def breadcrumb_trail
     crumbs = []
     current = self
