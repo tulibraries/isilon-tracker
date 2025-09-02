@@ -52,4 +52,4 @@ bin/dev
 
 * Run `bundle exec rspec` to run the test suite.
 
-* Linting through 'rubocop' add the -A flag to autocorrect: 'rubocop -A'
+* Run `bundle exec rubocop` to run the linter. Add the -A flag to autocorrect: `bundle exec rubocop -A` 
