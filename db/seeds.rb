@@ -60,8 +60,10 @@ end
 
 puts "Seeded #{ContentdmCollection.count} ContentdmCollections."
 
-# Initial user
+# Initial root user
 
+root_email = "templelibraries@gmail.com"
 User.create!([
-      { email: "templelibraries@gmail.com", remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
-])
+
+      { email: root_email, remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
+]) unless User.exists?(email: root_email)

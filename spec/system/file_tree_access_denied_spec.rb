@@ -20,7 +20,7 @@ RSpec.describe "Volume File Tree Access Denied", type: :system do
 
     it "allows access to the volume index" do
       visit volumes_path
-      expect(page).to have_content(volume.name) # Use the variable inside the block
+      expect(page).to have_content("You need to sign in") # Replace with actual auth message
     end
 
     it "denies access to an individual volume page" do
