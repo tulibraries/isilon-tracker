@@ -26,10 +26,8 @@ bundle exec rails db:setup
 * Ingest sample sample data from the repo, if needed (file included in the repo)
 
 ```bash
-rails sync:assets["scan_output.applications-backup.csv"]
+rails "sync:assets[scan_output.applications-backup.csv]"
 ```
-
-(note: in zsh shells, it may be necesary to escape the brackets in the above command. You can aavoid this by setting 'setopt nonomatch' in your .zshrc file)
 
 * Install node packages and JS dependencies
 
@@ -45,11 +43,11 @@ bundle exec yarn install
 bin/dev
 ```
 
-* Javascript Filetree explorer view available at root path, administrate backend at /admin. Omniauth logins required for both.
-  Initial seed creates user templelibraries@gmail.com. Pass in 1pass, if needed.
+* Javascript Filetree explorer view available at /volumes, administrate backend at /admin. Omniauth logins required for both.
+  Initial seed creates user templelibraries@gmail.com. Pass in 1Password, if needed.
 
 ## Running the Tests
 
-* Tests run through 'rspec spec'
+* Run `bundle exec rspec` to run the test suite.
 
-* Linting through 'rubocop' add the -A flag to autocorrect: 'rubocop -A'
+* Run `bundle exec rubocop` to run the linter. Add the -A flag to autocorrect: `bundle exec rubocop -A` 
