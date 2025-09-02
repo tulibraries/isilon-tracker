@@ -41,7 +41,7 @@ module SyncService
             stdout_and_log("Failed to import asset #{asset.isilon_path}: #{e.message}", level: :error)
           end
         else
-          stdout_and_log("Skipping asset with invalid path: #{asset.isilon_path}", level: :warn)
+          stdout_and_log("Skipping asset with invalid path: #{asset.isilon_path}", level: :error)
         end
       end
 
@@ -58,13 +58,13 @@ module SyncService
       volume = first_row["Path"].split("/").compact_blank[0]
 
       if Volume.exists?(name: volume)
-        # stdout_and_log("Volume #{volume} already exists.")
+        stdout_and_log("Volume #{volume} already exists.")
         Volume.find_by(name: volume)
       else
         new_volume = Volume.create!(name: volume)
         begin
           new_volume.save!
-          # stdout_and_log("Created new volume: #{new_volume.name}")
+          stdout_and_log("Created new volume: #{new_volume.name}")
         rescue => e
           stdout_and_log("Unable to save volume: #{volume}; #{e.message}", level: :error)
         end
@@ -112,6 +112,8 @@ module SyncService
     end
 
     def stdout_and_log(message, level: :info)
+      return unless level == :error
+
       @log.send(level, message)
       @stdout.send(level, message)
     end
