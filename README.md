@@ -29,7 +29,7 @@ bundle exec rails db:setup
 rails sync:assets["scan_output.applications-backup.csv"]
 ```
 
-(note: in zsh shells, it may be necesary to escape the brackets in the above command. You can aavoid this by setting 'setopt nonomatch' in your .zshrc file)
+(note: in zsh shells, it may be necesary to escape the brackets in the above command. You can avoid this by setting 'setopt nonomatch' in your .zshrc file)
 
 * Install node packages and JS dependencies
 
