@@ -50,6 +50,6 @@ bin/dev
 
 ## Running the Tests
 
-* Tests run through 'rspec spec'
+* Run `bundle exec rspec` to run the test suite.
 
 * Linting through 'rubocop' add the -A flag to autocorrect: 'rubocop -A'
