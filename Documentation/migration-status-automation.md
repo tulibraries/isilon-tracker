@@ -73,7 +73,7 @@ When logging is enabled, all rule applications are logged with details about whi
 
 ### Performance Considerations
 - Rules 1 and 2 are lightweight string operations
-- Rule 3 requires database queries during processing
+- Rule 3 uses real-time duplicate detection with database queries
 - Rule 4 runs as post-processing using database-optimized ActiveRecord queries
 - CSV processing uses streaming with lazy evaluation for memory efficiency
 - Batch processing (1000 rows per batch) with bulk database inserts
