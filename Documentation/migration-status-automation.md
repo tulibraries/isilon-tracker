@@ -86,7 +86,7 @@ The automation runs automatically when using the CSV import service:
 ```bash
 
 # Test with a sample CSV (make sure it exists)
-rails "assets:sync[scan_output.applications-backup.csv]"
+rails "sync:assets[scan_output.applications-backup.csv]"
 
 ```
 
