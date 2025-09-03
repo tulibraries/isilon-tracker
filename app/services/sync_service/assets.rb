@@ -20,32 +20,126 @@ module SyncService
 
     def sync
       imported = 0
-      CSV.foreach(@csv_path, headers: true) do |row|
-        next if row["Path"].include?(".DS_Store") # putting this here prevents empty folders
-        asset = IsilonAsset.new(
-          isilon_path:               set_full_path(row["Path"]),
-          isilon_name:               get_name(row["Path"]),
-          file_size:                 row["Size"],
-          file_type:                 row["Type"],
-          file_checksum:             row["Hash"],
-          last_modified_in_isilon:   row["ModifiedAt"],
-          date_created_in_isilon:    row["CreatedAt"],
-          parent_folder_id:          get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1]).id,
-          migration_status_id:       @default_status&.id
-        )
+      batch_size = 1000
 
-        if directory_check(asset)
-          begin
-            imported += 1 if asset.save!
-          rescue => e
-            stdout_and_log("Failed to import asset #{asset.isilon_path}: #{e.message}", level: :error)
-          end
-        else
-          stdout_and_log("Skipping asset with invalid path: #{asset.isilon_path}", level: :warn)
+      stdout_and_log("Starting CSV processing with batch size: #{batch_size}")
+
+      # Process CSV in batches for better memory management
+      CSV.open(@csv_path, "r", headers: true, liberal_parsing: true) do |csv|
+        csv.lazy.each_slice(batch_size) do |batch|
+          batch_imported = process_batch(batch)
+          imported += batch_imported
+          stdout_and_log("Processed batch: #{batch_imported} assets imported (Total: #{imported})")
+
+          # Trigger garbage collection periodically to manage memory
+          GC.start if imported % (batch_size * 5) == 0
         end
       end
 
       stdout_and_log("Imported #{imported} IsilonAsset records.")
+
+      # Post-processing: Apply Rule 4 for TIFF file count comparisons
+      apply_rule_4_post_processing
+    end
+
+    private
+
+    def process_batch(batch)
+      assets_to_create = []
+      batch_imported = 0
+
+      batch.each do |row|
+        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db")
+
+        # Ensure directory structure exists before bulk insert
+        isilon_path = set_full_path(row["Path"])
+        if ensure_directory_structure(isilon_path)
+          begin
+            parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
+
+            assets_to_create << {
+              isilon_path: isilon_path,
+              isilon_name: get_name(row["Path"]),
+              file_size: row["Size"],
+              file_type: row["Type"],
+              file_checksum: row["Hash"],
+              last_modified_in_isilon: row["ModifiedAt"],
+              date_created_in_isilon: row["CreatedAt"],
+              parent_folder_id: parent_folder_id,
+              migration_status_id: apply_automation_rules(row) || @default_status.id,
+              created_at: Time.current,
+              updated_at: Time.current
+            }
+          rescue => e
+            stdout_and_log("Failed to prepare asset #{isilon_path}: #{e.message}", level: :error)
+          end
+        else
+          stdout_and_log("Skipping asset with invalid path: #{isilon_path}", level: :error)
+        end
+      end
+
+      # Bulk insert all valid assets at once
+      if assets_to_create.any?
+        begin
+          IsilonAsset.insert_all(assets_to_create)
+          batch_imported = assets_to_create.size
+          stdout_and_log("Bulk inserted #{batch_imported} assets")
+        rescue => e
+          stdout_and_log("Bulk insert failed, falling back to individual saves: #{e.message}", level: :error)
+          batch_imported = fallback_individual_saves(assets_to_create)
+        end
+      end
+
+      batch_imported
+    end
+
+    def ensure_directory_structure(isilon_path)
+      all_directories = isilon_path.split("/").compact_blank
+      directories = all_directories[0...-1]
+      return false if directories.empty?
+
+      volume = Volume.find_by(name: @parent_volume.name)
+
+      (directories.size).downto(0) do |i|
+        if directories.present?
+          parent_folder = get_folder_parent_id(directories)
+          current_path = "/" + directories.join("/")
+
+          folder = IsilonFolder.find_or_create_by!(volume_id: volume.id, full_path: current_path)
+          folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
+          directories.pop unless i == 0
+
+          begin
+            folder.save!
+          rescue => e
+            stdout_and_log("Unable to save folder: #{current_path}; #{e.message}", level: :error)
+            return false
+          end
+        end
+      end
+
+      true
+    end
+
+    def fallback_individual_saves(assets_to_create)
+      saved_count = 0
+
+      assets_to_create.each do |asset_attrs|
+        begin
+          # Remove bulk insert timestamps and let Rails handle them
+          asset_attrs.delete(:created_at)
+          asset_attrs.delete(:updated_at)
+
+          asset = IsilonAsset.new(asset_attrs)
+          if asset.save!
+            saved_count += 1
+          end
+        rescue => e
+          stdout_and_log("Failed to save individual asset #{asset_attrs[:isilon_path]}: #{e.message}", level: :error)
+        end
+      end
+
+      saved_count
     end
 
     def set_full_path(path)
@@ -111,7 +205,172 @@ module SyncService
       path.split("/").last
     end
 
+    def apply_automation_rules(row)
+      # AUTOMATION RULES SUMMARY:
+      # Rule 1: Migrated directories in deposit (but not born-digital) -> "Migrated"
+      # Rule 2: DELETE directories in born-digital deposit areas -> "Don't migrate"
+      # Rule 3: Duplicate assets outside media-repository/deposit -> "Don't migrate"
+      # Rule 4: Unprocessed/raw files when processed equivalents exist -> "Don't migrate" (post-processing)
+
+      asset_path = row["Path"]
+      return nil unless asset_path
+
+      # Rule 1: Migrated directories in deposit (but not born-digital)
+      if rule_1_migrated_directory?(asset_path)
+        stdout_and_log("Rule 1 applied: Migrated directory detected for #{asset_path}")
+        return MigrationStatus.find_by(name: "Migrated")&.id
+      end
+
+      # Rule 2: DELETE directories in born-digital deposit areas
+      if rule_2_delete_directory?(asset_path)
+        stdout_and_log("Rule 2 applied: DELETE directory detected for #{asset_path}")
+        return MigrationStatus.find_by(name: "Don't migrate")&.id
+      end
+
+      # Rule 3: Duplicate assets outside media-repository/deposit
+      if rule_3_duplicate_outside_main_areas?(row)
+        stdout_and_log("Rule 3 applied: Duplicate outside main areas detected for #{asset_path}")
+        return MigrationStatus.find_by(name: "Don't migrate")&.id
+      end
+
+      # Rule 4: Handled entirely in post-processing for accurate TIFF count comparison
+
+      nil # No automation rule applies
+    end
+
+    private
+
+    def rule_1_migrated_directory?(asset_path)
+      # Directory is in deposit AND contains "- Migrated" AND NOT in born-digital area
+      return false unless asset_path.downcase.include?("/deposit/")
+      return false if asset_path.downcase.include?("/deposit/scrc accessions")
+
+      # Check if the path or any parent directory contains "- migrated"
+      path_segments = asset_path.split("/")
+      path_segments.any? { |segment| segment.downcase.include?("- migrated") }
+    end
+
+    def rule_2_delete_directory?(asset_path)
+      # Directory is in deposit/SCRC Accessions AND contains "DELETE"
+      return false unless asset_path.downcase.include?("/deposit/scrc accessions")
+
+      path_segments = asset_path.split("/")
+      path_segments.any? { |segment| segment.downcase.include?("delete") }
+    end
+
+    def rule_3_duplicate_outside_main_areas?(row)
+      return false unless row["Hash"].present?
+
+      asset_path = row["Path"]
+      asset_hash = row["Hash"]
+
+      # Check if this asset is in media-repository or deposit
+      is_in_main_areas = asset_path.downcase.include?("/media-repository") ||
+                        asset_path.downcase.include?("/deposit")
+
+      return false if is_in_main_areas # This rule only applies to assets outside main areas
+
+      duplicate_in_main_areas = check_for_duplicate_in_main_areas(asset_hash, asset_path)
+
+      duplicate_in_main_areas
+    end
+
+    def check_for_duplicate_in_main_areas(asset_hash, current_path)
+      # Check if there are existing assets with the same hash in main areas
+      # test env uses sqlite: using LIKE with LOWER for case-insensitive matching
+      existing_assets = IsilonAsset.where(file_checksum: asset_hash)
+                                  .where("LOWER(isilon_path) LIKE LOWER('%/media-repository%') OR LOWER(isilon_path) LIKE LOWER('%/deposit%')")
+                                  .where.not(isilon_path: current_path)
+
+      existing_assets.exists?
+    end
+
+    def apply_rule_4_post_processing
+      stdout_and_log("Starting Rule 4 post-processing for PROCESSED/UNPROCESSED TIFF comparison...")
+
+      # Use database queries instead of re-reading CSV for better performance
+      parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts
+
+      # Update unprocessed TIFFs in bulk
+      parent_dirs_with_counts.each do |parent_info|
+        mark_unprocessed_tiffs_as_dont_migrate(parent_info[:parent_dir], parent_info[:count])
+      end
+
+      stdout_and_log("Rule 4 post-processing completed.")
+    end
+
+    def find_parent_dirs_with_matching_tiff_counts
+      tiff_assets = IsilonAsset.joins(parent_folder: :volume)
+                              .where(parent_folder: { volume: @parent_volume })
+                              .where("LOWER(isilon_path) LIKE '%/deposit/%'")
+                              .where("LOWER(isilon_path) NOT LIKE '%/deposit/scrc accessions%'")
+                              .where("LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif'")
+                              .where("LOWER(isilon_path) LIKE '%/processed/%' OR LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%'")
+
+      # Group assets by parent directory and subdirectory type
+      parent_dir_analysis = {}
+
+      tiff_assets.find_each do |asset|
+        parent_dir = extract_parent_directory(asset.isilon_path)
+        subdirectory_type = extract_subdirectory_type(asset.isilon_path)
+
+        next unless parent_dir && subdirectory_type
+
+        parent_dir_analysis[parent_dir] ||= { processed: 0, unprocessed: 0 }
+        parent_dir_analysis[parent_dir][subdirectory_type] += 1
+      end
+
+      # Return only parent directories where processed count = unprocessed count
+      parent_dir_analysis.filter_map do |parent_dir, counts|
+        if counts[:processed] > 0 && counts[:unprocessed] > 0 && counts[:processed] == counts[:unprocessed]
+          {
+            parent_dir: parent_dir,
+            count: counts[:processed]
+          }
+        end
+      end
+    end
+
+    def extract_parent_directory(isilon_path)
+      path_lower = isilon_path.downcase
+
+      if path_lower.include?("/processed/")
+        isilon_path.split("/processed/").first
+      elsif path_lower.include?("/unprocessed/")
+        isilon_path.split("/unprocessed/").first
+      elsif path_lower.include?("/raw/")
+        isilon_path.split("/raw/").first
+      end
+    end
+
+    def extract_subdirectory_type(isilon_path)
+      path_lower = isilon_path.downcase
+
+      if path_lower.include?("/processed/")
+        :processed
+      elsif path_lower.include?("/unprocessed/") || path_lower.include?("/raw/")
+        :unprocessed
+      end
+    end
+
+    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, count)
+      dont_migrate_status = MigrationStatus.find_by(name: "Don't migrate")
+
+      # Bulk update all unprocessed TIFFs in this parent directory
+      updated_count = IsilonAsset.joins(parent_folder: :volume)
+        .where(parent_folder: { volume: @parent_volume })
+        .where("isilon_path LIKE ?", "#{parent_dir}/%")
+        .where("(LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%')")
+        .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
+        .update_all(migration_status_id: dont_migrate_status.id)
+
+      stdout_and_log("Rule 4 post-processing: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir} (#{count} processed = #{count} unprocessed)")
+    end
+
     def stdout_and_log(message, level: :info)
+      # Toggle for batch processing visibility
+      return unless level == :error
+
       @log.send(level, message)
       @stdout.send(level, message)
     end
