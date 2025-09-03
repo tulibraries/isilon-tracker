@@ -1,5 +1,7 @@
 class VolumesController < ApplicationController
-  before_action :set_volume, only: %i[ show file_tree_folders ]
+  before_action :set_volume, only: %i[ show file_tree file_tree_folders file_tree_assets
+    file_tree_folders_search file_tree_assets_search
+    file_tree_updates ]
 
   def file_tree
     volume = Volume.find(params[:id])
@@ -54,17 +56,43 @@ class VolumesController < ApplicationController
     render json: assets, each_serializer: IsilonAssetSerializer
   end
 
+  def file_tree_updates
+    raw_id = params[:node_id].to_s
+    record =
+      if params[:node_type] == "folder"
+        @volume.isilon_folders.find(raw_id.sub(/^f-/, "").to_i)
+      else
+        id = raw_id.sub(/^a-/, "").to_i
+        @volume.isilon_assets.find(id)
+      end
+
+    field_map = {
+      "migration_status"      => "migration_status_id",
+      "contentdm_collection"  => "contentdm_collection_id",
+      "aspace_collection"     => "aspace_collection_id"
+    }
+
+    db_field = field_map[params[:field]] || params[:field]
+    value = params[:value]
+    value = value.to_i if db_field.ends_with?("_id") && value.present?
+
+    if record.respond_to?(db_field) && record.update(db_field => value)
+      render json: { status: "ok", id: record.id, field: db_field, value: value }
+    else
+      render json: { status: "error", errors: record.errors.full_messages },
+            status: :unprocessable_entity
+    end
+  end
+
   def index
     @volumes = Volume.all
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
     def set_volume
       @volume = Volume.find(params[:id])
     end
 
-    # Only allow a list of trusted parameters through.
     def volume_params
       params.fetch(:volume, {}).permit(:name, :id, :parent_folder_id)
     end

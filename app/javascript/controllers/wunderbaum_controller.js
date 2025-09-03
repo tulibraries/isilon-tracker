@@ -55,10 +55,7 @@ export default class extends Controller {
             filterable: true,
             title: "Migration status",
             width: "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="1" selected>Needs Review</option>
-              </select>`
+            html: `<select tabindex="-1"><option value="1" selected>Needs Review</option></select>`
           },
           {
             id: "assigned_to",
@@ -66,10 +63,7 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="assigned_to" selected>unassigned</option>
-              </select>`
+            html: `<select tabindex="-1"><option value="assigned_to" selected>unassigned</option></select>`
           },
           {
             id: "notes",
@@ -85,26 +79,15 @@ export default class extends Controller {
             width: "150px",
             html: `<input type="text" tabindex="-1">`
           },
-          { id: "file_size",
-            classes: "wb-helper-center",
-            title: "File size",
-            width: "150px"
-          },
-          { id: "isilon_date",
-            classes: "wb-helper-center",
-            title: "Isilon date created",
-            width: "150px"
-          },
+          { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
+          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
           {
             id: "contentdm_collection",
             classes: "wb-helper-center",
             filterable: true,
             title: "Contentdm Collection",
             width: "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="" selected></option>
-              </select>`
+            html: `<select tabindex="-1"><option value="" selected></option></select>`
           },
           {
             id: "aspace_collection",
@@ -112,10 +95,7 @@ export default class extends Controller {
             filterable: true,
             title: "ASpace Collection",
             width: "150px",
-            html: `
-              <select tabindex="-1">
-                <option value="" selected></option>
-              </select>`
+            html: `<select tabindex="-1"><option value="" selected></option></select>`
           },
           {
             id: "preservica_reference_id",
@@ -213,7 +193,11 @@ export default class extends Controller {
                 case "assigned_to":
                   if (this.userOptions) {
                     let effectiveValue = value;
-                    if (effectiveValue == null || effectiveValue === "" || effectiveValue === "0") {
+                    if (
+                      effectiveValue == null ||
+                      effectiveValue === "" ||
+                      effectiveValue === "0"
+                    ) {
                       effectiveValue = "unassigned";
                       e.node.data.assigned_to = effectiveValue; // keep data in sync
                     }
@@ -227,6 +211,26 @@ export default class extends Controller {
                   } else {
                     util.setValueToElem(colInfo.elem, value ?? "Unassigned");
                   }
+                  break;
+
+                case "notes":
+                case "file_type":
+                case "preservica_reference_id":
+                  const input = document.createElement("input");
+                  input.type = "text";
+                  input.name = colId;
+                  input.value = value ?? "";
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(input);
+                  break;
+
+                case "aspace_linking_status":
+                  const checkbox = document.createElement("input");
+                  checkbox.type = "checkbox";
+                  checkbox.name = colId;
+                  checkbox.checked = Boolean(value);
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(checkbox);
                   break;
 
                 default:
@@ -247,45 +251,23 @@ export default class extends Controller {
           }
         },
 
-        buttonClick: (e) => {
-          if (e.command === "filter") {
-            const colId = e.info.colDef.id;
-            const colIdx = e.info.colIdx;
-            const allCols = this.element.querySelectorAll(".wb-header .wb-col");
-            const colCell = allCols[colIdx];
-            if (!colCell) return;
-            const icon = colCell.querySelector("[data-command='filter']");
-            if (!icon) return;
-            this.showDropdownFilter(icon, colId);
-          }
-        },
-
-        buttonClick: (e) => {
-          if (e.command === "filter") {
-            const colId = e.info.colDef.id;
-            const colIdx = e.info.colIdx;
-            const allCols = this.element.querySelectorAll(".wb-header .wb-col");
-            const colCell = allCols[colIdx];
-            if (!colCell) return;
-            const icon = colCell.querySelector("[data-command='filter']");
-            if (!icon) return;
-            this.showDropdownFilter(icon, colId);
-          }
-        },
-        
         change: (e) => {
           const util = e.util;
           const colId = e.info.colId;
-          e.node.data[colId] = util.getValueFromElem(e.inputElem, true);
+          const value = util.getValueFromElem(e.inputElem, true);
+
+          e.node.data[colId] = value;
+          this._saveCellChange(e.node, colId, value);
         },
 
         source
       });
 
-      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions");
-      this._fetchOptions("/users.json", "userOptions");
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
+      this._fetchOptions("/users.json", "userOptions", "assigned_to");
+
 
       this._setupInlineFilter();
     } catch (err) {
@@ -338,7 +320,7 @@ export default class extends Controller {
     try {
       [folders, assets] = await Promise.all([
         this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?q=${encodeURIComponent(q)}`, searchCtrl).catch(() => []),
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?q=${encodeURIComponent(q)}`,  searchCtrl).catch(() => []),
+        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?q=${encodeURIComponent(q)}`, searchCtrl).catch(() => []),
       ]);
     } finally {
       this.inflightControllers.delete(searchCtrl);
@@ -373,7 +355,7 @@ export default class extends Controller {
           const base = `/volumes/${this.volumeIdValue}`;
           const [childFolders, childAssets] = await Promise.all([
             this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-            this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`,  ctrl).catch(() => []),
+            this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
           ]);
           return { pid, childFolders, childAssets };
         }));
@@ -443,6 +425,41 @@ export default class extends Controller {
     return n;
   }
 
+_handleInputChange(e) {
+  const target = e.target;
+  if (!(target instanceof HTMLSelectElement || target instanceof HTMLInputElement)) return;
+
+  const nodeKey = target.dataset.nodeKey || target.closest(".wb-node")?.dataset.key;
+  if (!nodeKey) {
+    console.warn("No nodeKey found for target:", target);
+    return;
+  }
+
+  const node = this._findNodeByKey(nodeKey);
+  if (!node) {
+    console.warn("No node found for nodeKey:", nodeKey);
+    return;
+  }
+
+  const colCell = target.closest(".wb-col");
+  const field = colCell?.dataset.colid || target.name;
+  if (!field) {
+    console.warn("No field resolved for target:", target);
+    return;
+  }
+
+  let value;
+  if (target.type === "checkbox") {
+    value = target.checked;
+  } else {
+    value = target.value;
+  }
+
+  node.data[field] = value;
+  console.log("Saving field:", field, "value:", value, "for node:", nodeKey);
+  this._saveCellChange(node, field, value);
+}
+
   async _hydrateSingleParentByKey(parentKey, mySeq) {
     if (mySeq !== this._filterSeq) return;
     const pid = String(parentKey);
@@ -452,7 +469,7 @@ export default class extends Controller {
     try {
       const [childFolders, childAssets] = await Promise.all([
         this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-        this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`,  ctrl).catch(() => []),
+        this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
       ]);
       if (mySeq !== this._filterSeq) return;
 
@@ -592,7 +609,7 @@ export default class extends Controller {
       const isFolder = node.data?.folder === true;
       if (!isFolder) return;
       let matched = false;
-      try { matched = this.currentFilterPredicate(node); } catch (_) {}
+      try { matched = this.currentFilterPredicate(node); } catch {}
       if (!matched) return;
       if (!node.expanded) {
         node.setExpanded(true);
@@ -611,23 +628,23 @@ export default class extends Controller {
   }
 
   _buildSelectList(options, currentValue, selectName) {
-    const select = document.createElement("select");
-    select.name = selectName;
+  const select = document.createElement("select");
+  select.name = selectName;
 
-    const normalized = String(currentValue ?? "");
+  const normalized = String(currentValue ?? "");
 
-    options.forEach(opt => {
-      const option = document.createElement("option");
-      option.value = String(opt.value);
-      option.textContent = opt.label;
-      if (String(opt.value) === normalized) {
-        option.selected = true;
-      }
-      select.appendChild(option);
-    });
+  options.forEach(opt => {
+    const option = document.createElement("option");
+    option.value = String(opt.value);
+    option.textContent = opt.label;
+    if (String(opt.value) === normalized) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
 
-    return select;
-  }
+  return select;
+}
   
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
@@ -779,5 +796,36 @@ export default class extends Controller {
       console.error("Failed to fetch options for", url, err);
     }
   }
+
+  async _saveCellChange(node, field, value) {
+    const nodeId = node.key;
+    const nodeType = node.data.folder ? "folder" : "asset";
+
+    try {
+      const resp = await fetch(`/volumes/${this.volumeIdValue}/file_tree_updates`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").content,
+        },
+        body: JSON.stringify({
+          node_id: nodeId,   // 👈 renamed
+          node_type: nodeType,
+          field: field,
+          value: value,
+        }),
+        credentials: "same-origin",
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      node.data[field] = value;
+      console.log("Saved:", data);
+    } catch (err) {
+      console.error("Failed to save cell change", err);
+    }
+  }
+
 
 }
