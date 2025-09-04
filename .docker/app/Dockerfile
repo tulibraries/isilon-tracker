@@ -52,7 +52,7 @@ RUN apk add -U --no-cache \
     rm -rf /var/cache/apk/ && \
     mkdir -p /secure-tmp && chmod 700 /secure-tmp && \
     mkdir -p /secure-tmp/log && chmod 700 /secure-tmp/log && \
-    rails users:set_initial
+    rails users:sync_initial
 
 USER 65534:65534
 
