@@ -6,6 +6,7 @@ gem "bootsnap", require: false
 gem "bootstrap"
 gem "cssbundling-rails"
 gem "csv"
+gem "dotenv-rails"
 gem "jbuilder"
 gem "jsbundling-rails"
 gem "puma", ">= 5.0"
