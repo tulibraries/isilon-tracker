@@ -4,7 +4,7 @@ import { Wunderbaum } from "wunderbaum";
 export default class extends Controller {
   static values = { url: String, volumeId: Number };
 
-  columnFilters = new Map();
+  // columnFilters = new Map();
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
   currentFilterPredicate = null;
@@ -55,7 +55,7 @@ export default class extends Controller {
             filterable: true,
             title: "Migration status",
             width: "150px",
-            html: `<select tabindex="-1"><option value="1" selected>Needs Review</option></select>`
+            html: `<select tabindex="-1"><option value="assigned_to" selected>loading...</option></select>`
           },
           {
             id: "assigned_to",
@@ -63,7 +63,7 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "150px",
-            html: `<select tabindex="-1"><option value="assigned_to" selected>unassigned</option></select>`
+            html: `<select tabindex="-1"><option value="assigned_to" selected>loading...</option></select>`
           },
           {
             id: "notes",
@@ -87,7 +87,7 @@ export default class extends Controller {
             filterable: true,
             title: "Contentdm Collection",
             width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            html: `<select tabindex="-1"><option value="assigned_to" selected>loading...</option></select>`
           },
           {
             id: "aspace_collection",
@@ -95,7 +95,7 @@ export default class extends Controller {
             filterable: true,
             title: "ASpace Collection",
             width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            html: `<select tabindex="-1"><option value="assigned_to" selected>loading...</option></select>`
           },
           {
             id: "preservica_reference_id",
@@ -144,100 +144,13 @@ export default class extends Controller {
             const colId = colInfo.id;
             let value = e.node.data[colId];
 
-            if (!isFolder) {
-              let selectElem;
-
-              switch (colId) {
-                case "migration_status":
-                  if (this.migrationStatusOptions) {
-                    selectElem = this._buildSelectList(
-                      this.migrationStatusOptions,
-                      value,
-                      "migration_status"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "aspace_collection":
-                  if (this.aspaceCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.aspaceCollectionOptions,
-                      value,
-                      "aspace_collection"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "contentdm_collection":
-                  if (this.contentdmCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.contentdmCollectionOptions,
-                      value,
-                      "contentdm_collection"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "assigned_to":
-                  if (this.userOptions) {
-                    let effectiveValue = value;
-                    if (
-                      effectiveValue == null ||
-                      effectiveValue === "" ||
-                      effectiveValue === "0"
-                    ) {
-                      effectiveValue = "unassigned";
-                      e.node.data.assigned_to = effectiveValue; // keep data in sync
-                    }
-                    selectElem = this._buildSelectList(
-                      this.userOptions,
-                      effectiveValue,
-                      "assigned_to"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "Unassigned");
-                  }
-                  break;
-
-                case "notes":
-                case "file_type":
-                case "preservica_reference_id":
-                  const input = document.createElement("input");
-                  input.type = "text";
-                  input.name = colId;
-                  input.value = value ?? "";
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(input);
-                  break;
-
-                case "aspace_linking_status":
-                  const checkbox = document.createElement("input");
-                  checkbox.type = "checkbox";
-                  checkbox.name = colId;
-                  checkbox.checked = Boolean(value);
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(checkbox);
-                  break;
-
-                default:
-                  util.setValueToElem(colInfo.elem, value ?? "");
+            if (colInfo.info.html) {
+              if (e.isNew) {
+                colInfo.elem.innerHTML = colInfo.info.html;
               }
+              util.setValueToElem(colInfo.elem, value);
             } else {
-              util.setValueToElem(colInfo.elem, "");
+              util.setValueToElem(colInfo.elem, value ?? "");
             }
           }
 
@@ -263,13 +176,12 @@ export default class extends Controller {
         source
       });
 
-      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
       this._fetchOptions("/users.json", "userOptions", "assigned_to");
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
 
-
-      this._setupInlineFilter();
+      // this._setupInlineFilter();
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
@@ -280,22 +192,22 @@ export default class extends Controller {
     this._cancelInflight();
   }
 
-  _setupInlineFilter() {
-    const input = document.getElementById("tree-filter");
-    if (!input) return;
+  // _setupInlineFilter() {
+  //   const input = document.getElementById("tree-filter");
+  //   if (!input) return;
 
-    input.addEventListener("input", () => {
-      clearTimeout(this._filterTimer);
-      this._filterTimer = setTimeout(() => this._runDeepFilter(input.value || ""), 300);
-    });
+  //   input.addEventListener("input", () => {
+  //     clearTimeout(this._filterTimer);
+  //     this._filterTimer = setTimeout(() => this._runDeepFilter(input.value || ""), 300);
+  //   });
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        input.value = "";
-        this._runDeepFilter("");
-      }
-    });
-  }
+  //   input.addEventListener("keydown", (e) => {
+  //     if (e.key === "Escape") {
+  //       input.value = "";
+  //       this._runDeepFilter("");
+  //     }
+  //   });
+  // }
 
   async _runDeepFilter(raw) {
     this._cancelInflight();
@@ -406,6 +318,39 @@ export default class extends Controller {
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
+  }
+
+  _applyOptionsToColumn(colId, opts) {
+    const col = this.tree.columns.find(c => c.id === colId);
+
+    if (col) {
+      col.html = `<select tabindex="-1">
+        ${opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}
+      </select>`;
+    }
+
+    if (this.tree.header) {
+      this.tree.header.render();
+
+      const headerCell = this.tree.header.elem.querySelector(
+        `.wb-col[data-colid='${colId}']`
+      );
+
+      if (headerCell) {
+        headerCell.innerHTML = `<select class="wb-filter" data-colid="${colId}">
+          ${opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}
+          <option value="">⨉ Clear Filter</option>
+        </select>`;
+      }
+    }
+
+    document
+      .querySelectorAll(`.wb-col[data-colid='${colId}'] select`)
+      .forEach(el => {
+        const currentVal = el.value;
+        el.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+        if (currentVal) el.value = currentVal;
+      });
   }
 
   _reapplyFilterIfAny() {
@@ -772,7 +717,7 @@ _handleInputChange(e) {
     el.textContent = text;
   }
   
-  async _fetchOptions(url, targetProp) {
+  async _fetchOptions(url, targetProp, colId) {
     try {
       const res = await fetch(url, { headers: { Accept: "application/json" } });
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
@@ -789,8 +734,8 @@ _handleInputChange(e) {
 
       this[targetProp] = opts;
 
-      if (this.tree?.header) {
-        this.tree.header.render(); // refresh header filters
+      if (colId && this.tree) {
+        this._applyOptionsToColumn(colId, opts);
       }
     } catch (err) {
       console.error("Failed to fetch options for", url, err);
