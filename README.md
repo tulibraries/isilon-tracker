@@ -17,6 +17,17 @@ cd isilon-tracker
 bundle install
 ```
 
+* There are some environment variables that need to be set in order for login to work locally. You can find these in the 
+* 1Passwordd app, in the "dev team" vault. Search for the "Google OAuth Isilon Tracker Dev" note and execute the
+  export commands.
+
+* Authentication is required. Click on the "Sign in with GoogleOauth2" button and
+  connect to your Google account. If you encounter the Google Account Profile Page, return to Isilon tracker
+  application and reauthenticate. You should be take to the desired page. NOTE: This is a known issue which
+  we will address in a future release.
+
+* To seeds some initial users, add the IMT_USER_LIST environment variable. It can be found in the "dev team" vault of the 1Password app.
+
 * Initialize the db and populate wtih seeds from config
 
 ```bash
