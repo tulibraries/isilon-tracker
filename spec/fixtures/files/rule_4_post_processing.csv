@@ -1,0 +1,8 @@
+Path,Size,Type,Hash,CreatedAt,ModifiedAt
+/test-volume/deposit/project1/processed/image001.tiff,1000,image/tiff,hash1,2023-01-01,2023-01-01
+/test-volume/deposit/project1/processed/image002.tiff,1000,image/tiff,hash2,2023-01-01,2023-01-01
+/test-volume/deposit/project1/unprocessed/image001.tiff,1000,image/tiff,hash3,2023-01-01,2023-01-01
+/test-volume/deposit/project1/unprocessed/image002.tiff,1000,image/tiff,hash4,2023-01-01,2023-01-01
+/test-volume/deposit/project2/processed/scan001.tiff,1000,image/tiff,hash5,2023-01-01,2023-01-01
+/test-volume/deposit/project2/raw/scan001.tiff,1000,image/tiff,hash6,2023-01-01,2023-01-01
+/test-volume/deposit/project2/raw/scan002.tiff,1000,image/tiff,hash7,2023-01-01,2023-01-01
