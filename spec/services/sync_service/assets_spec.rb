@@ -55,76 +55,6 @@ RSpec.describe SyncService::Assets, type: :service do
       end
     end
 
-    context 'Rule 3: Duplicate assets NOT located in media-repository or deposit folders' do
-      let(:test_data) { CSV.read(file_fixture('rule_3_test_data.csv'), headers: true) }
-
-      # Set up the existing asset to be found within media-repository or deposit
-      let!(:parent_folder) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/collection") }
-      let!(:existing_asset) do
-        # Use the hash from the first csv row to create the original
-        duplicate_hash = test_data[0]['Hash']
-        FactoryBot.create(:isilon_asset,
-                          parent_folder: parent_folder,
-                          isilon_path: "/deposit/collection/original.pdf",
-                          file_checksum: duplicate_hash)
-      end
-
-      # Set up media-repository asset for cross-main-area testing
-      let!(:media_folder) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/media-repository/project") }
-      let!(:media_asset) do
-        # Use the hash from the fourth csv row for cross-main-area test
-        cross_hash = test_data[3]['Hash']
-        FactoryBot.create(:isilon_asset,
-                          parent_folder: media_folder,
-                          isilon_path: "/media-repository/project/cross-main-area.pdf",
-                          file_checksum: cross_hash)
-      end
-
-      it 'applies "Don\'t migrate" to duplicates outside deposit/media-repository folder' do
-        row_data = test_data[0] # ingest asset with duplicate hash
-
-        row = {
-          "Path" => row_data['Path'],
-          "Hash" => row_data['Hash']
-        }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to eq(dont_migrate_status.id)
-      end
-
-      it 'does not apply status when duplicate exists in media-repository folder' do
-        row_data = test_data[1] # File in deposit
-
-        row = {
-          "Path" => row_data['Path'],
-          "Hash" => row_data['Hash']
-        }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil # does not set migration status
-      end
-
-      it 'does not apply when in folders but no duplicate exists' do
-        row_data = test_data[2] # No duplicate exists
-
-        row = {
-          "Path" => row_data['Path'],
-          "Hash" => row_data['Hash']
-        }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil
-      end
-
-      it 'does not apply when deposit file has duplicate in media-repository' do
-        row_data = test_data[3] # File in deposit with duplicate in media-repository
-
-        row = {
-          "Path" => row_data['Path'],
-          "Hash" => row_data['Hash']
-        }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil # does not set migration status - both are main areas
-      end
-    end
-
     context 'No rules apply' do
       it 'returns nil for regular files' do
         row = { "Path" => "/test-volume/some-other-area/regular-file.pdf" }
@@ -193,18 +123,6 @@ RSpec.describe SyncService::Assets, type: :service do
 
   describe 'Integration test: full sync with automation' do
     let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
-    let(:integration_csv_data) { CSV.read(file_fixture('automation_rules_sync.csv'), headers: true) }
-
-    # Setup for Rule 3: Create the original asset that the duplicate will be compared against
-    let!(:integration_main_folder) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit") }
-    let!(:integration_original_asset) do
-      # Find the original file data from CSV (row 2: /deposit/original.pdf)
-      original_row = integration_csv_data.find { |row| row['Path'] == "/test-volume/deposit/original.pdf" }
-      FactoryBot.create(:isilon_asset,
-                        parent_folder: integration_main_folder,
-                        isilon_path: "/deposit/original.pdf",
-                        file_checksum: original_row['Hash'])
-    end
 
     it 'applies all automation rules correctly during sync' do
       service = described_class.new(csv_path: csv_path)
@@ -218,9 +136,10 @@ RSpec.describe SyncService::Assets, type: :service do
       delete_asset = IsilonAsset.find_by(isilon_path: "/deposit/SCRC Accessions/DELETE-temp/document.pdf")
       expect(delete_asset.migration_status).to eq(dont_migrate_status)
 
-      # Rule 3: Duplicate outside main areas
+      # Rule 3: Duplicate outside main areas - NOW HANDLED BY SEPARATE TASK
+      # Duplicates will get default status during sync, then updated by duplicate detector
       duplicate_asset = IsilonAsset.find_by(isilon_path: "/backup/duplicate.pdf")
-      expect(duplicate_asset.migration_status).to eq(dont_migrate_status)
+      expect(duplicate_asset.migration_status).to eq(default_migration_status) # Changed expectation
 
       # Rule 4: Unprocessed TIFF (post-processing)
       unprocessed_asset = IsilonAsset.find_by(isilon_path: "/deposit/digitization/unprocessed/scan001.tiff")

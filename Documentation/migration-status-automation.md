@@ -30,6 +30,8 @@ The CSV data ingestion service now includes automated migration status assignmen
 - `/deposit/SCRC Accessions/DELETE-temp-files/document.txt`
 
 ### Rule 3: Duplicate Assets Outside Main Areas
+**Status:** Handled by separate duplicate detection task (not during CSV import): https://tulibdev.atlassian.net/browse/IMT-142
+
 **Condition:**
 - Asset has a duplicate (checksum matches another asset)
 - Current asset is NOT in main areas (`media-repository` or `deposit`)
@@ -37,7 +39,7 @@ The CSV data ingestion service now includes automated migration status assignmen
 
 **Action:** Assign migration status "Don't migrate" to the asset outside main areas
 
-**Note:** This rule uses real-time duplicate detection with database queries during CSV processing.
+**Note:** This rule is implemented as a separate post-processing task that runs after CSV import for better performance and more sophisticated duplicate analysis.
 
 ### Rule 4: Unprocessed Files with Processed Equivalents
 **Condition:**
@@ -57,23 +59,23 @@ The CSV data ingestion service now includes automated migration status assignmen
 - `app/services/sync_service/assets.rb` - Main implementation
 
 ### Key Methods Added
-- `apply_automation_rules(row)` - Main rule processing logic
+- `apply_automation_rules(row)` - Main rule processing logic (Rules 1 & 2)
 - `rule_1_migrated_directory?(path)` - Rule 1 logic
 - `rule_2_delete_directory?(path)` - Rule 2 logic  
-- `rule_3_duplicate_outside_main_areas?(row)` - Rule 3 logic
-- `check_for_duplicate_in_main_areas(hash, path)` - Duplicate checking for Rule 3
 - `apply_rule_4_post_processing()` - Post-processing for Rule 4
 - `find_parent_dirs_with_matching_tiff_counts()` - Database-optimized Rule 4 analysis
 - `extract_parent_directory(path)` - Extract parent directory for TIFF comparison
 - `extract_subdirectory_type(path)` - Determine processed/unprocessed type
 - `mark_unprocessed_tiffs_as_dont_migrate(parent_dir, count)` - Bulk update for Rule 4
 
+**Note:** Rule 3 duplicate detection methods have been moved to a separate duplicate detection service.
+
 ### Logging
 When logging is enabled, all rule applications are logged with details about which rule was applied and to which asset path. This provides an audit trail for automated decisions.
 
 ### Performance Considerations
-- Rules 1 and 2 are lightweight string operations
-- Rule 3 uses real-time duplicate detection with database queries
+- Rules 1 and 2 are lightweight string operations during CSV processing
+- Rule 3 is handled by separate duplicate detection task for better performance
 - Rule 4 runs as post-processing using database-optimized ActiveRecord queries
 - CSV processing uses streaming with lazy evaluation for memory efficiency
 - Batch processing (1000 rows per batch) with bulk database inserts
@@ -94,8 +96,10 @@ rails "sync:assets[scan_output.applications-backup.csv]"
 
 The automation uses these existing migration statuses:
 - "Migrated" - For Rule 1
-- "Don't migrate" - For Rules 2, 3, and 4
-- "Needs review" (default) - When no automation rules apply
+- "Don't migrate" - For Rules 2 and 4 (during CSV import), Rule 3 (via separate task)
+- "Needs review" (default) - When no automation rules apply during CSV import
+
+**Note:** Rule 3 duplicates will initially get "Needs review" status during CSV import, then updated to "Don't migrate" by the separate duplicate detection task.
 
 ## Testing
 

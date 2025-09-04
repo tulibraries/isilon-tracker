@@ -1,5 +1,0 @@
-Path,Hash
-/test-volume/backup/collection/duplicate.pdf,abc123hash
-/test-volume/deposit/collection/another.pdf,abc123hash
-/test-volume/backup/collection/unique.pdf,uniquehash
-/test-volume/deposit/project/cross-main-area.pdf,media456hash

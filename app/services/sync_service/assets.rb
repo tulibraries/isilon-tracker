@@ -209,7 +209,7 @@ module SyncService
       # AUTOMATION RULES SUMMARY:
       # Rule 1: Migrated directories in deposit (but not born-digital) -> "Migrated"
       # Rule 2: DELETE directories in born-digital deposit areas -> "Don't migrate"
-      # Rule 3: Duplicate assets outside media-repository/deposit -> "Don't migrate"
+      # Rule 3: Duplicate detection -> Handled by separate post-processing task
       # Rule 4: Unprocessed/raw files when processed equivalents exist -> "Don't migrate" (post-processing)
 
       asset_path = row["Path"]
@@ -227,12 +227,7 @@ module SyncService
         return MigrationStatus.find_by(name: "Don't migrate")&.id
       end
 
-      # Rule 3: Duplicate assets outside media-repository/deposit
-      if rule_3_duplicate_outside_main_areas?(row)
-        stdout_and_log("Rule 3 applied: Duplicate outside main areas detected for #{asset_path}")
-        return MigrationStatus.find_by(name: "Don't migrate")&.id
-      end
-
+      # Rule 3: Handled by separate duplicate detection task: https://tulibdev.atlassian.net/browse/IMT-142
       # Rule 4: Handled entirely in post-processing for accurate TIFF count comparison
 
       nil # No automation rule applies
@@ -256,33 +251,6 @@ module SyncService
 
       path_segments = asset_path.split("/")
       path_segments.any? { |segment| segment.downcase.include?("delete") }
-    end
-
-    def rule_3_duplicate_outside_main_areas?(row)
-      return false unless row["Hash"].present?
-
-      asset_path = row["Path"]
-      asset_hash = row["Hash"]
-
-      # Check if this asset is in media-repository or deposit
-      is_in_main_areas = asset_path.downcase.include?("/media-repository") ||
-                        asset_path.downcase.include?("/deposit")
-
-      return false if is_in_main_areas # This rule only applies to assets outside main areas
-
-      duplicate_in_main_areas = check_for_duplicate_in_main_areas(asset_hash, asset_path)
-
-      duplicate_in_main_areas
-    end
-
-    def check_for_duplicate_in_main_areas(asset_hash, current_path)
-      # Check if there are existing assets with the same hash in main areas
-      # test env uses sqlite: using LIKE with LOWER for case-insensitive matching
-      existing_assets = IsilonAsset.where(file_checksum: asset_hash)
-                                  .where("LOWER(isilon_path) LIKE LOWER('%/media-repository%') OR LOWER(isilon_path) LIKE LOWER('%/deposit%')")
-                                  .where.not(isilon_path: current_path)
-
-      existing_assets.exists?
     end
 
     def apply_rule_4_post_processing
