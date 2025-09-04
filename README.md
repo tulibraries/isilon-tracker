@@ -24,6 +24,7 @@ bundle exec rails db:setup
 ```
 
 * Ingest sample sample data from the repo, if needed (file included in the repo). 
+
 `bundle exec rails sync:assets[scan_output.applications-backup.csv]`
 
 In some zsh shells with nomatch turned on, escaping the brackets in this command may be necessary. Alternatively, quote the entire task portion of the command, or add "setopt +o nomatch" to your ~/.zshrc profile to prevent zsh from requiring bracket escaping in Rails commands.
