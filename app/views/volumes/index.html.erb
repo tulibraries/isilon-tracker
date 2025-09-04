@@ -1,12 +1,9 @@
-<p style="color: green"><%= notice %></p>
-
 <% content_for :title, "Volumes" %>
 
 <h1>Volumes</h1>
 
 <div id="volumes">
   <% @volumes.each do |volume| %>
-    
     <p>
       <%= link_to volume.name, volume %>
     </p>
