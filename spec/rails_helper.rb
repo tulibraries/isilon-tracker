@@ -9,6 +9,7 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 # return unless Rails.env.test?
 require 'rspec/rails'
 require 'capybara/rspec'
+Dir[Rails.root.join("spec/support/**/*.rb")].sort.each { |f| require f }
 # Add additional requires below this line. Rails is not loaded until this point!
 include Warden::Test::Helpers
 
@@ -72,7 +73,4 @@ RSpec.configure do |config|
   config.filter_rails_from_backtrace!
   # arbitrary gems may also be filtered via:
   # config.filter_gems_from_backtrace("gem name")
-
-  # Add factorybot
-  config.include Devise::Test::IntegrationHelpers, type: :request
 end

@@ -6,6 +6,8 @@ class MigrationStatus < ApplicationRecord
 
   before_save :ensure_single_default, if: :default?
 
+  has_many :isilon_folders
+
   def to_s
     name
   end
