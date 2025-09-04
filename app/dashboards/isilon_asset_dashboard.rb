@@ -15,6 +15,13 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     assigned_to: Field::String,
     contentdm_collection: Field::BelongsTo,
     date_created_in_isilon: Field::String,
+    duplicate_of: Field::BelongsTo.with_options(
+      class_name: "IsilonAsset",
+      foreign_key: "duplicate_of_id"
+    ),
+    duplicates: Field::HasMany.with_options(
+      class_name: "IsilonAsset"
+    ),
     file_checksum: Field::String,
     file_size: Field::String,
     file_type: Field::String,
@@ -61,6 +68,8 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     aspace_linking_status
     contentdm_collection
     preservica_reference_id
+    duplicate_of
+    duplicates
     notes
     assigned_to
     last_updated_by
