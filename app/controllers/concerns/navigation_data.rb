@@ -21,8 +21,8 @@ module NavigationData
 
       {
         name: model_class.model_name.human,
-        path: polymorphic_path([:admin, model_class]),
-        url_prefix: polymorphic_path([:admin, model_class]),
+        path: polymorphic_path([ :admin, model_class ]),
+        url_prefix: polymorphic_path([ :admin, model_class ]),
         model: model_class
       }
     rescue NameError
