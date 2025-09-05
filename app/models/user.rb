@@ -6,24 +6,24 @@ class User < ApplicationRecord
          :timeoutable,
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
-  enum status: {
-    inactive: "inactive",
-    active: "active"
-  }, _suffix: true
-
+  enum :status, { inactive: "inactive", active: "active" }, suffix: true
 
   validates :status, inclusion: { in: statuses.keys }
 
-  def title
-    email
-  end
-
-  def password_required?
-    false
-  end
-
   def self.from_omniauth(access_token)
     data = access_token.info
-    User.where(email: data["email"]).first
+    user = User.where(email: data["email"]).first_or_initialize
+
+    user.name ||= data["name"]
+    user.first_name ||= data["name"].split(" ", 2).first
+    user.last_name ||= data["name"].split(" ", 2).last
+    user.password ||= Devise.friendly_token[0, 20]
+
+    user.save! if user.changed?
+    user
+  end
+
+  def title
+    name.presence || email.split("@").first.titleize
   end
 end
