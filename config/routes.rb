@@ -11,6 +11,7 @@ Rails.application.routes.draw do
       resources :volumes, except: [ :destroy, :edit, :new ]
       resources :aspace_collections
       resources :contentdm_collections
+      resources :migration_statuses, only: [ :index ]
       resources :users, only: [ :index, :show, :new, :create, :edit, :update ]
 
       root to: "volumes#index"

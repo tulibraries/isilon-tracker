@@ -1,0 +1,110 @@
+<nav class="navbar navbar-expand-lg navbar-light fixed-top custom-navbar">
+  <div class="container">
+    <!-- Brand - positioned absolutely on desktop, normally on mobile -->
+    <%= link_to "Isilon Tracker", root_path, class: "navbar-brand brand-link position-absolute d-none d-lg-block" %>
+    <%= link_to "Isilon Tracker", root_path, class: "navbar-brand brand-link d-lg-none" %>
+    
+    <!-- Mobile toggle button -->
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Navigation items -->
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav mx-auto custom-nav-menu">
+        <!-- Volumes dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle <%= 'active' if controller_name == 'volumes' && action_name != 'show' %>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-hdd"></i>
+            Volumes
+          </a>
+          <ul class="dropdown-menu">
+            <li><%= link_to "All Volumes", volumes_path, class: "dropdown-item" %></li>
+            <% if @navigation_volumes&.any? %>
+              <li><hr class="dropdown-divider"></li>
+              <% @navigation_volumes.each do |volume| %>
+                <li><%= link_to volume.name, volume_path(volume), class: "dropdown-item" %></li>
+              <% end %>
+            <% end %>
+          </ul>
+        </li>
+
+        <!-- Reports -->
+        <li class="nav-item">
+          <a class="nav-link" href="#">
+            <i class="bi bi-file-text"></i>
+            Reports
+          </a>
+        </li>
+
+        <!-- Vocabularies dropdown -->
+        <% if @navigation_collections&.any? %>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <%= 'active' if @navigation_collections.any? { |ct| request.path.start_with?(ct[:url_prefix]) } %>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-book"></i>
+              Vocabularies
+            </a>
+            <ul class="dropdown-menu">
+              <% @navigation_collections.each do |collection_type| %>
+                <li><%= link_to collection_type[:name], collection_type[:path], class: "dropdown-item" %></li>
+              <% end %>
+            </ul>
+          </li>
+        <% else %>
+          <li class="nav-item">
+            <a class="nav-link" href="#">
+              <i class="bi bi-book"></i>
+              Vocabularies
+            </a>
+          </li>
+        <% end %>
+
+        <!-- Users -->
+        <li class="nav-item">
+          <%= link_to admin_users_path, class: "nav-link #{'active' if request.path.start_with?('/admin/users')}" do %>
+            <i class="bi bi-people"></i>
+            Users
+          <% end %>
+        </li>
+        
+        <!-- User menu for small screens - only visible in hamburger menu -->
+        <li class="nav-item d-lg-none">
+          <hr class="dropdown-divider">
+        </li>
+        <% if user_signed_in? %>
+          <li class="nav-item dropdown d-lg-none">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle"></i>
+              <%= current_user.name || current_user.email %>
+            </a>
+            <ul class="dropdown-menu">
+              <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
+            </ul>
+          </li>
+        <% else %>
+          <li class="nav-item d-lg-none">
+            <%= link_to "Sign In", new_user_session_path, class: "nav-link" %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+  
+  <!-- Right side user menu - positioned absolutely on desktop, hidden on mobile -->
+  <div class="user-menu-container d-none d-lg-block">
+    <% if user_signed_in? %>
+      <!-- User dropdown -->
+      <div class="dropdown">
+        <a class="nav-link dropdown-toggle d-flex align-items-center user-menu-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-person-circle me-1"></i>
+          <%= current_user.name || current_user.email %>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
+        </ul>
+      </div>
+    <% else %>
+      <%= link_to "Sign In", new_user_session_path, class: "nav-link user-menu-link" %>
+    <% end %>
+  </div>
+</nav>

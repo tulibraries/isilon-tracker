@@ -1,6 +1,6 @@
 <%= form_with(model: volume) do |form| %>
   <% if volume.errors.any? %>
-    <div style="color: red">
+    <div class="error-text">
       <h2><%= pluralize(volume.errors.count, "error") %> prohibited this volume from being saved:</h2>
 
       <ul>
