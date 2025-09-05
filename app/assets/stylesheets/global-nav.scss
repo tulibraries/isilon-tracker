@@ -1,7 +1,21 @@
 
 // Minimal spacing for fixed navbar
 body {
-  padding-top: 70px; // Adjust this value based on your navbar height
+  padding-top: 80px !important; // Increased padding for navbar with larger brand text
+}
+
+// Navigation styling
+.custom-navbar {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #dee2e6;
+  min-height: 70px; // Ensure consistent navbar height
+}
+
+// Ensure main content container has proper spacing
+.container {
+  &:not(.navbar .container) {
+    margin-top: 1rem; // Add some spacing below the navbar for main content
+  }
 }
 
 // Admin layout specific styles
@@ -17,12 +31,6 @@ body {
   }
 }
 
-// Navigation styling
-.custom-navbar {
-  background-color: transparent !important;
-  border-bottom: 1px solid #dee2e6;
-}
-
 // Navigation brand styling
 .navbar-brand.brand-link {
   color: #A41E35 !important;
@@ -33,7 +41,7 @@ body {
     color: #8B1A2E !important; // Slightly darker on hover
   }
   
-  // When positioned absolutely
+  // When positioned absolutely (desktop only)
   &.position-absolute {
     left: 1rem;
     top: 50%;
