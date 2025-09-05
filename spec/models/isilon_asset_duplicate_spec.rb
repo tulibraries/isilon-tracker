@@ -25,7 +25,8 @@ RSpec.describe IsilonAsset, type: :model do
       end
 
       it 'returns empty collection when asset has no duplicates' do
-        expect(original_asset.duplicates).to be_empty
+        standalone_asset = FactoryBot.create(:isilon_asset, isilon_name: 'standalone_file.jpg')
+        expect(standalone_asset.duplicates).to be_empty
       end
     end
 
