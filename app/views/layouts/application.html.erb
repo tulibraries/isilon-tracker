@@ -19,9 +19,13 @@
 
   </head>
 
-  <body class="px-4">
-    <p class="notice"><%= notice %></p>
-    <p class="alert"><%= alert %></p>
-    <%= yield %>
+  <body>
+    <%= render 'shared/global_navigation' %>
+    
+    <div class="container">
+      <%= render 'shared/flashes' %>
+      
+      <%= yield %>
+    </div>
   </body>
 </html>
