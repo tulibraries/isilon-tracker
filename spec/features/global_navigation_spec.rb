@@ -1,14 +1,14 @@
 require 'rails_helper'
 
 RSpec.describe 'Global Navigation', type: :feature do
-  let(:user) { create(:user) }
+  let(:user) { FactoryBot.create(:user) }
 
   describe 'navigation bar' do
     context 'when visiting the main application' do
       before do
         # Create collections so vocabularies dropdown appears
-        create(:aspace_collection, name: 'Test Aspace Collection')
-        create(:contentdm_collection, name: 'Test ContentDM Collection')
+        FactoryBot.create(:aspace_collection, name: 'Test Aspace Collection')
+        FactoryBot.create(:contentdm_collection, name: 'Test ContentDM Collection')
 
         sign_in user
         visit root_path
@@ -55,8 +55,8 @@ RSpec.describe 'Global Navigation', type: :feature do
     context 'when on admin pages' do
       before do
         # Create collections so vocabularies dropdown appears in admin too
-        create(:aspace_collection, name: 'Test Aspace Collection')
-        create(:contentdm_collection, name: 'Test ContentDM Collection')
+        FactoryBot.create(:aspace_collection, name: 'Test Aspace Collection')
+        FactoryBot.create(:contentdm_collection, name: 'Test ContentDM Collection')
 
         sign_in user
         visit admin_users_path
@@ -77,8 +77,8 @@ RSpec.describe 'Global Navigation', type: :feature do
     context 'vocabularies dropdown' do
       before do
         # Create collections so vocabularies dropdown appears
-        create(:aspace_collection, name: 'Test Aspace Collection')
-        create(:contentdm_collection, name: 'Test ContentDM Collection')
+        FactoryBot.create(:aspace_collection, name: 'Test Aspace Collection')
+        FactoryBot.create(:contentdm_collection, name: 'Test ContentDM Collection')
 
         sign_in user
         visit root_path
@@ -101,7 +101,7 @@ RSpec.describe 'Global Navigation', type: :feature do
 
     context 'volumes dropdown' do
       before do
-        create(:volume, name: 'Test Volume')
+        FactoryBot.create(:volume, name: 'Test Volume')
         sign_in user
         visit root_path
       end
