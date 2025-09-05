@@ -1,0 +1,110 @@
+
+// Minimal spacing for fixed navbar
+body {
+  padding-top: 70px; // Adjust this value based on your navbar height
+}
+
+// Admin layout specific styles
+.admin-layout {
+  // Ensure proper navbar z-index
+  .navbar {
+    z-index: 1050; // Bootstrap navbar z-index
+  }
+  
+  // Clean spacing for admin content
+  .app-container {
+    padding: 20px;
+  }
+}
+
+// Navigation styling
+.custom-navbar {
+  background-color: transparent !important;
+  border-bottom: 1px solid #dee2e6;
+}
+
+// Navigation brand styling
+.navbar-brand.brand-link {
+  color: #A41E35 !important;
+  font-size: 1.5rem !important; // Larger font size for brand text
+  font-weight: 600 !important; // Slightly bolder
+  
+  &:hover {
+    color: #8B1A2E !important; // Slightly darker on hover
+  }
+  
+  // When positioned absolutely
+  &.position-absolute {
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1030; // Above other navbar content
+  }
+}
+
+// Add top padding to body content to account for fixed navbar
+
+// Custom navigation menu spacing
+.custom-nav-menu {
+  width: 100%; // Take up full width of parent
+  justify-content: center; // Center the items and let gap control spacing
+  
+  // Responsive spacing that gets smaller as screen gets smaller
+  gap: 3rem; // Largest gap for biggest screens
+  
+  @media (max-width: 1400px) {
+    gap: 2.5rem;
+  }
+  
+  @media (max-width: 1200px) {
+    gap: 2rem;
+  }
+  
+  @media (max-width: 1000px) {
+    gap: 1.5rem;
+  }
+  
+  @media (max-width: 800px) {
+    gap: 1rem;
+  }
+}
+
+// User menu positioning (right side)
+.user-menu-container {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1030;
+}
+
+// User menu links styling
+.user-menu-link {
+  color: #A41E35 !important;
+  
+  &:hover {
+    color: #8B1A2E !important;
+  }
+}
+
+// Utility classes for common inline styles
+.success-notice {
+  color: green;
+}
+
+.error-text {
+  color: red;
+}
+
+.fixed-height-500 {
+  height: 500px;
+}
+
+.sr-only {
+  display: none;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  position: absolute;
+}
+
