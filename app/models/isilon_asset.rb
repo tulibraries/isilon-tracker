@@ -4,6 +4,9 @@ class IsilonAsset < ApplicationRecord
   belongs_to :aspace_collection, optional: true
   belongs_to :contentdm_collection, optional: true
 
+  # Self-referencing association for duplicate tracking
+  belongs_to :duplicate_of, class_name: "IsilonAsset", foreign_key: "duplicate_of_id", optional: true
+  has_many :duplicates, class_name: "IsilonAsset", foreign_key: "duplicate_of_id", dependent: :nullify
 
   before_validation :set_default_migration_status, on: :create
 

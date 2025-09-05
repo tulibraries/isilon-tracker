@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_08_04_194628) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_04_194447) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -58,8 +58,10 @@ ActiveRecord::Schema[7.2].define(version: 2025_08_04_194628) do
     t.integer "migration_status_id"
     t.integer "aspace_collection_id"
     t.integer "contentdm_collection_id"
+    t.integer "duplicate_of_id"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
+    t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
@@ -109,6 +111,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_08_04_194628) do
 
   add_foreign_key "isilon_assets", "aspace_collections"
   add_foreign_key "isilon_assets", "contentdm_collections"
+  add_foreign_key "isilon_assets", "isilon_assets", column: "duplicate_of_id"
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_assets", "migration_statuses"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
