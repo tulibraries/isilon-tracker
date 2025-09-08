@@ -18,7 +18,7 @@ bundle install
 ```
 
 * There are some environment variables that need to be set in order for login to work locally. You can find these in the 
-* 1Passwordd app, in the "dev team" vault. Search for the "Google OAuth Isilon Tracker Dev" note and execute the
+* 1Password app, in the "dev team" vault. Search for the "Google OAuth Isilon Tracker Dev" note and execute the
   export commands.
 
 ```bash
@@ -31,11 +31,11 @@ export GOOGLE_OAUTH_SECRET=XXXXXXXXXX
   application and reauthenticate. You should be take to the desired page. NOTE: This is a known issue which
   we will address in a future release.
 
-* To seeds initial users from the command line, use the pattern in the following block. Note, the password is
+* To seed initial users from the command line, use the pattern in the following block. Note, the password is
   required, but not used, since this application only uses oauth2 for authentication.
 
 ```bash
-rails runner "pwd = SecureRandom.alphanumeric(16); u = User.create!(name: 'User Name', email: '<TUACCESS_ID>@temple.edu', password: pwd, status: 'active')"
+bundle exec rails runner "pwd = SecureRandom.alphanumeric(16); u = User.create!(name: 'User Name', email: '<TUACCESS_ID>@temple.edu', password: pwd, status: 'active')"
 
 ```
 
