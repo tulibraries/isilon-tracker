@@ -17,6 +17,14 @@ export default class extends Controller {
 
   async connect() {
     try {
+      // Fetch options first, before creating the tree
+      await Promise.all([
+        this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status"),
+        this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection"),
+        this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection"),
+        this._fetchOptions("/users.json", "userOptions", "assigned_to")
+      ]);
+
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -143,101 +151,106 @@ export default class extends Controller {
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
             let value = e.node.data[colId];
+            let selectElem;
 
-            if (!isFolder) {
-              let selectElem;
+            switch (colId) {
+              case "migration_status":
+                if (this.migrationStatusOptions) {
+                  selectElem = this._buildSelectList(
+                    this.migrationStatusOptions,
+                    value,
+                    "migration_status"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
 
-              switch (colId) {
-                case "migration_status":
-                  if (this.migrationStatusOptions) {
-                    selectElem = this._buildSelectList(
-                      this.migrationStatusOptions,
-                      value,
-                      "migration_status"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
+              case "aspace_collection":
+                if (this.aspaceCollectionOptions) {
+                  selectElem = this._buildSelectList(
+                    this.aspaceCollectionOptions,
+                    value,
+                    "aspace_collection"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
+
+              case "contentdm_collection":
+                if (this.contentdmCollectionOptions) {
+                  selectElem = this._buildSelectList(
+                    this.contentdmCollectionOptions,
+                    value,
+                    "contentdm_collection"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
+
+              case "assigned_to":
+                if (this.userOptions) {
+                  let effectiveValue = value;
+                  if (
+                    effectiveValue == null ||
+                    effectiveValue === "" ||
+                    effectiveValue === "0"
+                  ) {
+                    effectiveValue = "unassigned";
+                    e.node.data.assigned_to = effectiveValue; // keep data in sync
                   }
-                  break;
+                  selectElem = this._buildSelectList(
+                    this.userOptions,
+                    effectiveValue,
+                    "assigned_to"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "Unassigned");
+                }
+                break;
 
-                case "aspace_collection":
-                  if (this.aspaceCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.aspaceCollectionOptions,
-                      value,
-                      "aspace_collection"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "contentdm_collection":
-                  if (this.contentdmCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.contentdmCollectionOptions,
-                      value,
-                      "contentdm_collection"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "assigned_to":
-                  if (this.userOptions) {
-                    let effectiveValue = value;
-                    if (
-                      effectiveValue == null ||
-                      effectiveValue === "" ||
-                      effectiveValue === "0"
-                    ) {
-                      effectiveValue = "unassigned";
-                      e.node.data.assigned_to = effectiveValue; // keep data in sync
-                    }
-                    selectElem = this._buildSelectList(
-                      this.userOptions,
-                      effectiveValue,
-                      "assigned_to"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "Unassigned");
-                  }
-                  break;
-
-                case "notes":
-                case "file_type":
-                case "preservica_reference_id":
+              case "notes":
+              case "file_type":
+              case "preservica_reference_id":
+                // These fields only apply to assets, not folders
+                if (!isFolder) {
                   const input = document.createElement("input");
                   input.type = "text";
                   input.name = colId;
                   input.value = value ?? "";
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(input);
-                  break;
+                } else {
+                  util.setValueToElem(colInfo.elem, "");
+                }
+                break;
 
-                case "aspace_linking_status":
+              case "aspace_linking_status":
+                // This field only applies to assets, not folders
+                if (!isFolder) {
                   const checkbox = document.createElement("input");
                   checkbox.type = "checkbox";
                   checkbox.name = colId;
                   checkbox.checked = Boolean(value);
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(checkbox);
-                  break;
+                } else {
+                  util.setValueToElem(colInfo.elem, "");
+                }
+                break;
 
-                default:
-                  util.setValueToElem(colInfo.elem, value ?? "");
-              }
-            } else {
-              util.setValueToElem(colInfo.elem, "");
+              default:
+                util.setValueToElem(colInfo.elem, value ?? "");
             }
           }
 
@@ -266,12 +279,6 @@ export default class extends Controller {
 
         source
       });
-
-      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
-      this._fetchOptions("/users.json", "userOptions", "assigned_to");
-
 
       this._setupInlineFilter();
     } catch (err) {

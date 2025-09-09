@@ -55,12 +55,19 @@ class VolumesController < ApplicationController
     raw_id = params[:node_id].to_s
     record =
       if (id = raw_id.sub(/^a-/, "").to_i).positive?
+        # Asset ID (prefixed with 'a-')
         @volume.isilon_assets.find_by(id: id) or return render(
           json: { status: "error", errors: [ "Asset not found" ] },
           status: :not_found
         )
+      elsif (id = raw_id.to_i).positive?
+        # Folder ID (plain number)
+        @volume.isilon_folders.find_by(id: id) or return render(
+          json: { status: "error", errors: [ "Folder not found" ] },
+          status: :not_found
+        )
       else
-        render json: { error: "Folder updates not supported" }, status: :unprocessable_entity
+        render json: { error: "Invalid node ID format" }, status: :unprocessable_entity
         return
       end
 
