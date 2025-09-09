@@ -18,20 +18,25 @@ bundle install
 ```
 
 * There are some environment variables that need to be set in order for login to work locally. You can find these in the 
-* 1Passwordd app, in the "dev team" vault. Search for the "Google OAuth Isilon Tracker Dev" note and execute the
+* 1Password app, in the "dev team" vault. Search for the "Google OAuth Isilon Tracker Dev" note and execute the
   export commands.
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID=XXXXXXXXXX.apps.googleusercontent.com
+export GOOGLE_OAUTH_SECRET=XXXXXXXXXX
+```
 
 * Authentication is required. Click on the "Sign in with GoogleOauth2" button and
   connect to your Google account. If you encounter the Google Account Profile Page, return to Isilon tracker
   application and reauthenticate. You should be take to the desired page. NOTE: This is a known issue which
   we will address in a future release.
 
-* To seeds some initial users, add the IMT_USER_LIST environment variable. It can be found in the "dev team" vault of the 1Password app.
-
-* Initialize the db and populate wtih seeds from config
+* To seed initial users from the command line, use the pattern in the following block. Note, the password is
+  required, but not used, since this application only uses oauth2 for authentication.
 
 ```bash
-bundle exec rails db:setup
+bundle exec rails runner "pwd = SecureRandom.alphanumeric(16); u = User.create!(name: 'User Name', email: '<TUACCESS_ID>@temple.edu', password: pwd, status: 'active')"
+
 ```
 
 * Ingest sample sample data from the repo, if needed (file included in the repo). 

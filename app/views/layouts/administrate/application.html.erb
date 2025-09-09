@@ -8,17 +8,20 @@
       <%= content_for(:title) || 'Dashboard' %> - <%= Rails.application.class.module_parent_name.titlecase %>
     </title>
     
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= render "stylesheet" %>
+    
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
     
     <%= csrf_meta_tags %>
     <%= csp_meta_tag if defined?(csp_meta_tag) %>
   </head>
-  <body>
+  <body class="admin-layout">
+    <%= render 'shared/global_navigation' %>
+    
     <div class="app-container">
-      <%= render "navigation" -%>
-
       <main class="main-content" role="main">
-        <%= render "flashes" -%>
+        <%= render 'shared/flashes' %>
         <%= yield %>
       </main>
     </div>

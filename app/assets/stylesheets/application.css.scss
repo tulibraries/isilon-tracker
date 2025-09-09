@@ -1,5 +1,6 @@
 @import "bootstrap/scss/bootstrap";
 @import "bootstrap-icons/font/bootstrap-icons";
+@import "global-nav";
 
 :root {
   --wb-font-family: system-ui, sans-serif;
@@ -43,13 +44,6 @@ div.wunderbaum div.wb-node-list {
 a {
   color: #0B5394;
   text-decoration: none;
-}
-
-#tree-filter-row label {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #212529;
-  white-space: nowrap;
 }
 
 #tree-filter-row label {
