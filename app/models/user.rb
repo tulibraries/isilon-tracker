@@ -8,6 +8,8 @@ class User < ApplicationRecord
 
   enum :status, { inactive: "inactive", active: "active" }, suffix: true
 
+  before_validation :assign_names_from_name_field
+
   validates :status, inclusion: { in: statuses.keys }
 
   def self.from_omniauth(access_token)
@@ -16,8 +18,6 @@ class User < ApplicationRecord
 
     user.name ||= data["name"]
     user.password ||= Devise.friendly_token[0, 20]
-
-    user.send(:assign_names_from_name_field)
 
     user.save! if user.changed?
     user
