@@ -25,6 +25,8 @@ Rails.application.routes.draw do
   resources :users, only: [ :index ]
 
   resources :volumes do
+    resource :batch_actions, only: [ :update ]
+
     get :file_tree, on: :member
     get :file_tree_folders, on: :member
     get :file_tree_assets, on: :member
