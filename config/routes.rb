@@ -11,6 +11,7 @@ Rails.application.routes.draw do
       resources :volumes, except: [ :destroy, :edit, :new ]
       resources :aspace_collections
       resources :contentdm_collections
+      resources :migration_statuses, only: [ :index ]
       resources :users, only: [ :index, :show, :new, :create, :edit, :update ]
 
       root to: "volumes#index"
@@ -29,6 +30,8 @@ Rails.application.routes.draw do
     get :file_tree_assets, on: :member
     get :file_tree_folders_search, on: :member
     get :file_tree_assets_search, on: :member
+
+    patch :file_tree_updates, on: :member
   end
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
