@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_04_194447) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_08_194534) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -51,7 +51,6 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_04_194447) do
     t.string "preservica_reference_id"
     t.string "aspace_linking_status"
     t.text "notes"
-    t.string "assigned_to", default: "unassigned"
     t.string "last_updated_by"
     t.string "file_checksum"
     t.integer "parent_folder_id"
@@ -59,7 +58,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_04_194447) do
     t.integer "aspace_collection_id"
     t.integer "contentdm_collection_id"
     t.integer "duplicate_of_id"
+    t.integer "assigned_to"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
+    t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
@@ -114,6 +115,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_04_194447) do
   add_foreign_key "isilon_assets", "isilon_assets", column: "duplicate_of_id"
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_assets", "migration_statuses"
+  add_foreign_key "isilon_assets", "users", column: "assigned_to"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_folders", "volumes"
 end

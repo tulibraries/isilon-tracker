@@ -6,16 +6,22 @@ class User < ApplicationRecord
          :timeoutable,
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
-  enum status: {
+  has_many :assigned_assets, class_name: "IsilonAsset", foreign_key: "assigned_to"
+
+  enum :status, {
     inactive: "inactive",
     active: "active"
-  }, _suffix: true
+  }, suffix: true
 
 
   validates :status, inclusion: { in: statuses.keys }
 
   def title
     email
+  end
+
+  def display_name
+    name.present? ? name : email
   end
 
   def password_required?
