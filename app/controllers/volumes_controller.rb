@@ -53,21 +53,25 @@ class VolumesController < ApplicationController
 
   def file_tree_updates
     raw_id = params[:node_id].to_s
-    record =
-      if (id = raw_id.sub(/^a-/, "").to_i).positive?
-        # Asset ID (prefixed with 'a-')
+    node_type = params[:node_type].to_s
+
+    record = 
+      if node_type == "asset"
+        # Asset ID (should be prefixed with 'a-' but we'll handle both)
+        id = raw_id.sub(/^a-/, "").to_i
         @volume.isilon_assets.find_by(id: id) or return render(
           json: { status: "error", errors: [ "Asset not found" ] },
           status: :not_found
         )
-      elsif (id = raw_id.to_i).positive?
+      elsif node_type == "folder"
         # Folder ID (plain number)
+        id = raw_id.to_i
         @volume.isilon_folders.find_by(id: id) or return render(
           json: { status: "error", errors: [ "Folder not found" ] },
           status: :not_found
         )
       else
-        render json: { error: "Invalid node ID format" }, status: :unprocessable_entity
+        render json: { error: "Invalid node type: #{node_type}" }, status: :unprocessable_entity
         return
       end
 
@@ -79,7 +83,23 @@ class VolumesController < ApplicationController
 
     db_field = field_map[params[:field]] || params[:field]
     value    = params[:value]
-    value    = value.to_i if db_field.end_with?("_id") && value.present?
+    
+    # Handle assigned_to specially - it's an association, not a direct field
+    if db_field == "assigned_to"
+      if value.present? && value != "unassigned"
+        user = User.find_by(id: value.to_i)
+        unless user
+          return render json: { status: "error", errors: [ "User not found" ] },
+                        status: :unprocessable_entity
+        end
+        value = user
+      else
+        value = nil  # unassigned
+      end
+    elsif (db_field.end_with?("_id")) && value.present?
+      # Convert to integer for other ID fields
+      value = value.to_i
+    end
 
     editable_fields = %w[
       migration_status_id
