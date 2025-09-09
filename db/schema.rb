@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_08_194534) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_09_182322) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -74,7 +74,13 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_08_194534) do
     t.integer "parent_folder_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "assigned_to_id"
+    t.integer "migration_status_id"
+    t.integer "assigned_to"
+    t.index ["assigned_to"], name: "index_isilon_folders_on_assigned_to"
+    t.index ["assigned_to_id"], name: "index_isilon_folders_on_assigned_to_id"
     t.index ["full_path"], name: "index_isilon_folders_on_full_path", unique: true
+    t.index ["migration_status_id"], name: "index_isilon_folders_on_migration_status_id"
     t.index ["parent_folder_id"], name: "index_isilon_folders_on_parent_folder_id"
     t.index ["volume_id"], name: "index_isilon_folders_on_volume_id"
   end
@@ -100,6 +106,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_08_194534) do
     t.string "uid"
     t.string "name"
     t.string "status", default: "inactive"
+    t.string "first_name"
+    t.string "last_name"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
@@ -117,5 +125,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_08_194534) do
   add_foreign_key "isilon_assets", "migration_statuses"
   add_foreign_key "isilon_assets", "users", column: "assigned_to"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
+  add_foreign_key "isilon_folders", "migration_statuses"
+  add_foreign_key "isilon_folders", "users", column: "assigned_to"
+  add_foreign_key "isilon_folders", "users", column: "assigned_to_id"
   add_foreign_key "isilon_folders", "volumes"
 end
