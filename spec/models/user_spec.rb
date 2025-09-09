@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe User, type: :model do
   subject { build(:user) }
@@ -14,6 +15,7 @@ RSpec.describe User, type: :model do
   it "requires a unique email" do
     create(:user, email: "tester@example.com")
     user = build(:user, email: "tester@example.com")
+    user.send(:assign_names_from_name_field)
 
     expect(user).not_to be_valid
     expect(user.errors[:email]).to include("has already been taken")
@@ -70,6 +72,24 @@ RSpec.describe User, type: :model do
       existing = create(:user, email: "tester@temple.edu", name: nil)
       user = User.from_omniauth(auth_hash)
       expect(user.name).to eq("Tester Temple")
+    end
+
+    it "splits the full name into first and last" do
+      access_token = OpenStruct.new(info: { "email" => "jane@example.com", "name" => "Jane Doe" })
+
+      user = User.from_omniauth(access_token)
+
+      expect(user.first_name).to eq("Jane")
+      expect(user.last_name).to eq("Doe")
+    end
+
+    it "handles a single name gracefully" do
+      access_token = OpenStruct.new(info: { "email" => "solo@example.com", "name" => "Prince" })
+
+      user = User.from_omniauth(access_token)
+
+      expect(user.first_name).to eq("Prince")
+      expect(user.last_name).to be_nil
     end
   end
 end

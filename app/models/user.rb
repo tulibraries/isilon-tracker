@@ -15,9 +15,9 @@ class User < ApplicationRecord
     user = User.where(email: data["email"]).first_or_initialize
 
     user.name ||= data["name"]
-    user.first_name ||= data["name"].split(" ", 2).first
-    user.last_name ||= data["name"].split(" ", 2).last
     user.password ||= Devise.friendly_token[0, 20]
+
+    user.send(:assign_names_from_name_field)
 
     user.save! if user.changed?
     user
@@ -25,5 +25,14 @@ class User < ApplicationRecord
 
   def title
     name.presence || email.split("@").first.titleize
+  end
+
+  protected
+
+  def assign_names_from_name_field
+    return if name.blank?
+    parts = name.split(" ", 2)
+    self.first_name ||= parts.first
+    self.last_name  ||= parts.second if parts.size > 1
   end
 end
