@@ -1,6 +1,9 @@
-<div id="<%= dom_id volume %>">
+<div id="<%= dom_id volume %>" data-controller="batch-actions">
 
   <h1 class="volume-name"><%= "Volume: #{volume.name}" %></h1>
+
+  <!-- Flash Messages Container -->
+  <div id="flash-messages"></div>
 
   <div id="tree-filter-row">
     <label for="tree-filter">Filter:</label>
@@ -14,6 +17,16 @@
     <button type="button" class="icon-button" title="Hide unmatched nodes">
       <i class="bi bi-filter-square search-icon"></i>
     </button>
+    
+    <!-- Batch Actions Button (hidden initially) -->
+    <button type="button" 
+            id="batch-actions-btn"
+            class="btn btn-primary ms-3" 
+            data-action="click->batch-actions#openModal"
+            style="display: none;">
+      <i class="bi bi-check-square me-1"></i>
+      Batch Actions (<span data-batch-actions-target="selectedCount">0</span>)
+    </button>
   </div>
 
   <div
@@ -24,5 +37,93 @@
     data-wunderbaum-volume-id-value="<%= volume.id %>" 
     style="height: 500px;"
   ></div>
+
+  <!-- Batch Actions Modal -->
+  <div class="modal fade" id="batchActionsModal" tabindex="-1" aria-labelledby="batchActionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="batchActionsModalLabel">
+            Batch Update <span data-batch-actions-target="selectedCount">0</span> Selected Assets
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body">
+          <%= form_with url: volume_batch_actions_path(volume), method: :patch, 
+                        class: "batch-actions-form",
+                        data: { 
+                          "batch-actions-target": "form",
+                          "action": "submit->batch-actions#submitBatchAction"
+                        },
+                        local: false do |form| %>
+            
+            <p class="text-muted mb-4">
+              Update any or all of the fields below. Only fields with changes will be applied to the selected assets.
+            </p>
+            
+            <!-- Hidden field for selected asset IDs -->
+            <%= form.hidden_field :asset_ids, data: { "batch-actions-target": "assetIds" } %>
+            
+            <!-- Migration Status Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Migration Status</label>
+              <%= form.select :migration_status_id, 
+                    options_for_select([['Unchanged', '']] + MigrationStatus.all.map { |ms| [ms.name, ms.id] }, ''), 
+                    {}, 
+                    { class: "form-select" } %>
+              <div class="form-text">Select a new migration status for the selected assets</div>
+            </div>
+            
+            <!-- Assigned User Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Assigned User</label>
+              <%= form.select :assigned_user_id, 
+                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }, ''), 
+                    {}, 
+                    { class: "form-select" } %>
+              <div class="form-text">Assign or reassign the selected assets to a user</div>
+            </div>
+            
+            <!-- ASpace Collection Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">ASpace Collection</label>
+              <%= form.select :aspace_collection_id, 
+                    options_for_select([['Unchanged', '']] + AspaceCollection.all.map { |ac| [ac.name, ac.id] }, ''), 
+                    {}, 
+                    { class: "form-select" } %>
+              <div class="form-text">Set the ASpace collection for the selected assets</div>
+            </div>
+            
+            <!-- ASpace Linking Status Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold d-block">ASpace Linking Status</label>
+              <div class="form-check form-check-inline">
+                <%= form.radio_button :aspace_linking_status, '', 
+                      { class: "form-check-input", checked: true, id: "aspace_linking_unchanged" } %>
+                <label class="form-check-label" for="aspace_linking_unchanged">Unchanged</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <%= form.radio_button :aspace_linking_status, 'true', 
+                      { class: "form-check-input", id: "aspace_linking_true" } %>
+                <label class="form-check-label" for="aspace_linking_true">Linked</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <%= form.radio_button :aspace_linking_status, 'false', 
+                      { class: "form-check-input", id: "aspace_linking_false" } %>
+                <label class="form-check-label" for="aspace_linking_false">Not Linked</label>
+              </div>
+              <div class="form-text">Set the ASpace linking status for the selected assets</div>
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <%= form.submit "Apply Batch Updates", class: "btn btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  >
 
 </div>

@@ -260,6 +260,10 @@ export default class extends Controller {
           this._saveCellChange(e.node, colId, value);
         },
 
+        select: (e) => {
+          this._emitSelectionChange();
+        },
+
         source
       });
 
@@ -827,5 +831,114 @@ _handleInputChange(e) {
     }
   }
 
+  _emitSelectionChange() {
+    // Get selected asset IDs (excluding folders)
+    const selectedAssetIds = this.tree.getSelectedNodes()
+      .filter(node => !node.data.folder && node.key && node.key.startsWith('a-'))
+      .map(node => parseInt(node.key.replace('a-', ''), 10))
+      .filter(id => !isNaN(id));
 
+    // Emit custom event for batch actions controller
+    const event = new CustomEvent("wunderbaum:selectionChanged", {
+      detail: { selectedAssetIds }
+    });
+    document.dispatchEvent(event);
+  }
+
+  // Public method to clear selection (called by batch actions after successful update)
+  clearSelection() {
+    if (this.tree) {
+      this.tree.setSelection(false);
+    }
+  }
+
+  // Public method to refresh tree display after batch updates
+  async refreshTreeDisplay(updatedAssetIds = []) {
+    console.log("refreshTreeDisplay called with updatedAssetIds:", updatedAssetIds);
+    
+    if (this.tree && updatedAssetIds.length > 0) {
+      console.log("Refreshing Wunderbaum tree display for updated assets:", updatedAssetIds);
+      
+      // Get unique parent folder IDs for the updated assets
+      const parentFolderIds = new Set();
+      
+      updatedAssetIds.forEach(assetId => {
+        const nodeKey = `a-${assetId}`;
+        const node = this.tree.findKey(nodeKey);
+        console.log(`Looking for node with key: ${nodeKey}, found:`, node);
+        if (node && node.data.parent_folder_id) {
+          parentFolderIds.add(node.data.parent_folder_id);
+          console.log(`Added parent folder ID: ${node.data.parent_folder_id}`);
+        }
+      });
+      
+      console.log("Parent folder IDs to refresh:", Array.from(parentFolderIds));
+      
+      // Refresh assets for each affected parent folder
+      for (const folderId of parentFolderIds) {
+        await this.refreshFolderAssets(folderId, updatedAssetIds);
+      }
+      
+      console.log("Tree nodes refresh completed");
+    } else {
+      console.log("No tree or no updated asset IDs provided");
+    }
+  }
+
+  async refreshFolderAssets(parentFolderId, updatedAssetIds) {
+    try {
+      console.log(`Refreshing assets for folder ${parentFolderId}`);
+      
+      // Fetch fresh asset data for this folder
+      const response = await fetch(`/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentFolderId}`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin"
+      });
+      
+      if (response.ok) {
+        const assetsData = await response.json();
+        console.log(`Received fresh data for ${assetsData.length} assets in folder ${parentFolderId}`);
+        
+        // Update each modified asset node with fresh data
+        assetsData.forEach(assetData => {
+          const nodeKey = assetData.key; // Should be "a-{id}"
+          const assetId = parseInt(nodeKey.replace('a-', ''), 10);
+          
+          // Only update if this asset was in our updated list
+          if (updatedAssetIds.includes(assetId)) {
+            const node = this.tree.findKey(nodeKey);
+            if (node) {
+              console.log(`Updating node data for asset ${assetId}`, assetData);
+              
+              // Update the node's data with fresh values
+              Object.assign(node.data, assetData);
+              
+              // Try different methods to trigger re-render
+              try {
+                if (node.update) {
+                  console.log(`Calling node.update() for asset ${assetId}`);
+                  node.update();
+                } else if (node.renderColumns) {
+                  console.log(`Calling node.renderColumns() for asset ${assetId}`);
+                  node.renderColumns();
+                } else if (this.tree.update) {
+                  console.log(`Calling tree.update() for asset ${assetId}`);
+                  this.tree.update();
+                } else {
+                  console.log(`No update method found, trying tree redraw`);
+                  this.tree.redraw();
+                }
+              } catch (renderError) {
+                console.error(`Failed to re-render node for asset ${assetId}:`, renderError);
+              }
+            } else {
+              console.log(`Node not found for asset ${assetId} with key ${nodeKey}`);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
+    }
+  }
 }
