@@ -1,11 +1,12 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["selectedCount", "form", "assetIds"]
+  static targets = ["selectedCount", "form", "assetIds", "folderIds"]
 
   connect() {
     console.log("Batch Actions controller connected")
     this.selectedAssets = new Set()
+    this.selectedFolders = new Set()
     this.updateButtonVisibility()
     
     // Listen for tree selection changes from wunderbaum controller
@@ -22,13 +23,14 @@ export default class extends Controller {
 
   handleSelectionChange(event) {
     this.selectedAssets = new Set(event.detail.selectedAssetIds)
+    this.selectedFolders = new Set(event.detail.selectedFolderIds || [])
     this.updateButtonVisibility()
     this.updateSelectedCount()
   }
 
   updateButtonVisibility() {
     const button = document.getElementById("batch-actions-btn")
-    if (this.selectedAssets.size > 0) {
+    if (this.selectedAssets.size > 0 || this.selectedFolders.size > 0) {
       button.style.display = "inline-block"
     } else {
       button.style.display = "none"
@@ -36,21 +38,25 @@ export default class extends Controller {
   }
 
   updateSelectedCount() {
+    const totalSelected = this.selectedAssets.size + this.selectedFolders.size
     this.selectedCountTargets.forEach(target => {
-      target.textContent = this.selectedAssets.size
+      target.textContent = totalSelected
     })
   }
 
   openModal() {
     console.log("Opening batch actions modal")
-    if (this.selectedAssets.size === 0) {
-      alert("Please select at least one asset")
+    if (this.selectedAssets.size === 0 && this.selectedFolders.size === 0) {
+      alert("Please select at least one asset or folder")
       return
     }
 
-    // Update the hidden field with selected asset IDs
+    // Update the hidden fields with selected asset and folder IDs
     if (this.hasAssetIdsTarget) {
       this.assetIdsTarget.value = Array.from(this.selectedAssets).join(',')
+    }
+    if (this.hasFolderIdsTarget) {
+      this.folderIdsTarget.value = Array.from(this.selectedFolders).join(',')
     }
 
     // Reset all form fields to "Unchanged" state
@@ -77,9 +83,12 @@ export default class extends Controller {
   }
 
   submitBatchAction(event) {
-    // Update hidden field with current selection before submitting
+    // Update hidden fields with current selection before submitting
     if (this.hasAssetIdsTarget) {
       this.assetIdsTarget.value = Array.from(this.selectedAssets).join(',')
+    }
+    if (this.hasFolderIdsTarget) {
+      this.folderIdsTarget.value = Array.from(this.selectedFolders).join(',')
     }
     
     // Let the form submit naturally with Turbo handling the response
@@ -117,6 +126,7 @@ export default class extends Controller {
 
   clearSelection() {
     this.selectedAssets.clear()
+    this.selectedFolders.clear()
     this.updateButtonVisibility()
     this.updateSelectedCount()
   }

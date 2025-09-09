@@ -59,11 +59,13 @@
                         local: false do |form| %>
             
             <p class="text-muted mb-4">
-              Update any or all of the fields below. Only fields with changes will be applied to the selected assets.
+              Update any or all of the fields below. Only fields with changes will be applied to the selected assets and folders.
+              <br><strong>Note:</strong> For folders, only "Assigned User" updates are supported and will cascade to all subfolders and assets within.
             </p>
             
-            <!-- Hidden field for selected asset IDs -->
+            <!-- Hidden fields for selected asset and folder IDs -->
             <%= form.hidden_field :asset_ids, data: { "batch-actions-target": "assetIds" } %>
+            <%= form.hidden_field :folder_ids, data: { "batch-actions-target": "folderIds" } %>
             
             <!-- Migration Status Update -->
             <div class="mb-4">

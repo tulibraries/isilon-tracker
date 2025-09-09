@@ -845,9 +845,15 @@ _handleInputChange(e) {
       .map(node => parseInt(node.key.replace('a-', ''), 10))
       .filter(id => !isNaN(id));
 
+    // Get selected folder IDs
+    const selectedFolderIds = this.tree.getSelectedNodes()
+      .filter(node => node.data.folder && node.key && !node.key.startsWith('a-'))
+      .map(node => parseInt(node.key, 10))
+      .filter(id => !isNaN(id));
+
     // Emit custom event for batch actions controller
     const event = new CustomEvent("wunderbaum:selectionChanged", {
-      detail: { selectedAssetIds }
+      detail: { selectedAssetIds, selectedFolderIds }
     });
     document.dispatchEvent(event);
   }

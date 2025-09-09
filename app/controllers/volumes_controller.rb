@@ -55,7 +55,7 @@ class VolumesController < ApplicationController
     raw_id = params[:node_id].to_s
     node_type = params[:node_type].to_s
 
-    record = 
+    record =
       if node_type == "asset"
         # Asset ID (should be prefixed with 'a-' but we'll handle both)
         id = raw_id.sub(/^a-/, "").to_i
@@ -83,7 +83,7 @@ class VolumesController < ApplicationController
 
     db_field = field_map[params[:field]] || params[:field]
     value    = params[:value]
-    
+
     # Handle assigned_to specially - it's an association, not a direct field
     if db_field == "assigned_to"
       if value.present? && value != "unassigned"

@@ -12,10 +12,10 @@ class ApplicationController < ActionController::Base
   def set_current_user_for_dev
     # In development, create or use a default user for testing
     @current_user = User.first || User.create!(
-      email: 'dev@example.com',
-      name: 'Dev User',
-      provider: 'developer',
-      uid: 'dev-user-1'
+      email: "dev@example.com",
+      name: "Dev User",
+      provider: "developer",
+      uid: "dev-user-1"
     )
   end
 

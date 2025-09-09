@@ -25,4 +25,29 @@ class IsilonFolder < ApplicationRecord
     end
     crumbs
   end
+
+  # Get all descendant folders (children, grandchildren, etc.)
+  def descendant_folders
+    descendants = []
+    child_folders.each do |child|
+      descendants << child
+      descendants.concat(child.descendant_folders)
+    end
+    descendants
+  end
+
+  # Get all assets within this folder and all descendant folders
+  def all_descendant_assets
+    asset_ids = []
+
+    # Assets directly in this folder
+    asset_ids.concat(isilon_assets.pluck(:id))
+
+    # Assets in all descendant folders
+    descendant_folders.each do |folder|
+      asset_ids.concat(folder.isilon_assets.pluck(:id))
+    end
+
+    IsilonAsset.where(id: asset_ids)
+  end
 end
