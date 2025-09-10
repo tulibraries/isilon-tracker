@@ -25,7 +25,7 @@
             data-action="click->batch-actions#openAssignModal"
             style="display: none;">
       <i class="bi bi-person-plus me-1"></i>
-      Batch Assign To (<span class="selection-count">0</span>)
+      Assign All (<span class="selection-count">0</span>)
     </button>
     
     <!-- Folder Batch Actions Button (hidden initially) -->
@@ -35,7 +35,7 @@
             data-action="click->batch-actions#openFolderModal"
             style="display: none;">
       <i class="bi bi-folder-fill me-1"></i>
-      Batch Update Folders (<span data-batch-actions-target="selectedFolderCount">0</span>)
+      Assign Folders (<span data-batch-actions-target="selectedFolderCount">0</span>)
     </button>
     
     <!-- Asset Batch Actions Button (hidden initially) -->
@@ -45,7 +45,7 @@
             data-action="click->batch-actions#openAssetModal"
             style="display: none;">
       <i class="bi bi-file-earmark-fill me-1"></i>
-      Batch Update Assets (<span data-batch-actions-target="selectedAssetCount">0</span>)
+      Update Assets (<span data-batch-actions-target="selectedAssetCount">0</span>)
     </button>
   </div>
 
@@ -172,7 +172,7 @@
                         local: false do |form| %>
             
             <p class="text-muted mb-4">
-              Update the assigned user for the selected folders. Changes will cascade to all subfolders and assets within the selected folders.
+              Update the assigned user for the selected folders. Changes will not cascade to assets within the selected folders.
             </p>
             
             <!-- Hidden field for selected folder IDs -->
