@@ -133,46 +133,49 @@ class BatchActionsController < ApplicationController
   def process_folder_updates(folders, updates_applied, cascade_to_assets = false)
     updated_count = 0
 
-    folders.each do |folder|
-      folder_updates = 0
+    # Only assigned_to is supported for folders currently
+    if params[:assigned_user_id].present?
+      user = nil
+      if params[:assigned_user_id] != "unassigned"
+        user = User.find(params[:assigned_user_id])
+      end
 
-      # Update the folder itself and cascade to subfolders and assets
-      # Only assigned_to is supported for folders currently
-      if params[:assigned_user_id].present?
-        user = nil
-        if params[:assigned_user_id] != "unassigned"
-          user = User.find(params[:assigned_user_id])
-        end
+      # Collect all folders that need updating (selected + descendants)
+      all_folders_to_update = []
+      all_assets_to_update = []
 
-        # Update the folder
-        folder.update!(assigned_to: user)
-        folder_updates += 1
+      folders.each do |folder|
+        all_folders_to_update << folder
+        all_folders_to_update.concat(folder.descendant_folders)
 
-        # Update all descendant folders
-        descendant_folders = folder.descendant_folders
-        descendant_folders.each do |subfolder|
-          subfolder.update!(assigned_to: user)
-          folder_updates += 1
-        end
-
-        # Only update assets if cascading is enabled (assign form)
+        # Collect assets if cascading is enabled
         if cascade_to_assets
-          # Update all assets in this folder and subfolders
-          all_assets = folder.all_descendant_assets
-          if all_assets.any?
-            all_assets.update_all(assigned_to: user&.id)
-            folder_updates += all_assets.count
-          end
-        end
-
-        if cascade_to_assets
-          updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} (cascaded from folder: #{folder.full_path})"
-        else
-          updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} for folder: #{folder.full_path} (folders only)"
+          all_assets_to_update.concat(folder.all_descendant_assets)
         end
       end
 
-      updated_count += folder_updates
+      # Bulk update all folders at once
+      if all_folders_to_update.any?
+        folder_ids = all_folders_to_update.map(&:id)
+        IsilonFolder.where(id: folder_ids).update_all(assigned_to: user&.id)
+        updated_count += all_folders_to_update.count
+      end
+
+      # Bulk update all assets if cascading
+      if cascade_to_assets && all_assets_to_update.any?
+        asset_ids = all_assets_to_update.map(&:id)
+        IsilonAsset.where(id: asset_ids).update_all(assigned_to: user&.id)
+        updated_count += all_assets_to_update.count
+      end
+
+      # Generate appropriate message
+      if cascade_to_assets
+        folder_paths = folders.map(&:full_path).join(", ")
+        updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} (cascaded from folders: #{folder_paths})"
+      else
+        folder_paths = folders.map(&:full_path).join(", ")
+        updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} for folders: #{folder_paths} (folders only)"
+      end
     end
 
     updated_count
