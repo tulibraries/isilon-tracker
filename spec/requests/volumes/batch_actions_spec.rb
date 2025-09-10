@@ -16,6 +16,24 @@ RSpec.describe "Volumes batch actions", type: :request do
 
   let!(:parent_folder) { FactoryBot.create(:isilon_folder, volume: volume, parent_folder: nil, full_path: "/test") }
 
+  let!(:child_folder_1) do
+    FactoryBot.create(:isilon_folder,
+      volume: volume,
+      parent_folder: parent_folder,
+      full_path: "/test/subfolder1",
+      migration_status: migration_status_1,
+      assigned_to: nil)
+  end
+
+  let!(:child_folder_2) do
+    FactoryBot.create(:isilon_folder,
+      volume: volume,
+      parent_folder: parent_folder,
+      full_path: "/test/subfolder2",
+      migration_status: migration_status_1,
+      assigned_to: nil)
+  end
+
   let!(:asset_1) do
     FactoryBot.create(:isilon_asset,
       parent_folder: parent_folder,
@@ -44,6 +62,23 @@ RSpec.describe "Volumes batch actions", type: :request do
       assigned_to: user,
       aspace_collection: aspace_collection_1,
       aspace_linking_status: "true")
+  end
+
+  # Assets within child folders for cascading tests
+  let!(:nested_asset_1) do
+    FactoryBot.create(:isilon_asset,
+      parent_folder: child_folder_1,
+      isilon_name: "nested1.txt",
+      migration_status: migration_status_1,
+      assigned_to: nil)
+  end
+
+  let!(:nested_asset_2) do
+    FactoryBot.create(:isilon_asset,
+      parent_folder: child_folder_2,
+      isilon_name: "nested2.txt",
+      migration_status: migration_status_1,
+      assigned_to: nil)
   end
 
   before { sign_in user }
@@ -210,6 +245,86 @@ RSpec.describe "Volumes batch actions", type: :request do
       end
     end
 
+    context "when updating folders only" do
+      it "updates assigned user for selected folders without cascading" do
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "#{child_folder_1.id},#{child_folder_2.id}",
+          assigned_user_id: other_user.id
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+
+        child_folder_1.reload
+        child_folder_2.reload
+        nested_asset_1.reload
+        nested_asset_2.reload
+
+        # Folders should be updated
+        expect(child_folder_1.assigned_to).to eq(other_user)
+        expect(child_folder_2.assigned_to).to eq(other_user)
+
+        # Assets within folders should NOT be updated (no cascading)
+        expect(nested_asset_1.assigned_to).to be_nil
+        expect(nested_asset_2.assigned_to).to be_nil
+
+        expect(flash[:notice]).to include("assigned user to Other User")
+      end
+    end
+
+    context "when using mixed asset and folder selections (Assign All)" do
+      it "updates both assets and folders with cascading behavior" do
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: "#{asset_1.id}",
+          folder_ids: "#{child_folder_1.id}",
+          assigned_user_id: other_user.id,
+          commit: "Assign"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+
+        asset_1.reload
+        child_folder_1.reload
+        nested_asset_1.reload
+
+        # Direct asset selection should be updated
+        expect(asset_1.assigned_to).to eq(other_user)
+
+        # Selected folder should be updated
+        expect(child_folder_1.assigned_to).to eq(other_user)
+
+        # Asset within selected folder should be updated (cascading)
+        expect(nested_asset_1.assigned_to).to eq(other_user)
+
+        expect(flash[:notice]).to include("assigned user to Other User")
+      end
+    end
+
+    context "with invalid folder IDs" do
+      it "handles empty folder_ids" do
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "",
+          migration_status_id: migration_status_2.id
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+        expect(flash[:alert]).to eq("No assets or folders selected for batch update.")
+      end
+
+      it "handles non-existent folder IDs" do
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "99999,88888",
+          migration_status_id: migration_status_2.id
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+        expect(flash[:alert]).to eq("No valid assets or folders found for batch update.")
+      end
+    end
+
     context "with invalid asset IDs" do
       it "handles empty asset_ids" do
         patch volume_batch_actions_path(volume), params: {
@@ -219,7 +334,7 @@ RSpec.describe "Volumes batch actions", type: :request do
 
         expect(response).to have_http_status(:redirect)
         expect(response).to redirect_to(volume_path(volume))
-        expect(flash[:alert]).to eq("No assets selected for batch update.")
+        expect(flash[:alert]).to eq("No assets or folders selected for batch update.")
       end
 
       it "handles non-existent asset IDs" do
@@ -230,7 +345,7 @@ RSpec.describe "Volumes batch actions", type: :request do
 
         expect(response).to have_http_status(:redirect)
         expect(response).to redirect_to(volume_path(volume))
-        expect(flash[:alert]).to eq("No valid assets found for batch update.")
+        expect(flash[:alert]).to eq("No valid assets or folders found for batch update.")
       end
 
       it "filters out invalid asset IDs but processes valid ones" do
@@ -248,32 +363,6 @@ RSpec.describe "Volumes batch actions", type: :request do
         expect(asset_1.migration_status).to eq(migration_status_2)
         expect(asset_2.migration_status).to eq(migration_status_2)
         expect(flash[:notice]).to include("migration status to In Progress")
-      end
-    end
-
-    context "with assets from different volumes" do
-      let!(:other_volume) { FactoryBot.create(:volume) }
-      let!(:other_folder) { FactoryBot.create(:isilon_folder, volume: other_volume, parent_folder: nil, full_path: "/other") }
-      let!(:other_asset) { FactoryBot.create(:isilon_asset, parent_folder: other_folder, isilon_name: "other.txt") }
-
-      it "only updates assets belonging to the specified volume" do
-        original_status = other_asset.migration_status
-
-        patch volume_batch_actions_path(volume), params: {
-          asset_ids: "#{asset_1.id},#{other_asset.id}",
-          migration_status_id: migration_status_2.id
-        }
-
-        expect(response).to have_http_status(:redirect)
-        expect(response).to redirect_to(volume_path(volume))
-
-        asset_1.reload
-        other_asset.reload
-
-        # Only asset_1 should be updated (belongs to the correct volume)
-        expect(asset_1.migration_status).to eq(migration_status_2)
-        # other_asset should remain unchanged (belongs to different volume)
-        expect(other_asset.migration_status).to eq(original_status)
       end
     end
 

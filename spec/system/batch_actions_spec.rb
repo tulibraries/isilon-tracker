@@ -18,12 +18,14 @@ RSpec.describe "Batch Actions", type: :system, js: true do
     visit volume_path(volume)
   end
 
-  describe "Batch Actions Button" do
-    it "initially hides the batch actions button" do
-      expect(page).to have_css("#batch-actions-btn", visible: false)
+  describe "Batch Actions Buttons" do
+    it "initially hides all batch actions buttons" do
+      expect(page).to have_css("#asset-batch-actions-btn", visible: false)
+      expect(page).to have_css("#folder-batch-actions-btn", visible: false)
+      expect(page).to have_css("#assign-to-btn", visible: false)
     end
 
-    it "shows button when assets are selected" do
+    it "shows asset button when assets are selected" do
       # Wait for Stimulus controllers to load
       sleep 1
 
@@ -38,12 +40,59 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       # Wait for JavaScript to process
       sleep 0.5
 
-      expect(page).to have_css("#batch-actions-btn", visible: true)
-      expect(page).to have_content("Batch Actions (2)")
+      expect(page).to have_css("#asset-batch-actions-btn", visible: true)
+      expect(page).to have_content("Update Assets (2)")
+      expect(page).to have_css("#folder-batch-actions-btn", visible: false)
+      expect(page).to have_css("#assign-to-btn", visible: false)
+    end
+
+    it "shows folder button when folders are selected" do
+      # Wait for Stimulus controllers to load
+      sleep 1
+
+      # Simulate selecting folders via JavaScript
+      page.execute_script(<<~JS)
+        const event = new CustomEvent('wunderbaum:selectionChanged', {
+          detail: { selectedAssetIds: [], selectedFolderIds: [#{folder.id}] }
+        });
+        document.dispatchEvent(event);
+      JS
+
+      # Wait for JavaScript to process
+      sleep 0.5
+
+      expect(page).to have_css("#folder-batch-actions-btn", visible: true)
+      expect(page).to have_content("Assign Folders (1)")
+      expect(page).to have_css("#asset-batch-actions-btn", visible: false)
+      expect(page).to have_css("#assign-to-btn", visible: false)
+    end
+
+    it "shows assign all button when both assets and folders are selected" do
+      # Wait for Stimulus controllers to load
+      sleep 1
+
+      # Simulate selecting both assets and folders via JavaScript
+      page.execute_script(<<~JS)
+        const event = new CustomEvent('wunderbaum:selectionChanged', {
+          detail: {
+            selectedAssetIds: [#{asset_1.id}],
+            selectedFolderIds: [#{folder.id}]
+          }
+        });
+        document.dispatchEvent(event);
+      JS
+
+      # Wait for JavaScript to process
+      sleep 0.5
+
+      expect(page).to have_css("#assign-to-btn", visible: true)
+      expect(page).to have_content("Assign All (2)")
+      expect(page).to have_css("#asset-batch-actions-btn", visible: true)
+      expect(page).to have_css("#folder-batch-actions-btn", visible: true)
     end
   end
 
-  describe "Batch Actions Modal" do
+  describe "Asset Batch Actions Modal" do
     before do
       # Select assets and open modal
       page.execute_script(<<~JS)
@@ -53,15 +102,15 @@ RSpec.describe "Batch Actions", type: :system, js: true do
         document.dispatchEvent(event);
       JS
 
-      click_button "Batch Actions (2)"
+      click_button "Update Assets (2)"
     end
 
     it "opens modal when button is clicked" do
-      expect(page).to have_css("#batchActionsModal", visible: true)
+      expect(page).to have_css("#assetBatchActionsModal", visible: true)
     end
 
     it "displays all batch action options" do
-      within "#batchActionsModal" do
+      within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id")
         expect(page).to have_select("assigned_user_id")
         expect(page).to have_select("aspace_collection_id")
@@ -70,18 +119,18 @@ RSpec.describe "Batch Actions", type: :system, js: true do
     end
 
     it "has proper form structure" do
-      form = find("#batchActionsModal form")
+      form = find("#assetBatchActionsModal form")
       expect(form["action"]).to include(volume_batch_actions_path(volume))
       expect(form["method"]).to eq("post")
 
-      within "#batchActionsModal" do
+      within "#assetBatchActionsModal" do
         expect(page).to have_css("input[name='asset_ids'][type='hidden']", visible: false)
-        expect(page).to have_css("input[type='submit'][value='Apply Batch Updates']")
+        expect(page).to have_css("input[type='submit'][value='Apply Asset Updates']")
       end
     end
   end
 
-  describe "Form Interactions" do
+  describe "Asset Form Interactions" do
     before do
       page.execute_script(<<~JS)
         const event = new CustomEvent('wunderbaum:selectionChanged', {
@@ -90,11 +139,11 @@ RSpec.describe "Batch Actions", type: :system, js: true do
         document.dispatchEvent(event);
       JS
 
-      click_button "Batch Actions (2)"
+      click_button "Update Assets (2)"
     end
 
     it "allows selecting different options" do
-      within "#batchActionsModal" do
+      within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id", with_options: [ "Unchanged", "Needs Review", "In Progress" ])
         expect(page).to have_select("assigned_user_id", with_options: [ "Unchanged", "Unassigned" ])
         expect(page).to have_select("aspace_collection_id", with_options: [ "Unchanged", "Collection A", "Collection B" ])
@@ -102,7 +151,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
     end
 
     it "defaults to 'Unchanged' options" do
-      within "#batchActionsModal" do
+      within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id", selected: "Unchanged")
         expect(page).to have_select("assigned_user_id", selected: "Unchanged")
         expect(page).to have_select("aspace_collection_id", selected: "Unchanged")
@@ -116,9 +165,9 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       expect(page).to have_css("[data-controller*='batch-actions']")
     end
 
-    it "updates selection count dynamically" do
+    it "updates selection count dynamically for asset button" do
       # Initial state
-      expect(page).to have_css("#batch-actions-btn", visible: false)
+      expect(page).to have_css("#asset-batch-actions-btn", visible: false)
 
       # Select one asset
       page.execute_script(<<~JS)
@@ -128,7 +177,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
         document.dispatchEvent(event);
       JS
 
-      expect(page).to have_content("Batch Actions (1)")
+      expect(page).to have_content("Update Assets (1)")
 
       # Select two assets
       page.execute_script(<<~JS)
@@ -138,7 +187,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
         document.dispatchEvent(event);
       JS
 
-      expect(page).to have_content("Batch Actions (2)")
+      expect(page).to have_content("Update Assets (2)")
     end
   end
 end
