@@ -108,7 +108,7 @@ class BatchActionsController < ApplicationController
       else
         user = User.find(params[:assigned_user_id])
         assets.update_all(assigned_to: user.id)
-        updates_applied << "assigned user to #{user.display_name}"
+        updates_applied << "assigned user to #{user.title}"
       end
     end
 
@@ -171,10 +171,10 @@ class BatchActionsController < ApplicationController
       # Generate appropriate message
       if cascade_to_assets
         folder_paths = folders.map(&:full_path).join(", ")
-        updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} (cascaded from folders: #{folder_paths})"
+        updates_applied << "assigned user to #{user ? user.title : 'unassigned'} (cascaded from folders: #{folder_paths})"
       else
         folder_paths = folders.map(&:full_path).join(", ")
-        updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} for folders: #{folder_paths} (folders only)"
+        updates_applied << "assigned user to #{user ? user.title : 'unassigned'} for folders: #{folder_paths} (folders only)"
       end
     end
 

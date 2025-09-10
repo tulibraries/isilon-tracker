@@ -7,29 +7,37 @@ class User < ApplicationRecord
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
   has_many :assigned_assets, class_name: "IsilonAsset", foreign_key: "assigned_to"
-
-  enum :status, {
-    inactive: "inactive",
-    active: "active"
-  }, suffix: true
-
-
+  enum :status, { inactive: "inactive", active: "active" }, suffix: true
+  before_validation :assign_names_from_name_field
   validates :status, inclusion: { in: statuses.keys }
-
-  def title
-    email
-  end
-
-  def display_name
-    name.present? ? name : email
-  end
-
-  def password_required?
-    false
-  end
 
   def self.from_omniauth(access_token)
     data = access_token.info
-    User.where(email: data["email"]).first
+    user = User.where(email: data["email"]).first_or_initialize
+
+    user.name ||= data["name"]
+    user.password ||= Devise.friendly_token[0, 20]
+
+    user.save! if user.changed?
+    user
+  end
+
+  def title
+    if name.present?
+      name
+    elsif first_name.present? || last_name.present?
+      [ first_name, last_name ].compact.join(" ")
+    else
+      email.split("@").first.titleize
+    end
+  end
+
+  protected
+
+  def assign_names_from_name_field
+    return if name.blank?
+    parts = name.split(" ", 2)
+    self.first_name ||= parts.first
+    self.last_name  ||= parts.second if parts.size > 1
   end
 end

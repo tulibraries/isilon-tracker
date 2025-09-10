@@ -101,7 +101,7 @@
             <div class="mb-4">
               <label class="form-label fw-bold">Assigned User</label>
               <%= form.select :assigned_user_id, 
-                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }, ''), 
+                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.title, u.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Assign or reassign the selected assets to a user</div>
@@ -182,7 +182,7 @@
             <div class="mb-4">
               <label class="form-label fw-bold">Assigned User</label>
               <%= form.select :assigned_user_id, 
-                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }, ''), 
+                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.title, u.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Assign or reassign the selected folders (and all their contents) to a user</div>
@@ -235,7 +235,7 @@
             <div class="mb-4">
               <label class="form-label fw-bold">Assign To</label>
               <%= form.select :assigned_user_id, 
-                    options_for_select([['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }), 
+                    options_for_select([['Unassigned', 'unassigned']] + User.all.map { |u| [u.title, u.id] }), 
                     { prompt: 'Select user...' }, 
                     { class: "form-select", required: true } %>
               <div class="form-text">All selected folders and assets will be assigned to this user</div>

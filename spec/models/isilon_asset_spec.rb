@@ -1,5 +1,5 @@
 # spec/models/isilon_asset_spec.rb
-require 'rails_helper'
+require "rails_helper"
 
 RSpec.describe IsilonAsset, type: :model do
   let!(:migration_status) { MigrationStatus.create!(name: "Needs review", active: true, default: true) }
