@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["selectedAssetCount", "selectedFolderCount", "form", "folderForm", "assignForm", "assetIds", "folderIds", "assignAssetIds", "assignFolderIds"]
+  static targets = ["selectedAssetCount", "selectedFolderCount", "selectedTotalCount", "form", "folderForm", "assignForm", "assetIds", "folderIds", "assignAssetIds", "assignFolderIds"]
 
   connect() {
     this.selectedAssets = new Set()
@@ -40,9 +40,6 @@ export default class extends Controller {
     if (hasAssets && hasFolders) {
       if (assignButton) {
         assignButton.style.display = "inline-block"
-        // Update the count in the assign button
-        const countSpan = assignButton.querySelector('.selection-count')
-        if (countSpan) countSpan.textContent = totalSelected
       }
     } else {
       // Hide assign button when not needed
@@ -73,6 +70,11 @@ export default class extends Controller {
     // Update folder count
     this.selectedFolderCountTargets.forEach(target => {
       target.textContent = this.selectedFolders.size
+    })
+    
+    // Update total count for assign button
+    this.selectedTotalCountTargets.forEach(target => {
+      target.textContent = this.selectedAssets.size + this.selectedFolders.size
     })
   }
 
