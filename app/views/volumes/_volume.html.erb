@@ -18,14 +18,34 @@
       <i class="bi bi-filter-square search-icon"></i>
     </button>
     
-    <!-- Batch Actions Button (hidden initially) -->
+    <!-- Assign To Button (for mixed selections) -->
     <button type="button" 
-            id="batch-actions-btn"
+            id="assign-to-btn"
             class="btn btn-primary ms-3" 
-            data-action="click->batch-actions#openModal"
+            data-action="click->batch-actions#openAssignModal"
             style="display: none;">
-      <i class="bi bi-check-square me-1"></i>
-      Batch Actions (<span data-batch-actions-target="selectedCount">0</span>)
+      <i class="bi bi-person-plus me-1"></i>
+      Batch Assign To (<span class="selection-count">0</span>)
+    </button>
+    
+    <!-- Folder Batch Actions Button (hidden initially) -->
+    <button type="button" 
+            id="folder-batch-actions-btn"
+            class="btn btn-primary ms-3" 
+            data-action="click->batch-actions#openFolderModal"
+            style="display: none;">
+      <i class="bi bi-folder-fill me-1"></i>
+      Batch Update Folders (<span data-batch-actions-target="selectedFolderCount">0</span>)
+    </button>
+    
+    <!-- Asset Batch Actions Button (hidden initially) -->
+    <button type="button" 
+            id="asset-batch-actions-btn"
+            class="btn btn-primary ms-3" 
+            data-action="click->batch-actions#openAssetModal"
+            style="display: none;">
+      <i class="bi bi-file-earmark-fill me-1"></i>
+      Batch Update Assets (<span data-batch-actions-target="selectedAssetCount">0</span>)
     </button>
   </div>
 
@@ -38,17 +58,19 @@
     style="height: 500px;"
   ></div>
 
-  <!-- Batch Actions Modal -->
-  <div class="modal fade" id="batchActionsModal" tabindex="-1" aria-labelledby="batchActionsModalLabel" aria-hidden="true">
+  <!-- Asset Batch Actions Modal -->
+  <div class="modal fade" id="assetBatchActionsModal" tabindex="-1" aria-labelledby="assetBatchActionsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="batchActionsModalLabel">
-            Batch Update <span data-batch-actions-target="selectedCount">0</span> Selected Assets
-          </h5>
+          <div>
+            <h5 class="modal-title" id="assetBatchActionsModalLabel">
+              Batch Update <span data-batch-actions-target="selectedAssetCount">0</span> Selected Assets
+            </h5>
+            <p class="text-muted mb-0 small">These options will only update selected assets</p>
+          </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        
         <div class="modal-body">
           <%= form_with url: volume_batch_actions_path(volume), method: :patch, 
                         class: "batch-actions-form",
@@ -59,13 +81,11 @@
                         local: false do |form| %>
             
             <p class="text-muted mb-4">
-              Update any or all of the fields below. Only fields with changes will be applied to the selected assets and folders.
-              <br><strong>Note:</strong> For folders, only "Assigned User" updates are supported and will cascade to all subfolders and assets within.
+              Update any or all of the fields below. Only fields with changes will be applied to the selected assets.
             </p>
             
-            <!-- Hidden fields for selected asset and folder IDs -->
+            <!-- Hidden field for selected asset IDs -->
             <%= form.hidden_field :asset_ids, data: { "batch-actions-target": "assetIds" } %>
-            <%= form.hidden_field :folder_ids, data: { "batch-actions-target": "folderIds" } %>
             
             <!-- Migration Status Update -->
             <div class="mb-4">
@@ -120,12 +140,115 @@
             
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <%= form.submit "Apply Batch Updates", class: "btn btn-primary" %>
+              <%= form.submit "Apply Asset Updates", class: "btn btn-primary" %>
             </div>
           <% end %>
         </div>
       </div>
     </div>
-  >
+  </div>
+
+  <!-- Folder Batch Actions Modal -->
+  <div class="modal fade" id="folderBatchActionsModal" tabindex="-1" aria-labelledby="folderBatchActionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title" id="folderBatchActionsModalLabel">
+              Batch Update <span data-batch-actions-target="selectedFolderCount">0</span> Selected Folders
+            </h5>
+            <p class="text-muted mb-0 small">These options will only update selected folders</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body">
+          <%= form_with url: volume_batch_actions_path(volume), method: :patch, 
+                        class: "folder-batch-actions-form",
+                        data: { 
+                          "batch-actions-target": "folderForm",
+                          "action": "submit->batch-actions#submitFolderBatchAction"
+                        },
+                        local: false do |form| %>
+            
+            <p class="text-muted mb-4">
+              Update the assigned user for the selected folders. Changes will cascade to all subfolders and assets within the selected folders.
+            </p>
+            
+            <!-- Hidden field for selected folder IDs -->
+            <%= form.hidden_field :folder_ids, data: { "batch-actions-target": "folderIds" } %>
+            
+            <!-- Assigned User Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Assigned User</label>
+              <%= form.select :assigned_user_id, 
+                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }, ''), 
+                    {}, 
+                    { class: "form-select" } %>
+              <div class="form-text">Assign or reassign the selected folders (and all their contents) to a user</div>
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <%= form.submit "Apply Folder Updates", class: "btn btn-warning" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assign To Modal (for mixed folder/asset selections) -->
+  <div class="modal fade" id="assignToModal" tabindex="-1" aria-labelledby="assignToModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="assignToModalLabel">
+            Assign Selection
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body">
+          <%= form_with url: volume_batch_actions_path(volume), method: :patch, 
+                        class: "assign-to-form",
+                        data: { 
+                          "batch-actions-target": "assignForm",
+                          "action": "submit->batch-actions#submitAssignAction"
+                        },
+                        local: false do |form| %>
+            
+            <div class="alert alert-info mb-4">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Mixed selection assignment</strong>
+              <div class="mt-2">
+                <span class="badge bg-primary me-2" id="assign-folder-count">0 folders</span>
+                <span class="badge bg-success" id="assign-asset-count">0 assets</span>
+              </div>
+            </div>
+            
+            <!-- Hidden fields for selected IDs -->
+            <%= form.hidden_field :folder_ids, data: { "batch-actions-target": "assignFolderIds" } %>
+            <%= form.hidden_field :asset_ids, data: { "batch-actions-target": "assignAssetIds" } %>
+            
+            <!-- Assigned User Selection -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Assign To</label>
+              <%= form.select :assigned_user_id, 
+                    options_for_select([['Unassigned', 'unassigned']] + User.all.map { |u| [u.display_name, u.id] }), 
+                    { prompt: 'Select user...' }, 
+                    { class: "form-select", required: true } %>
+              <div class="form-text">All selected folders and assets will be assigned to this user</div>
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <%= form.submit "Assign", class: "btn btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </div>

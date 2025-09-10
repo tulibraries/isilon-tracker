@@ -866,9 +866,26 @@ _handleInputChange(e) {
   }
 
   // Public method to refresh tree display after batch updates
-  async refreshTreeDisplay(updatedAssetIds = []) {
-    console.log("refreshTreeDisplay called with updatedAssetIds:", updatedAssetIds);
+  async refreshTreeDisplay(updatedAssetIds = [], updatedFolderIds = []) {
+    console.log("refreshTreeDisplay called with updatedAssetIds:", updatedAssetIds, "updatedFolderIds:", updatedFolderIds);
     
+    // Handle updated folders first
+    if (this.tree && updatedFolderIds.length > 0) {
+      console.log("Refreshing folder nodes for updated folders:", updatedFolderIds);
+      
+      for (const folderId of updatedFolderIds) {
+        const nodeKey = folderId.toString(); // Folders use just the ID as key, not "f-" prefix
+        const node = this.tree.findKey(nodeKey);
+        console.log(`Looking for folder node with key: ${nodeKey}, found:`, node);
+        
+        if (node) {
+          // Refresh the folder node by re-fetching its data
+          await this.refreshFolderNode(node, folderId);
+        }
+      }
+    }
+    
+    // Handle updated assets
     if (this.tree && updatedAssetIds.length > 0) {
       console.log("Refreshing Wunderbaum tree display for updated assets:", updatedAssetIds);
       
@@ -893,8 +910,56 @@ _handleInputChange(e) {
       }
       
       console.log("Tree nodes refresh completed");
-    } else {
-      console.log("No tree or no updated asset IDs provided");
+    } else if (updatedAssetIds.length === 0 && updatedFolderIds.length === 0) {
+      console.log("No tree or no updated asset/folder IDs provided");
+    }
+  }
+
+  async refreshFolderNode(node, folderId) {
+    try {
+      console.log(`Refreshing folder node for folder ${folderId}`);
+      
+      // Fetch fresh folder data using the show endpoint
+      const response = await fetch(`/isilon_folders/${folderId}.json`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin"
+      });
+      
+      if (response.ok) {
+        const folderData = await response.json();
+        console.log(`Received fresh data for folder ${folderId}:`, folderData);
+        
+        // Update the node's data with fresh values
+        Object.assign(node.data, folderData);
+        
+        // Update the node's title (which is just the full_path from serializer)
+        node.setTitle(folderData.title);
+        
+        // Try different methods to trigger re-render (same as for assets)
+        try {
+          if (node.update) {
+            console.log(`Calling node.update() for folder ${folderId}`);
+            node.update();
+          } else if (node.renderColumns) {
+            console.log(`Calling node.renderColumns() for folder ${folderId}`);
+            node.renderColumns();
+          } else if (this.tree.update) {
+            console.log(`Calling tree.update() for folder ${folderId}`);
+            this.tree.update();
+          } else {
+            console.log(`No update method found, trying tree redraw for folder ${folderId}`);
+            this.tree.redraw();
+          }
+        } catch (renderError) {
+          console.error(`Failed to re-render folder node ${folderId}:`, renderError);
+        }
+        
+        console.log(`Successfully refreshed folder node ${folderId}`);
+      } else {
+        console.error(`Failed to fetch folder data for ${folderId}:`, response.status);
+      }
+    } catch (error) {
+      console.error(`Error refreshing folder node ${folderId}:`, error);
     }
   }
 

@@ -10,6 +10,9 @@ class BatchActionsController < ApplicationController
       return
     end
 
+    # Determine which form was submitted based on commit button text
+    is_assign_form = params[:commit] == "Assign"
+
     updated_count = 0
     updates_applied = []
 
@@ -27,16 +30,21 @@ class BatchActionsController < ApplicationController
         if folder_ids.any?
           folders = @volume.isilon_folders.where(id: folder_ids)
           if folders.any?
-            updated_count += process_folder_updates(folders, updates_applied)
+            # Only cascade to child assets for assign form, not folder form
+            cascade_to_assets = is_assign_form
+            updated_count += process_folder_updates(folders, updates_applied, cascade_to_assets)
           end
         end
+      end
 
-        if updated_count == 0
-          redirect_to @volume, alert: "No valid assets or folders found for batch update."
-          return
-        end
+      # Check for no updates after transaction completes
+      if updated_count == 0
+        redirect_to @volume, alert: "No valid assets or folders found for batch update."
+        return
       end
     rescue StandardError => e
+      Rails.logger.error "Batch action error: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
       error_message = "An error occurred while updating: #{e.message}"
 
       respond_to do |format|
@@ -85,8 +93,6 @@ class BatchActionsController < ApplicationController
   end
 
   def process_asset_updates(assets, updates_applied)
-    updated_count = 0
-
     # Update Migration Status
     if params[:migration_status_id].present?
       migration_status = MigrationStatus.find(params[:migration_status_id])
@@ -124,7 +130,7 @@ class BatchActionsController < ApplicationController
     assets.count
   end
 
-  def process_folder_updates(folders, updates_applied)
+  def process_folder_updates(folders, updates_applied, cascade_to_assets = false)
     updated_count = 0
 
     folders.each do |folder|
@@ -149,14 +155,21 @@ class BatchActionsController < ApplicationController
           folder_updates += 1
         end
 
-        # Update all assets in this folder and subfolders
-        all_assets = folder.all_descendant_assets
-        if all_assets.any?
-          all_assets.update_all(assigned_to: user&.id)
-          folder_updates += all_assets.count
+        # Only update assets if cascading is enabled (assign form)
+        if cascade_to_assets
+          # Update all assets in this folder and subfolders
+          all_assets = folder.all_descendant_assets
+          if all_assets.any?
+            all_assets.update_all(assigned_to: user&.id)
+            folder_updates += all_assets.count
+          end
         end
 
-        updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} (cascaded from folder: #{folder.isilon_name})"
+        if cascade_to_assets
+          updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} (cascaded from folder: #{folder.full_path})"
+        else
+          updates_applied << "assigned user to #{user ? user.display_name : 'unassigned'} for folder: #{folder.full_path} (folders only)"
+        end
       end
 
       updated_count += folder_updates
