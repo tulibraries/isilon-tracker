@@ -21,7 +21,6 @@ RSpec.describe "Volumes batch actions", type: :request do
       volume: volume,
       parent_folder: parent_folder,
       full_path: "/test/subfolder1",
-      migration_status: migration_status_1,
       assigned_to: nil)
   end
 
@@ -30,7 +29,6 @@ RSpec.describe "Volumes batch actions", type: :request do
       volume: volume,
       parent_folder: parent_folder,
       full_path: "/test/subfolder2",
-      migration_status: migration_status_1,
       assigned_to: nil)
   end
 

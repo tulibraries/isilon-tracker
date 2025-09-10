@@ -3,7 +3,6 @@ class IsilonFolder < ApplicationRecord
   belongs_to :parent_folder, class_name: "IsilonFolder", foreign_key: "parent_folder_id", optional: true
   has_many :child_folders, class_name: "IsilonFolder", foreign_key: "parent_folder_id"
   has_many :isilon_assets, foreign_key: "parent_folder_id"
-  belongs_to :migration_status, optional: true
   belongs_to :assigned_to, class_name: "User", foreign_key: "assigned_to", optional: true
 
   def ancestors
