@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["selectedAssetCount", "selectedFolderCount", "selectedTotalCount", "form", "folderForm", "assignForm", "assetIds", "folderIds", "assignAssetIds", "assignFolderIds"]
+  static targets = ["selectedAssetCount", "form", "assetIds", "folderIds"]
 
   connect() {
     this.selectedAssets = new Set()
@@ -29,122 +29,54 @@ export default class extends Controller {
 
   updateButtonVisibility() {
     const assetButton = document.getElementById("asset-batch-actions-btn")
-    const folderButton = document.getElementById("folder-batch-actions-btn")
-    const assignButton = document.getElementById("assign-to-btn")
     
     const hasAssets = this.selectedAssets.size > 0
     const hasFolders = this.selectedFolders.size > 0
     const totalSelected = this.selectedAssets.size + this.selectedFolders.size
     
-    // Show assign button if both assets and folders are selected
-    if (hasAssets && hasFolders) {
-      if (assignButton) {
-        assignButton.style.display = "inline-block"
-      }
-    } else {
-      // Hide assign button when not needed
-      if (assignButton) assignButton.style.display = "none"
-    }
-    
-    // Show asset button if any assets are selected
-    if (hasAssets) {
+    // Show batch actions button if any assets or folders are selected
+    if (totalSelected > 0) {
       if (assetButton) assetButton.style.display = "inline-block"
     } else {
       if (assetButton) assetButton.style.display = "none"
     }
-    
-    // Show folder button if any folders are selected
-    if (hasFolders) {
-      if (folderButton) folderButton.style.display = "inline-block"
-    } else {
-      if (folderButton) folderButton.style.display = "none"
-    }
   }
 
   updateSelectedCount() {
-    // Update asset count
+    // Update total count (assets + folders)
+    const totalCount = this.selectedAssets.size + this.selectedFolders.size
     this.selectedAssetCountTargets.forEach(target => {
-      target.textContent = this.selectedAssets.size
-    })
-    
-    // Update folder count
-    this.selectedFolderCountTargets.forEach(target => {
-      target.textContent = this.selectedFolders.size
-    })
-    
-    // Update total count for assign button
-    this.selectedTotalCountTargets.forEach(target => {
-      target.textContent = this.selectedAssets.size + this.selectedFolders.size
+      target.textContent = totalCount
     })
   }
 
   openAssetModal() {
-    if (this.selectedAssets.size === 0) {
-      alert("Please select at least one asset")
+    const totalSelected = this.selectedAssets.size + this.selectedFolders.size
+    if (totalSelected === 0) {
+      this.showFlashMessage("Please select at least one item", "warning")
       return
     }
 
-    // Update the hidden field with selected asset IDs
+    // Update the hidden fields with selected IDs
     if (this.hasAssetIdsTarget) {
       this.assetIdsTarget.value = Array.from(this.selectedAssets).join(',')
     }
+    
+    // Update folder IDs field (create it if it doesn't exist)
+    let folderIdsInput = document.querySelector('#assetBatchActionsModal input[name="folder_ids"]')
+    if (!folderIdsInput) {
+      folderIdsInput = document.createElement('input')
+      folderIdsInput.type = 'hidden'
+      folderIdsInput.name = 'folder_ids'
+      document.querySelector('#assetBatchActionsModal form').appendChild(folderIdsInput)
+    }
+    folderIdsInput.value = Array.from(this.selectedFolders).join(',')
 
     // Reset form to "Unchanged" state
     this.resetAssetFormToUnchanged()
 
-    // Show the asset modal
+    // Show the modal
     const modal = new bootstrap.Modal(document.getElementById('assetBatchActionsModal'))
-    modal.show()
-  }
-
-  openFolderModal() {
-    if (this.selectedFolders.size === 0) {
-      alert("Please select at least one folder")
-      return
-    }
-
-    // Update the hidden field with selected folder IDs
-    if (this.hasFolderIdsTarget) {
-      this.folderIdsTarget.value = Array.from(this.selectedFolders).join(',')
-    }
-
-    // Reset form to "Unchanged" state
-    this.resetFolderFormToUnchanged()
-
-    // Show the folder modal
-    const modal = new bootstrap.Modal(document.getElementById('folderBatchActionsModal'))
-    modal.show()
-  }
-
-  openAssignModal() {
-    if (this.selectedAssets.size === 0 && this.selectedFolders.size === 0) {
-      alert("Please select at least one item")
-      return
-    }
-
-    // Update the hidden fields with selected IDs for the assign form
-    if (this.hasAssignAssetIdsTarget) {
-      this.assignAssetIdsTarget.value = Array.from(this.selectedAssets).join(',')
-    }
-    if (this.hasAssignFolderIdsTarget) {
-      this.assignFolderIdsTarget.value = Array.from(this.selectedFolders).join(',')
-    }
-
-    // Update the counts in the modal
-    const folderCountBadge = document.getElementById('assign-folder-count')
-    const assetCountBadge = document.getElementById('assign-asset-count')
-    if (folderCountBadge) {
-      folderCountBadge.textContent = `${this.selectedFolders.size} folder${this.selectedFolders.size !== 1 ? 's' : ''}`
-    }
-    if (assetCountBadge) {
-      assetCountBadge.textContent = `${this.selectedAssets.size} asset${this.selectedAssets.size !== 1 ? 's' : ''}`
-    }
-
-    // Reset form
-    this.resetAssignFormToUnchanged()
-
-    // Show the assign modal
-    const modal = new bootstrap.Modal(document.getElementById('assignToModal'))
     modal.show()
   }
 
@@ -163,25 +95,6 @@ export default class extends Controller {
     }
   }
 
-  resetFolderFormToUnchanged() {
-    const modal = document.getElementById('folderBatchActionsModal')
-    
-    // Reset all select dropdowns to empty value (which shows "Unchanged")
-    modal.querySelectorAll('select').forEach(select => {
-      select.value = ''
-    })
-  }
-
-  resetAssignFormToUnchanged() {
-    const modal = document.getElementById('assignToModal')
-    
-    // Reset select dropdown to prompt state
-    const select = modal.querySelector('select[name*="assigned_user_id"]')
-    if (select) {
-      select.selectedIndex = 0 // Reset to prompt
-    }
-  }
-
   submitBatchAction(event) {
     // Update hidden fields with current selection before submitting
     if (this.hasAssetIdsTarget) {
@@ -192,34 +105,9 @@ export default class extends Controller {
     // The form already has the correct action and method
   }
 
-  submitFolderBatchAction(event) {
-    // Update hidden fields with current selection before submitting
-    if (this.hasFolderIdsTarget) {
-      this.folderIdsTarget.value = Array.from(this.selectedFolders).join(',')
-    }
-    
-    // Let the form submit naturally with Turbo handling the response
-    // The form already has the correct action and method
-  }
-
-  submitAssignAction(event) {
-    // Update hidden fields with current selection before submitting
-    if (this.hasAssignAssetIdsTarget) {
-      this.assignAssetIdsTarget.value = Array.from(this.selectedAssets).join(',')
-    }
-    if (this.hasAssignFolderIdsTarget) {
-      this.assignFolderIdsTarget.value = Array.from(this.selectedFolders).join(',')
-    }
-    
-    // Let the form submit naturally with Turbo handling the response
-    // The form already has the correct action and method
-  }
-
   handleFormSubmitEnd(event) {
     // Check if this is our batch actions form and if it was successful
-    if ((event.target.classList.contains('batch-actions-form') || 
-         event.target.classList.contains('folder-batch-actions-form') ||
-         event.target.classList.contains('assign-to-form')) && 
+    if (event.target.classList.contains('batch-actions-form') && 
         event.detail.success) {
       const updatedAssetIds = Array.from(this.selectedAssets)
       const updatedFolderIds = Array.from(this.selectedFolders)
@@ -247,18 +135,6 @@ export default class extends Controller {
     if (assetModal) {
       assetModal.hide()
     }
-    
-    // Close folder modal
-    const folderModal = bootstrap.Modal.getInstance(document.getElementById('folderBatchActionsModal'))
-    if (folderModal) {
-      folderModal.hide()
-    }
-    
-    // Close assign modal
-    const assignModal = bootstrap.Modal.getInstance(document.getElementById('assignToModal'))
-    if (assignModal) {
-      assignModal.hide()
-    }
   }
 
   clearSelection() {
@@ -266,5 +142,18 @@ export default class extends Controller {
     this.selectedFolders.clear()
     this.updateButtonVisibility()
     this.updateSelectedCount()
+  }
+
+  showFlashMessage(message, type) {
+    // Create a temporary flash message element
+    const flashContainer = document.getElementById("flash-messages")
+    if (flashContainer) {
+      flashContainer.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `
+    }
   }
 }

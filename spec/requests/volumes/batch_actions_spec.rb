@@ -266,38 +266,11 @@ RSpec.describe "Volumes batch actions", type: :request do
         expect(nested_asset_1.assigned_to).to be_nil
         expect(nested_asset_2.assigned_to).to be_nil
 
-        expect(flash[:notice]).to include("assigned user to Other User")
+        expect(flash[:notice]).to include("assigned folders to Other User")
       end
     end
 
-    context "when using mixed asset and folder selections (Assign All)" do
-      it "updates both assets and folders with cascading behavior" do
-        patch volume_batch_actions_path(volume), params: {
-          asset_ids: "#{asset_1.id}",
-          folder_ids: "#{child_folder_1.id}",
-          assigned_user_id: other_user.id,
-          commit: "Assign"
-        }
 
-        expect(response).to have_http_status(:redirect)
-        expect(response).to redirect_to(volume_path(volume))
-
-        asset_1.reload
-        child_folder_1.reload
-        nested_asset_1.reload
-
-        # Direct asset selection should be updated
-        expect(asset_1.assigned_to).to eq(other_user)
-
-        # Selected folder should be updated
-        expect(child_folder_1.assigned_to).to eq(other_user)
-
-        # Asset within selected folder should be updated (cascading)
-        expect(nested_asset_1.assigned_to).to eq(other_user)
-
-        expect(flash[:notice]).to include("assigned user to Other User")
-      end
-    end
 
     context "with invalid folder IDs" do
       it "handles empty folder_ids" do
