@@ -17,14 +17,6 @@ export default class extends Controller {
 
   async connect() {
     try {
-      // Fetch options first, before creating the tree
-      await Promise.all([
-        this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status"),
-        this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection"),
-        this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection"),
-        this._fetchOptions("/users.json", "userOptions", "assigned_to")
-      ]);
-
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -279,6 +271,11 @@ export default class extends Controller {
 
         source
       });
+
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
+      this._fetchOptions("/users.json", "userOptions", "assigned_to");
 
       this._setupInlineFilter();
     } catch (err) {
