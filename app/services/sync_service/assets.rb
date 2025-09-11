@@ -105,16 +105,15 @@ module SyncService
           parent_folder = get_folder_parent_id(directories)
           current_path = "/" + directories.join("/")
 
-          folder = IsilonFolder.find_or_create_by!(volume_id: volume.id, full_path: current_path)
-          folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
-          directories.pop unless i == 0
-
           begin
-            folder.save!
+            folder = find_or_create_folder_safely(volume.id, current_path)
+            folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
           rescue => e
-            stdout_and_log("Unable to save folder: #{current_path}; #{e.message}", level: :error)
+            stdout_and_log("Unable to create or find folder: #{current_path}; #{e.message}", level: :error)
             return false
           end
+
+          directories.pop unless i == 0
         end
       end
 
@@ -166,39 +165,43 @@ module SyncService
       end
     end
 
-    def directory_check(asset)
-      all_directories = asset.isilon_path.split("/").compact_blank
-      directories = all_directories[0...-1]
-      return if directories.empty?
-      volume = Volume.find_by(name: @parent_volume.name)
-
-      (directories.size).downto(0) do |i|
-        if directories.present?
-          parent_folder = get_folder_parent_id(directories)
-          current_path = "/" + directories.join("/")
-
-          folder = IsilonFolder.find_or_create_by!(volume_id: volume.id, full_path: current_path)
-          folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
-          directories.pop unless i == 0
-
-          begin
-            folder.save!
-          rescue => e
-            stdout_and_log("Unable to save folder: #{current_path}; #{e.message}", level: :error)
-          end
-        end
-      end
-    end
-
     def get_folder_parent_id(path)
       path = path[0...-1]
       path = path.join("/")
-      IsilonFolder.find_or_create_by!(volume_id: @parent_volume.id, full_path: "/#{path}") if path.present?
+      return nil unless path.present?
+
+      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
     end
 
     def get_asset_parent_id(path)
       path = path.join("/")
-      IsilonFolder.find_or_create_by!(volume_id: @parent_volume.id, full_path: "/#{path}") if path.present?
+      return nil unless path.present?
+
+      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+    end
+
+    def find_or_create_folder_safely(volume_id, full_path)
+      retry_count = 0
+      max_retries = 3
+
+      begin
+        IsilonFolder.find_or_create_by!(volume_id: volume_id, full_path: full_path)
+      rescue ActiveRecord::RecordNotUnique
+        retry_count += 1
+        if retry_count <= max_retries
+          # Brief backoff to avoid thundering herd
+          sleep(0.1 * retry_count)
+
+          # Try to find the existing folder
+          existing_folder = IsilonFolder.find_by(volume_id: volume_id, full_path: full_path)
+          return existing_folder if existing_folder
+
+          # If we still can't find it, retry the create
+          retry if retry_count <= max_retries
+        end
+
+        raise ActiveRecord::RecordNotFound, "Could not find or create folder after #{max_retries} retries: #{full_path}"
+      end
     end
 
     def get_name(path)
