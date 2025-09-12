@@ -162,12 +162,12 @@ export default class extends Controller {
                   }
                   break;
 
-                case "aspace_collection":
+                case "aspace_collection_id":
                   if (this.aspaceCollectionOptions) {
                     selectElem = this._buildSelectList(
                       this.aspaceCollectionOptions,
                       value,
-                      "aspace_collection"
+                      "aspace_collection_id"
                     );
                     colInfo.elem.innerHTML = "";
                     colInfo.elem.appendChild(selectElem);
@@ -176,12 +176,12 @@ export default class extends Controller {
                   }
                   break;
 
-                case "contentdm_collection":
+                case "contentdm_collection_id":
                   if (this.contentdmCollectionOptions) {
                     selectElem = this._buildSelectList(
                       this.contentdmCollectionOptions,
                       value,
-                      "contentdm_collection"
+                      "contentdm_collection_id"
                     );
                     colInfo.elem.innerHTML = "";
                     colInfo.elem.appendChild(selectElem);
@@ -808,24 +808,16 @@ _handleInputChange(e) {
           "Content-Type": "application/json",
           "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").content,
         },
-        body: JSON.stringify({
-          node_id: nodeId,
-          node_type: nodeType,
-          field: field,
-          value: value,
-        }),
+        body: JSON.stringify({ node_id: nodeId, node_type: nodeType, field, value }),
         credentials: "same-origin",
       });
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
-      node.data[field] = value;
-      console.log("Saved:", data);
-    } catch (err) {
-      console.error("Failed to save cell change", err);
-    }
+      node.data[field] = String(data.value);
+      node.render();
+    } catch {}
   }
-
 
 }
