@@ -82,7 +82,7 @@ export default class extends Controller {
           { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
           { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
           {
-            id: "contentdm_collection",
+            id: "contentdm_collection_id",
             classes: "wb-helper-center",
             filterable: true,
             title: "Contentdm Collection",
@@ -90,7 +90,7 @@ export default class extends Controller {
             html: `<select tabindex="-1"><option value="" selected></option></select>`
           },
           {
-            id: "aspace_collection",
+            id: "aspace_collection_id",
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace Collection",
@@ -264,8 +264,8 @@ export default class extends Controller {
       });
 
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection");
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
       this._fetchOptions("/users.json", "userOptions", "assigned_to");
 
 
@@ -663,10 +663,10 @@ _handleInputChange(e) {
       case "migration_status":
         opts = this.migrationStatusOptions;
         break;
-      case "aspace_collection":
+      case "aspace_collection_id":
         opts = this.aspaceCollectionOptions;
         break;
-      case "contentdm_collection":
+      case "contentdm_collection_id":
         opts = this.contentdmCollectionOptions;
         break;
       case "assigned_to":
@@ -790,7 +790,7 @@ _handleInputChange(e) {
       this[targetProp] = opts;
 
       if (this.tree?.header) {
-        this.tree.header.render(); // refresh header filters
+        this.tree.header.render();
       }
     } catch (err) {
       console.error("Failed to fetch options for", url, err);
@@ -809,7 +809,7 @@ _handleInputChange(e) {
           "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").content,
         },
         body: JSON.stringify({
-          node_id: nodeId,   // 👈 renamed
+          node_id: nodeId,
           node_type: nodeType,
           field: field,
           value: value,
