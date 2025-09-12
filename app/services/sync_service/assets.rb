@@ -20,7 +20,7 @@ module SyncService
 
     def sync
       imported = 0
-      batch_size = 1000
+      batch_size = 100
 
       stdout_and_log("Starting CSV processing with batch size: #{batch_size}")
 
@@ -37,9 +37,6 @@ module SyncService
       end
 
       stdout_and_log("Imported #{imported} IsilonAsset records.")
-
-      # Post-processing: Apply Rule 4 for TIFF file count comparisons
-      apply_rule_4_post_processing
     end
 
     private
@@ -256,87 +253,7 @@ module SyncService
       path_segments.any? { |segment| segment.downcase.include?("delete") }
     end
 
-    def apply_rule_4_post_processing
-      stdout_and_log("Starting Rule 4 post-processing for PROCESSED/UNPROCESSED TIFF comparison...")
 
-      # Use database queries instead of re-reading CSV for better performance
-      parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts
-
-      # Update unprocessed TIFFs in bulk
-      parent_dirs_with_counts.each do |parent_info|
-        mark_unprocessed_tiffs_as_dont_migrate(parent_info[:parent_dir], parent_info[:count])
-      end
-
-      stdout_and_log("Rule 4 post-processing completed.")
-    end
-
-    def find_parent_dirs_with_matching_tiff_counts
-      tiff_assets = IsilonAsset.joins(parent_folder: :volume)
-                              .where(parent_folder: { volume: @parent_volume })
-                              .where("LOWER(isilon_path) LIKE '%/deposit/%'")
-                              .where("LOWER(isilon_path) NOT LIKE '%/deposit/scrc accessions%'")
-                              .where("LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif'")
-                              .where("LOWER(isilon_path) LIKE '%/processed/%' OR LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%'")
-
-      # Group assets by parent directory and subdirectory type
-      parent_dir_analysis = {}
-
-      tiff_assets.find_each do |asset|
-        parent_dir = extract_parent_directory(asset.isilon_path)
-        subdirectory_type = extract_subdirectory_type(asset.isilon_path)
-
-        next unless parent_dir && subdirectory_type
-
-        parent_dir_analysis[parent_dir] ||= { processed: 0, unprocessed: 0 }
-        parent_dir_analysis[parent_dir][subdirectory_type] += 1
-      end
-
-      # Return only parent directories where processed count = unprocessed count
-      parent_dir_analysis.filter_map do |parent_dir, counts|
-        if counts[:processed] > 0 && counts[:unprocessed] > 0 && counts[:processed] == counts[:unprocessed]
-          {
-            parent_dir: parent_dir,
-            count: counts[:processed]
-          }
-        end
-      end
-    end
-
-    def extract_parent_directory(isilon_path)
-      path_lower = isilon_path.downcase
-
-      if path_lower.include?("/processed/")
-        isilon_path.split("/processed/").first
-      elsif path_lower.include?("/unprocessed/")
-        isilon_path.split("/unprocessed/").first
-      elsif path_lower.include?("/raw/")
-        isilon_path.split("/raw/").first
-      end
-    end
-
-    def extract_subdirectory_type(isilon_path)
-      path_lower = isilon_path.downcase
-
-      if path_lower.include?("/processed/")
-        :processed
-      elsif path_lower.include?("/unprocessed/") || path_lower.include?("/raw/")
-        :unprocessed
-      end
-    end
-
-    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, count)
-      dont_migrate_status = MigrationStatus.find_by(name: "Don't migrate")
-
-      # Bulk update all unprocessed TIFFs in this parent directory
-      updated_count = IsilonAsset.joins(parent_folder: :volume)
-        .where(parent_folder: { volume: @parent_volume })
-        .where("isilon_path LIKE ?", "#{parent_dir}/%")
-        .where("(LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%')")
-        .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
-        .update_all(migration_status_id: dont_migrate_status.id)
-
-      stdout_and_log("Rule 4 post-processing: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir} (#{count} processed = #{count} unprocessed)")
-    end
 
     def stdout_and_log(message, level: :info)
       # Toggle for batch processing visibility
