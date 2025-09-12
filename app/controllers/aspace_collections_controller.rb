@@ -3,4 +3,8 @@ class AspaceCollectionsController < ApplicationController
     @aspace_collections = AspaceCollection.all
     render json: @aspace_collections.each_with_object({}) { |ac, h| h[ac.id] = ac.name }
   end
+
+  def to_s
+    name
+  end
 end
