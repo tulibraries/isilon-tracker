@@ -49,7 +49,7 @@ module SyncService
       batch_imported = 0
 
       batch.each do |row|
-        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db")
+        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db") || row["Path"].include?(".apdisk")
 
         # Ensure directory structure exists before bulk insert
         isilon_path = set_full_path(row["Path"])
