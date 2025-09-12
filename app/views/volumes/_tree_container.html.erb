@@ -1,0 +1,30 @@
+<div
+  id="tree"
+  class="wb-tree isilon-tree"
+  data-controller="wunderbaum"
+  data-wunderbaum-url-value="<%= file_tree_volume_path(volume.id) %>"
+  data-wunderbaum-volume-id-value="<%= volume.id %>" 
+  style="height: 500px;"
+></div>
+
+<script>
+  // Re-select assets that were updated to maintain selection state
+  <% if defined?(selected_asset_ids) && selected_asset_ids.any? %>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait for the tree to be fully loaded before trying to select nodes
+      setTimeout(function() {
+        const wunderbaumController = document.querySelector('[data-controller*="wunderbaum"]');
+        if (wunderbaumController && wunderbaumController.tree) {
+          const selectedIds = <%= selected_asset_ids.to_json.html_safe %>;
+          // Re-select the updated assets
+          selectedIds.forEach(id => {
+            const node = wunderbaumController.tree.getNodeByKey(id);
+            if (node) {
+              node.setSelected(true);
+            }
+          });
+        }
+      }, 1000);
+    });
+  <% end %>
+</script>

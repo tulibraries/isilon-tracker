@@ -3,6 +3,7 @@ class IsilonAsset < ApplicationRecord
   belongs_to :migration_status, optional: true  # optional: true if some records are still NULL
   belongs_to :aspace_collection, optional: true
   belongs_to :contentdm_collection, optional: true
+  belongs_to :assigned_to, class_name: "User", foreign_key: "assigned_to", optional: true
 
   # Self-referencing association for duplicate tracking
   belongs_to :duplicate_of, class_name: "IsilonAsset", foreign_key: "duplicate_of_id", optional: true

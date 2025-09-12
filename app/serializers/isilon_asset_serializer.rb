@@ -41,6 +41,18 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     object.migration_status&.id.to_s
   end
 
+  def assigned_to
+    object.assigned_to&.id.to_s
+  end
+
+  def contentdm_collection
+    object.contentdm_collection&.id.to_s
+  end
+
+  def aspace_collection
+    object.aspace_collection&.id.to_s
+  end
+
   def path
     pid = object.parent_folder_id
     return [] if pid.nil?

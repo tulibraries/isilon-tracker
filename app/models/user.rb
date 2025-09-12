@@ -6,10 +6,9 @@ class User < ApplicationRecord
          :timeoutable,
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
+  has_many :assigned_assets, class_name: "IsilonAsset", foreign_key: "assigned_to"
   enum :status, { inactive: "inactive", active: "active" }, suffix: true
-
   before_validation :assign_names_from_name_field
-
   validates :status, inclusion: { in: statuses.keys }
 
   def self.from_omniauth(access_token)
@@ -24,7 +23,13 @@ class User < ApplicationRecord
   end
 
   def title
-    name.presence || email.split("@").first.titleize
+    if name.present?
+      name
+    elsif first_name.present? || last_name.present?
+      [ first_name, last_name ].compact.join(" ")
+    else
+      email.split("@").first.titleize
+    end
   end
 
   protected
