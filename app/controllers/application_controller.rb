@@ -4,12 +4,4 @@ class ApplicationController < ActionController::Base
   before_action :authenticate_user!
 
   include NavigationData
-
-
-  private
-
-  def current_user
-    return @current_user if Rails.env.development? && @current_user
-    super
-  end
 end
