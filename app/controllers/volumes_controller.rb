@@ -56,7 +56,7 @@ class VolumesController < ApplicationController
     record =
       if (id = raw_id.sub(/^a-/, "").to_i).positive?
         @volume.isilon_assets.find_by(id: id) or return render(
-          json: { status: "error", errors: ["Asset not found"] },
+          json: { status: "error", errors: [ "Asset not found" ] },
           status: :not_found
         )
       else
@@ -83,12 +83,12 @@ class VolumesController < ApplicationController
     ]
 
     unless editable_fields.include?(db_field)
-      return render json: { status: "error", errors: ["Invalid or non-editable field: #{db_field}"] },
+      return render json: { status: "error", errors: [ "Invalid or non-editable field: #{db_field}" ] },
                     status: :unprocessable_entity
     end
 
     unless record.has_attribute?(db_field)
-      return render json: { status: "error", errors: ["Unknown field: #{db_field}"] },
+      return render json: { status: "error", errors: [ "Unknown field: #{db_field}" ] },
                     status: :unprocessable_entity
     end
 
