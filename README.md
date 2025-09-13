@@ -51,6 +51,18 @@ or
 bundle exec rails "sync:assets[scan_output.applications-backup.csv]"
 ```
 
+* Run TIFF comparison analysis for deduplication (separate from assets sync for memory optimization)
+
+After importing assets, run the TIFF comparison analysis to identify duplicate TIFF files and update migration statuses accordingly. This task processes TIFF files in deposit or media-repository volumes and marks unprocessed duplicates as "Don't migrate" when matching processed versions exist.
+
+`bundle exec rails sync:tiffs[deposit]`
+
+or for media-repository volume:
+
+`bundle exec rails sync:tiffs[media-repository]`
+
+**Note:** This task runs separately from sync:assets to avoid memory issues with large datasets in production Kubernetes environments. It analyzes TIFF files in processed/unprocessed/raw subdirectories.
+
 * Install node packages and JS dependencies
 
 ```bash
