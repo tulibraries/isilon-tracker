@@ -9,6 +9,7 @@ class User < ApplicationRecord
   enum :status, { inactive: "inactive", active: "active" }, suffix: true
 
   before_validation :assign_names_from_name_field
+  before_validation :ensure_random_password, if: :new_record?
 
   validates :status, inclusion: { in: statuses.keys }
 
@@ -34,5 +35,15 @@ class User < ApplicationRecord
     parts = name.split(" ", 2)
     self.first_name ||= parts.first
     self.last_name  ||= parts.second if parts.size > 1
+  end
+
+  private
+
+  def ensure_random_password
+    return if password.present?
+    # friendly_token is secure and URL-safe; 20 chars >= Devise default min length (6)
+    token = Devise.friendly_token[0, 20] # 20 chars by default
+    self.password = token
+    self.password_confirmation = token
   end
 end
