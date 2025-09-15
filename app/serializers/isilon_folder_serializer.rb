@@ -1,5 +1,5 @@
 class IsilonFolderSerializer < ActiveModel::Serializer
-  attributes :title, :folder, :id, :lazy, :migration_status, :parent_folder_id, :path, :key
+  attributes :title, :folder, :id, :lazy, :assigned_to, :parent_folder_id, :path, :key
 
   def title
     object.full_path
@@ -17,8 +17,8 @@ class IsilonFolderSerializer < ActiveModel::Serializer
     true
   end
 
-  def migration_status
-    object.migration_status&.id.to_s
+  def assigned_to
+    object.assigned_to&.id.to_s || "unassigned"
   end
 
   def path

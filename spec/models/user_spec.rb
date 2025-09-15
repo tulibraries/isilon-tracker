@@ -34,12 +34,17 @@ RSpec.describe User, type: :model do
 
   describe "#title" do
     it "returns the name if present" do
-      user = build(:user, name: "Jennifer", email: "jennifer@example.com")
+      user = build(:user, name: "Jennifer", first_name: nil, last_name: nil, email: "jennifer@example.com")
       expect(user.title).to eq("Jennifer")
     end
 
-    it "falls back to email prefix if name is blank" do
-      user = build(:user, name: nil, email: "tester@temple.edu")
+    it "returns combined first and last name if name is blank but first/last are present" do
+      user = build(:user, name: nil, first_name: "Jane", last_name: "Smith", email: "jane@temple.edu")
+      expect(user.title).to eq("Jane Smith")
+    end
+
+    it "falls back to titleized email prefix if name and first/last are blank" do
+      user = build(:user, name: nil, first_name: nil, last_name: nil, email: "tester@temple.edu")
       expect(user.title).to eq("Tester")
     end
   end

@@ -143,101 +143,106 @@ export default class extends Controller {
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
             let value = e.node.data[colId];
+            let selectElem;
 
-            if (!isFolder) {
-              let selectElem;
+            switch (colId) {
+              case "migration_status":
+                if (this.migrationStatusOptions) {
+                  selectElem = this._buildSelectList(
+                    this.migrationStatusOptions,
+                    value,
+                    "migration_status"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
 
-              switch (colId) {
-                case "migration_status":
-                  if (this.migrationStatusOptions) {
-                    selectElem = this._buildSelectList(
-                      this.migrationStatusOptions,
-                      value,
-                      "migration_status"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
+              case "aspace_collection":
+                if (this.aspaceCollectionOptions) {
+                  selectElem = this._buildSelectList(
+                    this.aspaceCollectionOptions,
+                    value,
+                    "aspace_collection"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
+
+              case "contentdm_collection":
+                if (this.contentdmCollectionOptions) {
+                  selectElem = this._buildSelectList(
+                    this.contentdmCollectionOptions,
+                    value,
+                    "contentdm_collection"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "");
+                }
+                break;
+
+              case "assigned_to":
+                if (this.userOptions) {
+                  let effectiveValue = value;
+                  if (
+                    effectiveValue == null ||
+                    effectiveValue === "" ||
+                    effectiveValue === "0"
+                  ) {
+                    effectiveValue = "unassigned";
+                    e.node.data.assigned_to = effectiveValue; // keep data in sync
                   }
-                  break;
+                  selectElem = this._buildSelectList(
+                    this.userOptions,
+                    effectiveValue,
+                    "assigned_to"
+                  );
+                  colInfo.elem.innerHTML = "";
+                  colInfo.elem.appendChild(selectElem);
+                } else {
+                  util.setValueToElem(colInfo.elem, value ?? "Unassigned");
+                }
+                break;
 
-                case "aspace_collection_id":
-                  if (this.aspaceCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.aspaceCollectionOptions,
-                      value,
-                      "aspace_collection_id"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "contentdm_collection_id":
-                  if (this.contentdmCollectionOptions) {
-                    selectElem = this._buildSelectList(
-                      this.contentdmCollectionOptions,
-                      value,
-                      "contentdm_collection_id"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "");
-                  }
-                  break;
-
-                case "assigned_to":
-                  if (this.userOptions) {
-                    let effectiveValue = value;
-                    if (
-                      effectiveValue == null ||
-                      effectiveValue === "" ||
-                      effectiveValue === "0"
-                    ) {
-                      effectiveValue = "unassigned";
-                      e.node.data.assigned_to = effectiveValue; // keep data in sync
-                    }
-                    selectElem = this._buildSelectList(
-                      this.userOptions,
-                      effectiveValue,
-                      "assigned_to"
-                    );
-                    colInfo.elem.innerHTML = "";
-                    colInfo.elem.appendChild(selectElem);
-                  } else {
-                    util.setValueToElem(colInfo.elem, value ?? "Unassigned");
-                  }
-                  break;
-
-                case "notes":
-                case "file_type":
-                case "preservica_reference_id":
+              case "notes":
+              case "file_type":
+              case "preservica_reference_id":
+                // These fields only apply to assets, not folders
+                if (!isFolder) {
                   const input = document.createElement("input");
                   input.type = "text";
                   input.name = colId;
                   input.value = value ?? "";
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(input);
-                  break;
+                } else {
+                  util.setValueToElem(colInfo.elem, "");
+                }
+                break;
 
-                case "aspace_linking_status":
+              case "aspace_linking_status":
+                // This field only applies to assets, not folders
+                if (!isFolder) {
                   const checkbox = document.createElement("input");
                   checkbox.type = "checkbox";
                   checkbox.name = colId;
                   checkbox.checked = Boolean(value);
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(checkbox);
-                  break;
+                } else {
+                  util.setValueToElem(colInfo.elem, "");
+                }
+                break;
 
-                default:
-                  util.setValueToElem(colInfo.elem, value ?? "");
-              }
-            } else {
-              util.setValueToElem(colInfo.elem, "");
+              default:
+                util.setValueToElem(colInfo.elem, value ?? "");
             }
           }
 
@@ -260,6 +265,10 @@ export default class extends Controller {
           this._saveCellChange(e.node, colId, value);
         },
 
+        select: (e) => {
+          this._emitSelectionChange();
+        },
+
         source
       });
 
@@ -267,7 +276,6 @@ export default class extends Controller {
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
       this._fetchOptions("/users.json", "userOptions", "assigned_to");
-
 
       this._setupInlineFilter();
     } catch (err) {
@@ -456,7 +464,6 @@ _handleInputChange(e) {
   }
 
   node.data[field] = value;
-  console.log("Saving field:", field, "value:", value, "for node:", nodeKey);
   this._saveCellChange(node, field, value);
 }
 
@@ -514,7 +521,6 @@ _handleInputChange(e) {
               requestAnimationFrame(addChunk);
             } else {
               this.assetsLoadedFor.add(k);
-              console.log(`Finished adding ${toAdd.length} assets to folder ${k}`);
             }
           };
 
@@ -814,10 +820,166 @@ _handleInputChange(e) {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-
-      node.data[field] = String(data.value);
-      node.render();
-    } catch {}
+      
+      node.data[field] = value;
+    } catch (err) {
+      console.error("Failed to save cell change", err);
+    }
   }
 
+  _emitSelectionChange() {
+    // Get selected asset IDs (excluding folders)
+    const selectedAssetIds = this.tree.getSelectedNodes()
+      .filter(node => !node.data.folder && node.key && node.key.startsWith('a-'))
+      .map(node => parseInt(node.key.replace('a-', ''), 10))
+      .filter(id => !isNaN(id));
+
+    // Get selected folder IDs
+    const selectedFolderIds = this.tree.getSelectedNodes()
+      .filter(node => node.data.folder && node.key && !node.key.startsWith('a-'))
+      .map(node => parseInt(node.key, 10))
+      .filter(id => !isNaN(id));
+
+    // Emit custom event for batch actions controller
+    const event = new CustomEvent("wunderbaum:selectionChanged", {
+      detail: { selectedAssetIds, selectedFolderIds }
+    });
+    document.dispatchEvent(event);
+  }
+
+  // Public method to clear selection (called by batch actions after successful update)
+  clearSelection() {
+    if (this.tree) {
+      this.tree.setSelection(false);
+    }
+  }
+
+  // Public method to refresh tree display after batch updates
+  async refreshTreeDisplay(updatedAssetIds = [], updatedFolderIds = []) {
+    
+    // Handle updated folders first
+    if (this.tree && updatedFolderIds.length > 0) {
+      
+      for (const folderId of updatedFolderIds) {
+        const nodeKey = folderId.toString(); // Folders use just the ID as key, not "f-" prefix
+        const node = this.tree.findKey(nodeKey);
+        
+        if (node) {
+          // Refresh the folder node by re-fetching its data
+          await this.refreshFolderNode(node, folderId);
+        }
+      }
+    }
+    
+    // Handle updated assets
+    if (this.tree && updatedAssetIds.length > 0) {
+      
+      // Get unique parent folder IDs for the updated assets
+      const parentFolderIds = new Set();
+      
+      updatedAssetIds.forEach(assetId => {
+        const nodeKey = `a-${assetId}`;
+        const node = this.tree.findKey(nodeKey);
+        if (node && node.data.parent_folder_id) {
+          parentFolderIds.add(node.data.parent_folder_id);
+        }
+      });
+      
+      // Refresh assets for each affected parent folder
+      for (const folderId of parentFolderIds) {
+        await this.refreshFolderAssets(folderId, updatedAssetIds);
+      }
+      
+    } else if (updatedAssetIds.length === 0 && updatedFolderIds.length === 0) {
+    }
+  }
+
+  async refreshFolderNode(node, folderId) {
+    try {
+      
+      // Fetch fresh folder data using the show endpoint
+      const response = await fetch(`/isilon_folders/${folderId}.json`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin"
+      });
+      
+      if (response.ok) {
+        const folderData = await response.json();
+        
+        // Update the node's data with fresh values
+        Object.assign(node.data, folderData);
+        
+        // Update the node's title (which is just the full_path from serializer)
+        node.setTitle(folderData.title);
+        
+        // Try different methods to trigger re-render (same as for assets)
+        try {
+          if (node.update) {
+            node.update();
+          } else if (node.renderColumns) {
+            node.renderColumns();
+          } else if (this.tree.update) {
+            this.tree.update();
+          } else {
+            this.tree.redraw();
+          }
+        } catch (renderError) {
+          console.error(`Failed to re-render folder node ${folderId}:`, renderError);
+        }
+        
+      } else {
+        console.error(`Failed to fetch folder data for ${folderId}:`, response.status);
+      }
+    } catch (error) {
+      console.error(`Error refreshing folder node ${folderId}:`, error);
+    }
+  }
+
+  async refreshFolderAssets(parentFolderId, updatedAssetIds) {
+    try {
+      
+      // Fetch fresh asset data for this folder
+      const response = await fetch(`/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentFolderId}`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin"
+      });
+      
+      if (response.ok) {
+        const assetsData = await response.json();
+        
+        // Update each modified asset node with fresh data
+        assetsData.forEach(assetData => {
+          const nodeKey = assetData.key; // Should be "a-{id}"
+          const assetId = parseInt(nodeKey.replace('a-', ''), 10);
+          
+          // Only update if this asset was in our updated list
+          if (updatedAssetIds.includes(assetId)) {
+            const node = this.tree.findKey(nodeKey);
+            if (node) {
+              
+              // Update the node's data with fresh values
+              Object.assign(node.data, assetData);
+              
+              // Try different methods to trigger re-render
+              try {
+                if (node.update) {
+                  node.update();
+                } else if (node.renderColumns) {
+                  node.renderColumns();
+                } else if (this.tree.update) {
+                  this.tree.update();
+                } else {
+                  this.tree.redraw();
+                }
+              } catch (renderError) {
+                console.error(`Failed to re-render node for asset ${assetId}:`, renderError);
+              }
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
+    }
+  }
 }
