@@ -97,4 +97,22 @@ RSpec.describe User, type: :model do
       expect(user.last_name).to be_nil
     end
   end
+
+  describe "password generation" do
+    it "generates a password if one is not provided" do
+      user = User.new(email: "test@example.com")
+
+      expect(user.password).to be_nil
+
+      user.valid? # triggers before_validation
+      expect(user.password).to be_present
+    end
+
+    it "does not overwrite an existing password" do
+      user = User.new(email: "test@example.com", password: "custompass")
+
+      user.valid?
+      expect(user.password).to eq("custompass")
+    end
+  end
 end

@@ -20,7 +20,7 @@ module SyncService
 
     def sync
       imported = 0
-      batch_size = 1000
+      batch_size = 100
 
       stdout_and_log("Starting CSV processing with batch size: #{batch_size}")
 
@@ -37,9 +37,6 @@ module SyncService
       end
 
       stdout_and_log("Imported #{imported} IsilonAsset records.")
-
-      # Post-processing: Apply Rule 4 for TIFF file count comparisons
-      apply_rule_4_post_processing
     end
 
     private
@@ -49,7 +46,7 @@ module SyncService
       batch_imported = 0
 
       batch.each do |row|
-        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db")
+        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db") || row["Path"].include?(".apdisk")
 
         # Ensure directory structure exists before bulk insert
         isilon_path = set_full_path(row["Path"])
@@ -105,16 +102,15 @@ module SyncService
           parent_folder = get_folder_parent_id(directories)
           current_path = "/" + directories.join("/")
 
-          folder = IsilonFolder.find_or_create_by!(volume_id: volume.id, full_path: current_path)
-          folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
-          directories.pop unless i == 0
-
           begin
-            folder.save!
+            folder = find_or_create_folder_safely(volume.id, current_path)
+            folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
           rescue => e
-            stdout_and_log("Unable to save folder: #{current_path}; #{e.message}", level: :error)
+            stdout_and_log("Unable to create or find folder: #{current_path}; #{e.message}", level: :error)
             return false
           end
+
+          directories.pop unless i == 0
         end
       end
 
@@ -166,39 +162,43 @@ module SyncService
       end
     end
 
-    def directory_check(asset)
-      all_directories = asset.isilon_path.split("/").compact_blank
-      directories = all_directories[0...-1]
-      return if directories.empty?
-      volume = Volume.find_by(name: @parent_volume.name)
-
-      (directories.size).downto(0) do |i|
-        if directories.present?
-          parent_folder = get_folder_parent_id(directories)
-          current_path = "/" + directories.join("/")
-
-          folder = IsilonFolder.find_or_create_by!(volume_id: volume.id, full_path: current_path)
-          folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
-          directories.pop unless i == 0
-
-          begin
-            folder.save!
-          rescue => e
-            stdout_and_log("Unable to save folder: #{current_path}; #{e.message}", level: :error)
-          end
-        end
-      end
-    end
-
     def get_folder_parent_id(path)
       path = path[0...-1]
       path = path.join("/")
-      IsilonFolder.find_or_create_by!(volume_id: @parent_volume.id, full_path: "/#{path}") if path.present?
+      return nil unless path.present?
+
+      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
     end
 
     def get_asset_parent_id(path)
       path = path.join("/")
-      IsilonFolder.find_or_create_by!(volume_id: @parent_volume.id, full_path: "/#{path}") if path.present?
+      return nil unless path.present?
+
+      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+    end
+
+    def find_or_create_folder_safely(volume_id, full_path)
+      retry_count = 0
+      max_retries = 3
+
+      begin
+        IsilonFolder.find_or_create_by!(volume_id: volume_id, full_path: full_path)
+      rescue ActiveRecord::RecordNotUnique
+        retry_count += 1
+        if retry_count <= max_retries
+          # Brief backoff to avoid thundering herd
+          sleep(0.1 * retry_count)
+
+          # Try to find the existing folder
+          existing_folder = IsilonFolder.find_by(volume_id: volume_id, full_path: full_path)
+          return existing_folder if existing_folder
+
+          # If we still can't find it, retry the create
+          retry if retry_count <= max_retries
+        end
+
+        raise ActiveRecord::RecordNotFound, "Could not find or create folder after #{max_retries} retries: #{full_path}"
+      end
     end
 
     def get_name(path)
@@ -253,87 +253,7 @@ module SyncService
       path_segments.any? { |segment| segment.downcase.include?("delete") }
     end
 
-    def apply_rule_4_post_processing
-      stdout_and_log("Starting Rule 4 post-processing for PROCESSED/UNPROCESSED TIFF comparison...")
 
-      # Use database queries instead of re-reading CSV for better performance
-      parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts
-
-      # Update unprocessed TIFFs in bulk
-      parent_dirs_with_counts.each do |parent_info|
-        mark_unprocessed_tiffs_as_dont_migrate(parent_info[:parent_dir], parent_info[:count])
-      end
-
-      stdout_and_log("Rule 4 post-processing completed.")
-    end
-
-    def find_parent_dirs_with_matching_tiff_counts
-      tiff_assets = IsilonAsset.joins(parent_folder: :volume)
-                              .where(parent_folder: { volume: @parent_volume })
-                              .where("LOWER(isilon_path) LIKE '%/deposit/%'")
-                              .where("LOWER(isilon_path) NOT LIKE '%/deposit/scrc accessions%'")
-                              .where("LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif'")
-                              .where("LOWER(isilon_path) LIKE '%/processed/%' OR LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%'")
-
-      # Group assets by parent directory and subdirectory type
-      parent_dir_analysis = {}
-
-      tiff_assets.find_each do |asset|
-        parent_dir = extract_parent_directory(asset.isilon_path)
-        subdirectory_type = extract_subdirectory_type(asset.isilon_path)
-
-        next unless parent_dir && subdirectory_type
-
-        parent_dir_analysis[parent_dir] ||= { processed: 0, unprocessed: 0 }
-        parent_dir_analysis[parent_dir][subdirectory_type] += 1
-      end
-
-      # Return only parent directories where processed count = unprocessed count
-      parent_dir_analysis.filter_map do |parent_dir, counts|
-        if counts[:processed] > 0 && counts[:unprocessed] > 0 && counts[:processed] == counts[:unprocessed]
-          {
-            parent_dir: parent_dir,
-            count: counts[:processed]
-          }
-        end
-      end
-    end
-
-    def extract_parent_directory(isilon_path)
-      path_lower = isilon_path.downcase
-
-      if path_lower.include?("/processed/")
-        isilon_path.split("/processed/").first
-      elsif path_lower.include?("/unprocessed/")
-        isilon_path.split("/unprocessed/").first
-      elsif path_lower.include?("/raw/")
-        isilon_path.split("/raw/").first
-      end
-    end
-
-    def extract_subdirectory_type(isilon_path)
-      path_lower = isilon_path.downcase
-
-      if path_lower.include?("/processed/")
-        :processed
-      elsif path_lower.include?("/unprocessed/") || path_lower.include?("/raw/")
-        :unprocessed
-      end
-    end
-
-    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, count)
-      dont_migrate_status = MigrationStatus.find_by(name: "Don't migrate")
-
-      # Bulk update all unprocessed TIFFs in this parent directory
-      updated_count = IsilonAsset.joins(parent_folder: :volume)
-        .where(parent_folder: { volume: @parent_volume })
-        .where("isilon_path LIKE ?", "#{parent_dir}/%")
-        .where("(LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%')")
-        .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
-        .update_all(migration_status_id: dont_migrate_status.id)
-
-      stdout_and_log("Rule 4 post-processing: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir} (#{count} processed = #{count} unprocessed)")
-    end
 
     def stdout_and_log(message, level: :info)
       # Toggle for batch processing visibility

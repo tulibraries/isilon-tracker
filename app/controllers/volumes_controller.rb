@@ -76,9 +76,7 @@ class VolumesController < ApplicationController
       end
 
     field_map = {
-      "migration_status"      => "migration_status_id",
-      "contentdm_collection"  => "contentdm_collection_id",
-      "aspace_collection"     => "aspace_collection_id"
+      "migration_status" => "migration_status_id"
     }
 
     db_field = field_map[params[:field]] || params[:field]
@@ -105,6 +103,8 @@ class VolumesController < ApplicationController
       migration_status_id
       contentdm_collection_id
       aspace_collection_id
+      preservica_reference_id
+      aspace_linking_status
       assigned_to
       notes
     ]
@@ -120,7 +120,14 @@ class VolumesController < ApplicationController
     end
 
     if record.update(db_field => value)
-      render json: { status: "ok", id: record.id, field: db_field, value: value }
+      label =
+        case db_field
+        when "contentdm_collection_id" then record.contentdm_collection&.name
+        when "aspace_collection_id"    then record.aspace_collection&.name
+        else record[db_field]
+        end
+
+      render json: { status: "ok", id: record.id, field: db_field, value: record.reload[db_field], label: label }
     else
       render json: { status: "error", errors: record.errors.full_messages },
             status: :unprocessable_entity

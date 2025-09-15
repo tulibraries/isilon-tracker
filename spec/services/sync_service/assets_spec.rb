@@ -64,63 +64,6 @@ RSpec.describe SyncService::Assets, type: :service do
     end
   end
 
-  describe '#apply_rule_4_post_processing' do
-    let(:csv_path) { file_fixture('rule_4_post_processing.csv').to_s }
-
-    # Create folder structure using FactoryBot
-    let!(:project1_folder) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project1") }
-    let!(:project1_processed) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project1/processed", parent_folder: project1_folder) }
-    let!(:project1_unprocessed) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project1/unprocessed", parent_folder: project1_folder) }
-
-    let!(:project2_folder) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project2") }
-    let!(:project2_processed) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project2/processed", parent_folder: project2_folder) }
-    let!(:project2_raw) { FactoryBot.create(:isilon_folder, volume: volume, full_path: "/deposit/project2/raw", parent_folder: project2_folder) }
-
-    # Create assets using FactoryBot (simulating they were just imported)
-    let!(:project1_assets) do
-      [
-        FactoryBot.create(:isilon_asset, parent_folder: project1_processed, isilon_path: "/deposit/project1/processed/image001.tiff", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_processed, isilon_path: "/deposit/project1/processed/image002.tiff", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed, isilon_path: "/deposit/project1/unprocessed/image001.tiff", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed, isilon_path: "/deposit/project1/unprocessed/image002.tiff", migration_status: default_migration_status)
-      ]
-    end
-
-    let!(:project2_assets) do
-      [
-        FactoryBot.create(:isilon_asset, parent_folder: project2_processed, isilon_path: "/deposit/project2/processed/scan001.tiff", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project2_raw, isilon_path: "/deposit/project2/raw/scan001.tiff", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project2_raw, isilon_path: "/deposit/project2/raw/scan002.tiff", migration_status: default_migration_status)
-      ]
-    end
-
-    it 'marks unprocessed TIFFs as "Don\'t migrate" when counts match' do
-      service = described_class.new(csv_path: csv_path)
-      service.send(:apply_rule_4_post_processing)
-
-      # Project 1: 2 processed, 2 unprocessed - should mark unprocessed as "Don't migrate"
-      project1_unprocessed_assets = IsilonAsset.where(isilon_path: [
-        "/deposit/project1/unprocessed/image001.tiff",
-        "/deposit/project1/unprocessed/image002.tiff"
-      ])
-
-      expect(project1_unprocessed_assets.all? { |asset| asset.migration_status == dont_migrate_status }).to be true
-    end
-
-    it 'does not mark unprocessed TIFFs when counts do not match' do
-      service = described_class.new(csv_path: csv_path)
-      service.send(:apply_rule_4_post_processing)
-
-      # Project 2: 1 processed, 2 raw - should NOT mark raw as "Don't migrate"
-      project2_raw_assets = IsilonAsset.where(isilon_path: [
-        "/deposit/project2/raw/scan001.tiff",
-        "/deposit/project2/raw/scan002.tiff"
-      ])
-
-      expect(project2_raw_assets.all? { |asset| asset.migration_status == default_migration_status }).to be true
-    end
-  end
-
   describe 'Integration test: full sync with automation' do
     let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
 
@@ -141,13 +84,85 @@ RSpec.describe SyncService::Assets, type: :service do
       duplicate_asset = IsilonAsset.find_by(isilon_path: "/backup/duplicate.pdf")
       expect(duplicate_asset.migration_status).to eq(default_migration_status) # Changed expectation
 
-      # Rule 4: Unprocessed TIFF (post-processing)
-      unprocessed_asset = IsilonAsset.find_by(isilon_path: "/deposit/digitization/unprocessed/scan001.tiff")
-      expect(unprocessed_asset.migration_status).to eq(dont_migrate_status)
+      # Rule 4: TIFF post-processing is now handled by separate SyncService::Tiffs task
+      # Assets sync only applies Rules 1-3, TIFF processing happens later
 
       # No rules applied
       normal_asset = IsilonAsset.find_by(isilon_path: "/regular/normal-file.pdf")
       expect(normal_asset.migration_status).to eq(default_migration_status)
+    end
+  end
+
+  describe '#find_or_create_folder_safely' do
+    let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
+    let(:service) { described_class.new(csv_path: csv_path) }
+
+    context 'when handling race conditions' do
+      it 'handles concurrent folder creation gracefully' do
+        volume_id = volume.id
+        folder_path = "/test/concurrent/folder"
+
+        # Simulate the race condition by stubbing find_or_create_by!
+        # to raise RecordNotUnique the first time, then succeed
+        allow(IsilonFolder).to receive(:find_or_create_by!).with(
+          volume_id: volume_id,
+          full_path: folder_path
+        ).and_raise(ActiveRecord::RecordNotUnique.new("Duplicate key")).once
+
+        # Create the folder that would be created by the "other process"
+        existing_folder = IsilonFolder.create!(
+          volume_id: volume_id,
+          full_path: folder_path
+        )
+
+        # Stub the find_by to return the existing folder (simulating successful retry)
+        allow(IsilonFolder).to receive(:find_by).with(
+          volume_id: volume_id,
+          full_path: folder_path
+        ).and_return(existing_folder)
+
+        # Test that our method handles the race condition gracefully
+        result = service.send(:find_or_create_folder_safely, volume_id, folder_path)
+
+        expect(result).to eq(existing_folder)
+        expect(result.volume_id).to eq(volume_id)
+        expect(result.full_path).to eq(folder_path)
+      end
+
+      it 'raises error when retries are exhausted' do
+        volume_id = volume.id
+        folder_path = "/test/failing/folder"
+
+        # Stub to always raise RecordNotUnique and never find existing folder
+        allow(IsilonFolder).to receive(:find_or_create_by!).with(
+          volume_id: volume_id,
+          full_path: folder_path
+        ).and_raise(ActiveRecord::RecordNotUnique.new("Duplicate key"))
+
+        allow(IsilonFolder).to receive(:find_by).with(
+          volume_id: volume_id,
+          full_path: folder_path
+        ).and_return(nil)
+
+        # Stub sleep to avoid actual delays in test
+        allow(service).to receive(:sleep)
+
+        expect {
+          service.send(:find_or_create_folder_safely, volume_id, folder_path)
+        }.to raise_error(ActiveRecord::RecordNotFound, /Could not find or create folder after 3 retries/)
+      end
+
+      it 'creates folder successfully on first try when no conflict' do
+        volume_id = volume.id
+        folder_path = "/test/no/conflict"
+
+        result = service.send(:find_or_create_folder_safely, volume_id, folder_path)
+
+        expect(result).to be_a(IsilonFolder)
+        expect(result.volume_id).to eq(volume_id)
+        expect(result.full_path).to eq(folder_path)
+        expect(result.persisted?).to be true
+      end
     end
   end
 end
