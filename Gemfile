@@ -6,16 +6,22 @@ gem "bootsnap", require: false
 gem "bootstrap"
 gem "cssbundling-rails"
 gem "csv"
+gem "devise", "~> 4.9"
 gem "dotenv-rails"
 gem "jbuilder"
 gem "jsbundling-rails"
+gem "okcomputer", "~> 1.19"
+gem "omniauth"
+gem "omniauth-google-oauth2"
+gem "omniauth-rails_csrf_protection"
+gem "pg", "~> 1.6"
 gem "puma", ">= 5.0"
 gem "rails", "~> 7.2.2"
 gem "sqlite3", ">= 2.1"
 gem "stimulus-rails"
 gem "turbo-rails"
 gem "tzinfo-data", platforms: %i[ windows jruby ]
-# gem "image_processing", "~> 1.2"
+gem "uri", ">= 1.0.4"
 
 group :development, :test do
   gem "brakeman", require: false
@@ -51,17 +57,8 @@ group :test do
   gem "webdrivers", "5.3.1"
 end
 
-gem "devise", "~> 4.9"
 # Required for memcached
 group :production do
   gem "dalli"
   gem "connection_pool"
 end
-
-gem "pg", "~> 1.6"
-
-gem "okcomputer", "~> 1.19"
-
-gem "omniauth"
-gem "omniauth-google-oauth2"
-gem "omniauth-rails_csrf_protection"
