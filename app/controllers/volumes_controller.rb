@@ -57,7 +57,7 @@ class VolumesController < ApplicationController
 
     # Handle unassigned users (assigned_to = nil)
     if params[:assigned_to] == "unassigned"
-      scope = scope.where(assigned_to: [nil, ""])
+      scope = scope.where(assigned_to: [ nil, "" ])
     end
 
     render json: scope.limit(500), each_serializer: IsilonAssetSerializer
