@@ -174,12 +174,12 @@ export default class extends Controller {
                 }
                 break;
 
-              case "contentdm_collection":
+              case "contentdm_collection_id":
                 if (this.contentdmCollectionOptions) {
                   selectElem = this._buildSelectList(
                     this.contentdmCollectionOptions,
                     value,
-                    "contentdm_collection"
+                    "contentdm_collection_id"
                   );
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(selectElem);
