@@ -1,7 +1,7 @@
 class IsilonAssetSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
 
-  attributes :title, :folder, :key, :isilon_date, :migration_status,
+  attributes :title, :folder, :key, :isilon_date, :migration_status, :file_type,
   :assigned_to, :file_size, :notes, :contentdm_collection, :aspace_collection,
   :preservica_reference_id, :aspace_linking_status, :url, :lazy, :parent_folder_id, :isilon_name, :path
 
