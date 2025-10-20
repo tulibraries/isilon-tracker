@@ -76,8 +76,7 @@ export default class extends Controller {
             id: "file_type",
             classes: "wb-helper-center",
             title: "File type",
-            width: "150px",
-            html: `<input type="text" tabindex="-1">`
+            width: "150px"
           },
           { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
           { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
@@ -212,7 +211,6 @@ export default class extends Controller {
                 break;
 
               case "notes":
-              case "file_type":
               case "preservica_reference_id":
                 // These fields only apply to assets, not folders
                 if (!isFolder) {
