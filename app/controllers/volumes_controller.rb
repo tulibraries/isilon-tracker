@@ -41,14 +41,26 @@ class VolumesController < ApplicationController
   end
 
   def file_tree_assets_search
-    q = params[:q].to_s.strip
-    return render(json: []) if q.blank?
+    q = params[:q].to_s.strip.downcase
 
-    assets = @volume.isilon_assets
-                   .where("LOWER(isilon_name) LIKE ?", "%#{q.downcase}%")
-                   .includes(:parent_folder)
+    scope = @volume.isilon_assets.includes(:parent_folder)
 
-    render json: assets, each_serializer: IsilonAssetSerializer
+    # Text search
+    scope = scope.where("LOWER(isilon_name) LIKE ?", "%#{q}%") if q.present?
+
+    # Column filters
+    scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
+    scope = scope.where(assigned_to: params[:assigned_to]) if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+    scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
+    scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
+    scope = scope.where(aspace_linking_status: ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])) if params.key?(:aspace_linking_status)
+
+    # Handle unassigned users (assigned_to = nil)
+    if params[:assigned_to] == "unassigned"
+      scope = scope.where(assigned_to: [nil, ""])
+    end
+
+    render json: scope.limit(500), each_serializer: IsilonAssetSerializer
   end
 
   def file_tree_updates

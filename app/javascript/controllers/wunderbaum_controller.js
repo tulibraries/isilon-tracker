@@ -160,12 +160,12 @@ export default class extends Controller {
                 }
                 break;
 
-              case "aspace_collection":
+              case "aspace_collection_id":
                 if (this.aspaceCollectionOptions) {
                   selectElem = this._buildSelectList(
                     this.aspaceCollectionOptions,
                     value,
-                    "aspace_collection"
+                    "aspace_collection_id"
                   );
                   colInfo.elem.innerHTML = "";
                   colInfo.elem.appendChild(selectElem);
@@ -256,6 +256,20 @@ export default class extends Controller {
           }
         },
 
+        buttonClick: (e) => {
+          console.log("ButtonClick triggered for:", e.command, e.info?.colDef?.id);
+          if (e.command === "filter") {
+            const colId = e.info.colDef.id;
+            const colIdx = e.info.colIdx;
+            const allCols = this.element.querySelectorAll(".wb-header .wb-col");
+            const colCell = allCols[colIdx];
+            if (!colCell) return;
+            const icon = colCell.querySelector("[data-command='filter']");
+            if (!icon) return;
+            this.showDropdownFilter(icon, colId);
+          }
+        },
+
         change: (e) => {
           const util = e.util;
           const colId = e.info.colId;
@@ -278,6 +292,7 @@ export default class extends Controller {
       this._fetchOptions("/users.json", "userOptions", "assigned_to");
 
       this._setupInlineFilter();
+      this._setupClearFiltersButton();
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
@@ -305,23 +320,57 @@ export default class extends Controller {
     });
   }
 
+  _setupClearFiltersButton() {
+    const btn = document.getElementById("clear-filters");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+      const input = document.getElementById("tree-filter");
+      if (input) input.value = "";
+
+      this.columnFilters.clear();
+
+      this.currentFilterPredicate = null;
+      this.currentFilterOpts = null;
+      this.currentQuery = "";
+
+      document.querySelectorAll(".wb-popup").forEach((el) => el.remove());
+
+      this.element.querySelectorAll(".wb-header select").forEach((select) => {
+        if (select.options.length > 0) select.selectedIndex = 0;
+      });
+
+      this.tree.clearFilter();
+      this._collapseFilterExpansions();
+      this._setLoading(false);
+    });
+  }
+
+
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
+    const hasColumnFilters = this.columnFilters.size > 0;
 
-    if (!q && this.columnFilters.size === 0) {
-      this.currentFilterPredicate = null;
-      this.currentFilterOpts = null;
-      this.tree.clearFilter();
-      this._collapseFilterExpansions();
-      this._setLoading(false);
-      return;
-    }
+    if (!q && !hasColumnFilters) {
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree.clearFilter();
+    this._collapseFilterExpansions();
+    this._setLoading(false);
+    return;
+  }
 
     this._setLoading(true, "Searching…");
+
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    for (const [col, val] of this.columnFilters.entries()) {
+      if (val !== "") params.set(col, val);
+    }
 
     const searchCtrl = this._beginFetchGroup();
     let folders = [], assets = [];
@@ -655,7 +704,12 @@ _handleInputChange(e) {
   showDropdownFilter(anchorEl, colId) {
     const popupSelector = `[data-popup-for='${colId}']`;
     const existing = document.querySelector(popupSelector);
-    if (existing) { existing.remove(); return; }
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    document.querySelectorAll(".wb-popup").forEach(p => p.remove());
 
     const popup = document.createElement("div");
     popup.classList.add("wb-popup");
@@ -725,10 +779,24 @@ _handleInputChange(e) {
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
 
+    const cleanup = () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", outsideClickHandler);
+      popup.remove();
+    };
+
+    const outsideClickHandler = (e) => {
+      if (!popup.contains(e.target) && !anchorEl.contains(e.target)) {
+        cleanup();
+      }
+    };
+
+    document.addEventListener("mousedown", outsideClickHandler);
+
     const obs = new MutationObserver(() => {
       if (!document.body.contains(popup)) {
-        window.removeEventListener("scroll", reposition, true);
-        window.removeEventListener("resize", reposition);
+        cleanup();
         obs.disconnect();
       }
     });
@@ -757,25 +825,33 @@ _handleInputChange(e) {
   }
 
   _setLoading(isLoading, text = "Loading…") {
-    const filterBtnIcon = document.querySelector(".icon-button .search-icon");
+    const input = document.getElementById("tree-filter");
+    if (!input) return;
+
+    // Try to find or create a stable container just below the toolbar row
+    let container = document.querySelector(".wb-loading-container");
+    if (!container) {
+      // Create a new container right *after* the toolbar row (not inside it)
+      const toolbar = input.closest(".wb-toolbar") || input.parentElement;
+      container = document.createElement("div");
+      container.className = "wb-loading-container";
+      toolbar.insertAdjacentElement("afterend", container);
+    }
+
+    let statusEl = container.querySelector(".wb-loading");
+    if (!statusEl) {
+      statusEl = document.createElement("div");
+      statusEl.className = "wb-loading";
+      container.appendChild(statusEl);
+    }
 
     if (!isLoading) {
-      document.querySelector(".wb-loading")?.remove();
+      statusEl.textContent = "";
+      container.style.display = "none";
       return;
     }
 
-    if (!filterBtnIcon) {
-      console.warn("Filter button icon not found, cannot place loading indicator");
-      return;
-    }
-
-    let el = document.querySelector(".wb-loading");
-    if (!el) {
-      el = document.createElement("div");
-      el.className = "wb-loading";
-      filterBtnIcon.closest("button")?.insertAdjacentElement("afterend", el);
-    }
-    el.textContent = text;
+    statusEl.textContent = text;
   }
   
   async _fetchOptions(url, targetProp) {
@@ -794,10 +870,6 @@ _handleInputChange(e) {
       }
 
       this[targetProp] = opts;
-
-      if (this.tree?.header) {
-        this.tree.header.render();
-      }
     } catch (err) {
       console.error("Failed to fetch options for", url, err);
     }
