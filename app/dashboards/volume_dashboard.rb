@@ -10,6 +10,29 @@ class VolumeDashboard < Administrate::BaseDashboard
   ATTRIBUTE_TYPES = {
     id: Field::Number,
     name: Field::String,
+    asset_counts_by_migration_status: ChartkickField.with_options(
+      chart_method: :pie_chart,
+      chart_options: {
+        donut: true,
+        legend: true
+      }
+    ),
+    asset_counts_by_assignee: ChartkickField.with_options(
+      chart_method: :column_chart,
+      chart_options: {
+        library: {
+          options: {
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { ticks: { autoSkip: false } },
+              y: { precision: 0 }
+            }
+          }
+        }
+      }
+    ),
     top_level_folders: Field::HasMany.with_options(
       limit: 20
     ),
@@ -30,6 +53,8 @@ class VolumeDashboard < Administrate::BaseDashboard
   # an array of attributes that will be displayed on the model's show page.
   SHOW_PAGE_ATTRIBUTES = %i[
     name
+    asset_counts_by_migration_status
+    asset_counts_by_assignee
     top_level_folders
   ].freeze
 
