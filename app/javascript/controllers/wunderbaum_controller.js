@@ -473,7 +473,6 @@ export default class extends Controller {
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
-    requestAnimationFrame(() => this._updateFilterIconStates());
   }
 
   _reapplyFilterIfAny() {
@@ -889,7 +888,6 @@ _handleInputChange(e) {
       }
 
       this[targetProp] = opts;
-      this._updateFilterIconStates();
     } catch (err) {
       console.error("Failed to fetch options for", url, err);
     }
