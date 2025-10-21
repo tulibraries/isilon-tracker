@@ -97,6 +97,13 @@ a {
   box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
 }
 
+[data-command="filter"].wb-helper-invalid,
+[data-command="filter"].filter-active.wb-helper-invalid {
+  color: #2E6F40 !important;
+  fill: #2E6F40 !important;
+  stroke: #2E6F40 !important;
+}
+
 /* HEADER ENHANCEMENTS */
 .wunderbaum .wb-tree .wb-header .wb-col {
   background-color: var(--wb-header-bg) !important;

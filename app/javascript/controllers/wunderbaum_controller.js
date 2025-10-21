@@ -293,9 +293,19 @@ export default class extends Controller {
 
       this._setupInlineFilter();
       this._setupClearFiltersButton();
+
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
+
+    this.tree.on("renderHeaderCell", (e) => {
+      const { colDef, cellElem } = e.info;
+      if (colDef.filterActive) {
+        cellElem.querySelector("[data-command='filter']")?.classList.add("filter-active");
+      } else {
+        cellElem.querySelector("[data-command='filter']")?.classList.remove("filter-active");
+      }
+    });
   }
 
   disconnect() {
@@ -463,6 +473,7 @@ export default class extends Controller {
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
+    requestAnimationFrame(() => this._updateFilterIconStates());
   }
 
   _reapplyFilterIfAny() {
@@ -702,8 +713,7 @@ _handleInputChange(e) {
 }
   
   showDropdownFilter(anchorEl, colId) {
-    const popupSelector = `[data-popup-for='${colId}']`;
-    const existing = document.querySelector(popupSelector);
+    const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
       existing.remove();
       return;
@@ -758,8 +768,17 @@ _handleInputChange(e) {
 
     select.addEventListener("change", (e) => {
       const selectedValue = e.target.value;
-      if (selectedValue === "") this.columnFilters.delete(colId);
-      else this.columnFilters.set(colId, selectedValue);
+      if (selectedValue === "") {
+        this.columnFilters.delete(colId);
+        const popupEl = document.querySelector(`[data-popup-for='${colId}']`);
+        if (popupEl) popupEl.remove();
+      } else {
+        this.columnFilters.set(colId, selectedValue);
+      }
+
+      const colDef = this.tree.columns.find(c => c.id === colId);
+      if (colDef) colDef.filterActive = this.columnFilters.has(colId);
+
       this._runDeepFilter(this.currentQuery);
     });
 
@@ -870,6 +889,7 @@ _handleInputChange(e) {
       }
 
       this[targetProp] = opts;
+      this._updateFilterIconStates();
     } catch (err) {
       console.error("Failed to fetch options for", url, err);
     }
