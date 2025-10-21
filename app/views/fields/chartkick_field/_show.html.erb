@@ -1,0 +1,7 @@
+<% data = field.chart_data %>
+
+<% if data.present? %>
+  <%= public_send(field.chart_method, data, **field.chart_options) %>
+<% else %>
+  <p class="text-muted"><%= field.blank_slate_text %></p>
+<% end %>
