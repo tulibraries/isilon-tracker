@@ -97,6 +97,20 @@ a {
   box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
 }
 
+.icon-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f8f9fa;
+  color: #adb5bd;
+  border-color: #d1d5db;
+}
+
+.icon-button.active {
+  background-color: #0B5394;
+  border-color: #0B5394;
+  color: #fff;
+}
+
 [data-command="filter"].wb-helper-invalid,
 [data-command="filter"].filter-active.wb-helper-invalid {
   color: #2E6F40 !important;
@@ -168,6 +182,7 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   border: none !important;
   box-shadow: none !important;
   font-family: system-ui, sans-serif !important;
+  margin-top: 40px !important;
 }
 
 .wunderbaum .wb-tree .wb-row {
@@ -175,7 +190,7 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   border-bottom: 1px solid #e0e0e0;
 }
 
-.wb-match .wb-title {
+.wunderbaum .wb-row.wb-match > span.wb-col .wb-title {
   background-color: #fffd75;
   font-weight: bold;
   border-radius: 3px;
@@ -183,8 +198,9 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 }
 
 .popup-select {
-  padding: 6px 12px;
-  padding-right: 36px;
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -192,14 +208,23 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   color: #333;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   outline: none;
-  appearance: none;
   cursor: pointer;
+}
 
-  /* Custom arrow */
-  background-image: url("data:image/svg+xml;utf8,<svg fill='%23000' xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M7 10l5 5 5-5z'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 20px;
+.popup-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+}
+
+.popup-select[size] {
+  cursor: default;
+  padding-right: 8px;
+  max-height: 320px;
+  background-image: none;
+}
+
+.popup-select[size] option {
+  padding: 6px 8px;
 }
 
 .wb-loading {
@@ -209,7 +234,6 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   border-radius: 4px;
   background: #d4edda;
   font: 12px/1.6 system-ui, sans-serif;
-  vertical-align: middle;
   width: 12%;
 }
 
@@ -233,4 +257,3 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 .dashboard-title {
   font-weight: 400;
 }
-
