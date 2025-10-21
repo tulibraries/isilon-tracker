@@ -227,6 +227,16 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   padding: 6px 8px;
 }
 
+.popup-select--collapsed {
+  padding-right: 36px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23000' xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 20px;
+}
+
 .wb-loading {
   display: block;
   margin: 5px;

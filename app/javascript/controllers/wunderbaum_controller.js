@@ -553,12 +553,14 @@ export default class extends Controller {
         if (!retryIcon) return;
         const retryActive = !!active;
         retryIcon.classList.toggle("filter-active", retryActive);
+        retryIcon.classList.toggle("wb-helper-invalid", retryActive);
         retryIcon.dataset.filterActive = retryActive ? "true" : "false";
       });
       return;
     }
     const isActive = !!active;
     icon.classList.toggle("filter-active", isActive);
+    icon.classList.toggle("wb-helper-invalid", isActive);
     icon.dataset.filterActive = isActive ? "true" : "false";
   }
 
@@ -849,7 +851,21 @@ _handleInputChange(e) {
       ? String(this.columnFilters.get(colId))
       : "";
     select.value = currentFilter;
-    select.size = Math.max(select.options.length, 2);
+
+    const expandSelect = () => {
+      const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
+      select.size = visibleCount;
+      select.classList.remove("popup-select--collapsed");
+      requestAnimationFrame(() => updatePos());
+    };
+
+    const collapseSelect = () => {
+      select.removeAttribute("size");
+      select.classList.add("popup-select--collapsed");
+      requestAnimationFrame(() => updatePos());
+    };
+
+    expandSelect();
 
     select.addEventListener("change", (e) => {
       const selectedValue = e.target.value;
@@ -859,6 +875,7 @@ _handleInputChange(e) {
         if (popupEl) popupEl.remove();
       } else {
         this.columnFilters.set(colId, selectedValue);
+        collapseSelect();
       }
 
       const isActive = this.columnFilters.has(colId);
