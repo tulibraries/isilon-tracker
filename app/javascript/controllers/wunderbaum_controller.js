@@ -10,6 +10,7 @@ export default class extends Controller {
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
+  filterMode = "dim";
 
   inflightControllers = new Set();
   _filterTimer = null;
@@ -37,12 +38,12 @@ export default class extends Controller {
         filter: {
           autoApply: true,
           autoExpand: false,
-          matchBranch: true,
+          matchBranch: false,
           fuzzy: false,
           hideExpanders: false,
           highlight: false,
           leavesOnly: false,
-          mode: "dim",
+          mode: this.filterMode,
           noData: true,
           menu: true
         },
@@ -264,7 +265,7 @@ export default class extends Controller {
             if (!colCell) return;
             const icon = colCell.querySelector("[data-command='filter']");
             if (!icon) return;
-            this.showDropdownFilter(icon, colId);
+            this.showDropdownFilter(icon, colId, colIdx);
           }
         },
 
@@ -291,6 +292,8 @@ export default class extends Controller {
 
       this._setupInlineFilter();
       this._setupClearFiltersButton();
+      this._setupFilterModeToggle();
+      requestAnimationFrame(() => this._tagHeaderCells());
 
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
@@ -298,11 +301,8 @@ export default class extends Controller {
 
     this.tree.on("renderHeaderCell", (e) => {
       const { colDef, cellElem } = e.info;
-      if (colDef.filterActive) {
-        cellElem.querySelector("[data-command='filter']")?.classList.add("filter-active");
-      } else {
-        cellElem.querySelector("[data-command='filter']")?.classList.remove("filter-active");
-      }
+      cellElem.dataset.colid = colDef.id;
+      this._setFilterIconState(colDef.id, colDef.filterActive);
     });
   }
 
@@ -341,6 +341,17 @@ export default class extends Controller {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
+      this.filterMode = "dim";
+      if (this.tree?.options?.filter) {
+        this.tree.options.filter.mode = this.filterMode;
+      }
+
+      if (this.tree?.columns) {
+        this.tree.columns.forEach((col) => {
+          col.filterActive = false;
+          this._setFilterIconState(col.id, false);
+        });
+      }
 
       document.querySelectorAll(".wb-popup").forEach((el) => el.remove());
 
@@ -351,6 +362,7 @@ export default class extends Controller {
       this.tree.clearFilter();
       this._collapseFilterExpansions();
       this._setLoading(false);
+      this._updateFilterModeButton();
     });
   }
 
@@ -364,13 +376,14 @@ export default class extends Controller {
     const hasColumnFilters = this.columnFilters.size > 0;
 
     if (!q && !hasColumnFilters) {
-    this.currentFilterPredicate = null;
-    this.currentFilterOpts = null;
-    this.tree.clearFilter();
-    this._collapseFilterExpansions();
-    this._setLoading(false);
-    return;
-  }
+      this.currentFilterPredicate = null;
+      this.currentFilterOpts = null;
+      this.tree.clearFilter();
+      this._collapseFilterExpansions();
+      this._setLoading(false);
+      this._updateFilterModeButton();
+      return;
+    }
 
     this._setLoading(true, "Searching…");
 
@@ -467,16 +480,20 @@ export default class extends Controller {
       }
       return true;
     };
-    const opts = { leavesOnly: false, matchBranch: true, mode: "dim" };
+    const opts = { leavesOnly: false, matchBranch: false, mode: this.filterMode };
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
+    this._updateFilterModeButton();
   }
 
   _reapplyFilterIfAny() {
     if (this.currentFilterPredicate) {
-      this.tree.filterNodes(this.currentFilterPredicate, this.currentFilterOpts || {});
+      const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
+      this.currentFilterOpts = opts;
+      this.tree.filterNodes(this.currentFilterPredicate, opts);
     }
+    this._updateFilterModeButton();
   }
 
   _findNodeByKey(key) {
@@ -488,6 +505,74 @@ export default class extends Controller {
       if (k === skey) { n = node; return false; }
     });
     return n;
+  }
+
+  _setupFilterModeToggle() {
+    const btn = document.getElementById("filter-mode-toggle");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      this.filterMode = this.filterMode === "hide" ? "dim" : "hide";
+      if (this.tree?.options?.filter) {
+        this.tree.options.filter.mode = this.filterMode;
+      }
+      if (this.currentFilterOpts) {
+        this.currentFilterOpts.mode = this.filterMode;
+      }
+      this._reapplyFilterIfAny();
+    });
+
+    this._updateFilterModeButton();
+  }
+
+  _updateFilterModeButton() {
+    const btn = document.getElementById("filter-mode-toggle");
+    if (!btn) return;
+    const hasActiveFilter = Boolean(this.currentFilterPredicate);
+    btn.disabled = !hasActiveFilter;
+    btn.classList.toggle("active", hasActiveFilter && this.filterMode === "hide");
+    btn.setAttribute("title", this.filterMode === "hide" ? "Hide unmatched nodes" : "Dim unmatched nodes");
+    const icon = btn.querySelector("i");
+    if (icon) {
+      icon.classList.remove("bi-filter-square", "bi-filter-square-fill");
+      if (this.filterMode === "hide") {
+        icon.classList.add("bi-filter-square-fill");
+      } else {
+        icon.classList.add("bi-filter-square");
+      }
+    }
+  }
+
+  _setFilterIconState(colId, active) {
+    if (!colId) return;
+    const icon = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}'] [data-command='filter']`);
+    if (!icon) {
+      requestAnimationFrame(() => {
+        const retryIcon = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}'] [data-command='filter']`);
+        if (!retryIcon) return;
+        const retryActive = !!active;
+        retryIcon.classList.toggle("filter-active", retryActive);
+        retryIcon.classList.toggle("wb-helper-invalid", retryActive);
+        retryIcon.dataset.filterActive = retryActive ? "true" : "false";
+      });
+      return;
+    }
+    const isActive = !!active;
+    icon.classList.toggle("filter-active", isActive);
+    icon.classList.toggle("wb-helper-invalid", isActive);
+    icon.dataset.filterActive = isActive ? "true" : "false";
+  }
+
+  _tagHeaderCells() {
+    const cells = this.element?.querySelectorAll(".wb-header .wb-col");
+    if (!cells || !this.tree?.columns) return;
+    cells.forEach((cell, idx) => {
+      const colDef = this.tree.columns[idx];
+      if (!colDef) return;
+      if (!cell.dataset.colid) cell.dataset.colid = colDef.id;
+      this._setFilterIconState(colDef.id, colDef.filterActive);
+    });
   }
 
 _handleInputChange(e) {
@@ -709,7 +794,7 @@ _handleInputChange(e) {
   return select;
 }
   
-  showDropdownFilter(anchorEl, colId) {
+  showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
       existing.remove();
@@ -742,9 +827,8 @@ _handleInputChange(e) {
     }
 
     if (opts) {
-      select.innerHTML =
-        opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("") +
-        `<option value="">⨉ Clear Filter</option>`;
+      const optionsMarkup = opts.map(o => `<option value="${String(o.value)}">${o.label}</option>`).join("");
+      select.innerHTML = `${optionsMarkup}<option value="">⨉ Clear Filter</option>`;
     } else if (colId === "aspace_linking_status") {
       select.innerHTML = `
         <option value="true">True</option>
@@ -763,6 +847,26 @@ _handleInputChange(e) {
         `<option value="">⨉ Clear Filter</option>`;
     }
 
+    const currentFilter = this.columnFilters.has(colId)
+      ? String(this.columnFilters.get(colId))
+      : "";
+    select.value = currentFilter;
+
+    const expandSelect = () => {
+      const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
+      select.size = visibleCount;
+      select.classList.remove("popup-select--collapsed");
+      requestAnimationFrame(() => updatePos());
+    };
+
+    const collapseSelect = () => {
+      select.removeAttribute("size");
+      select.classList.add("popup-select--collapsed");
+      requestAnimationFrame(() => updatePos());
+    };
+
+    expandSelect();
+
     select.addEventListener("change", (e) => {
       const selectedValue = e.target.value;
       if (selectedValue === "") {
@@ -771,31 +875,63 @@ _handleInputChange(e) {
         if (popupEl) popupEl.remove();
       } else {
         this.columnFilters.set(colId, selectedValue);
+        collapseSelect();
       }
 
+      const isActive = this.columnFilters.has(colId);
       const colDef = this.tree.columns.find(c => c.id === colId);
-      if (colDef) colDef.filterActive = this.columnFilters.has(colId);
+      if (colDef) colDef.filterActive = isActive;
+      this._setFilterIconState(colId, isActive);
 
       this._runDeepFilter(this.currentQuery);
     });
 
     popup.appendChild(select);
     document.body.appendChild(popup);
+    select.focus();
 
+    const resolveColumnCell = () => {
+      let cell = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}']`);
+      if (!cell && Number.isInteger(colIdx)) {
+        const cols = this.element?.querySelectorAll(".wb-header .wb-col");
+        cell = cols?.[colIdx];
+      }
+      return cell ?? anchorEl.closest(".wb-col") ?? anchorEl;
+    };
+
+    let rafId = null;
     const updatePos = () => {
-      const r = anchorEl.getBoundingClientRect();
+      const columnCell = resolveColumnCell();
+      if (!columnCell?.isConnected) {
+        rafId = requestAnimationFrame(updatePos);
+        return;
+      }
+      const r = columnCell.getBoundingClientRect();
       popup.style.position = "absolute";
       popup.style.left = `${window.scrollX + r.left}px`;
-      popup.style.top = `${window.scrollY + r.top - popup.offsetHeight - 4}px`;
+      popup.style.minWidth = `${r.width}px`;
+      let top = window.scrollY + r.top - popup.offsetHeight - 4;
+      if (top < window.scrollY) {
+        top = window.scrollY + r.bottom + 4;
+      }
+      popup.style.top = `${top}px`;
       popup.style.zIndex = "1000";
+      rafId = requestAnimationFrame(updatePos);
     };
-    requestAnimationFrame(updatePos);
+    rafId = requestAnimationFrame(updatePos);
 
-    const reposition = () => requestAnimationFrame(updatePos);
+    const reposition = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updatePos);
+    };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
 
     const cleanup = () => {
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
       document.removeEventListener("mousedown", outsideClickHandler);
