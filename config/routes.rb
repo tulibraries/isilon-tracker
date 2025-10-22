@@ -48,4 +48,8 @@ Rails.application.routes.draw do
 
   # Defines the root path route ("/")
   root "dashboard#show"
+
+  authenticate :user, ->(user) { user.respond_to?(:status_active?) ? user.status_active? : true } do
+    mount Blazer::Engine, at: "/admin/blazer"
+  end
 end

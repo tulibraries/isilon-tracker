@@ -1,0 +1,24 @@
+data_sources:
+  main:
+    url: <%= ENV["BLAZER_DATABASE_URL"] || ENV["DATABASE_URL"] || begin
+      cfg = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "primary")&.configuration_hash || ActiveRecord::Base.connection_db_config.configuration_hash
+      cfg = cfg.symbolize_keys
+      host = cfg[:host] || "localhost"
+      port = cfg[:port] || 5432
+      user = cfg[:username]
+      password = cfg[:password]
+      database = cfg[:database]
+      auth = user.present? ? user.dup : ""
+      auth << ":#{password}" if password.present?
+      auth << "@" if auth.present?
+      "postgresql://#{auth}#{host}:#{port}/#{database}"
+    end %>
+    timeout: <%= (ENV["BLAZER_TIMEOUT"] || 60).to_i %>
+    max_rows: <%= (ENV["BLAZER_MAX_ROWS"] || 5000).to_i %>
+    smart_variables: {}
+    smart_columns: {}
+    linked_columns: {}
+
+checks:
+  enabled: false
+  emails: []
