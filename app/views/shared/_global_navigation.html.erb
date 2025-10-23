@@ -31,10 +31,10 @@
 
         <!-- Reports -->
         <li class="nav-item">
-          <a class="nav-link" href="#">
+          <%= link_to admin_reports_path, class: "nav-link #{'active' if request.path.start_with?('/admin/reports')}" do %>
             <i class="bi bi-file-text"></i>
             Reports
-          </a>
+          <% end %>
         </li>
 
         <!-- Vocabularies dropdown -->
