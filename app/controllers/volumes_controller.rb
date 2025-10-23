@@ -36,8 +36,9 @@ class VolumesController < ApplicationController
 
     folders = @volume.isilon_folders
                     .where("LOWER(full_path) LIKE ?", "%#{q.downcase}%")
+                    .includes(:parent_folder)
 
-    render json: folders, each_serializer: IsilonFolderSerializer
+    render json: folders.map { |folder| FileTreeSearchResultSerializer.new(folder).as_json }
   end
 
   def file_tree_assets_search
@@ -60,7 +61,8 @@ class VolumesController < ApplicationController
       scope = scope.where(assigned_to: [ nil, "" ])
     end
 
-    render json: scope.limit(500), each_serializer: IsilonAssetSerializer
+    assets = scope.includes(parent_folder: :parent_folder).limit(500)
+    render json: assets.map { |asset| FileTreeSearchResultSerializer.new(asset).as_json }
   end
 
   def file_tree_updates
