@@ -55,6 +55,7 @@ group :test do
   gem "simplecov"
   gem "simplecov-lcov"
   gem "webdrivers", "5.3.1"
+  gem "coveralls", require: false
 end
 
 # Required for memcached
