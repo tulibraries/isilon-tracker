@@ -17,6 +17,7 @@ Rails.application.routes.draw do
       resources :contentdm_collections
       resources :migration_statuses, only: [ :index ]
       resources :users, only: [ :index, :show, :new, :create, :edit, :update ]
+      resource :reports, only: :show, controller: "reports"
 
       root to: "volumes#index"
     end
