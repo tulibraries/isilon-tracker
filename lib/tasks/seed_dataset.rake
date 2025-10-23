@@ -108,11 +108,14 @@ def create_assets!(folder, amount, reference)
   amount.times do |index|
     extension = extensions.sample
     filename = "#{folder.id}-asset-#{index + 1}.#{extension}"
+    isilon_path = "#{folder.full_path}/#{filename}"
+
+    next if IsilonAsset.exists?(isilon_path: isilon_path)
 
     IsilonAsset.create!(
       parent_folder: folder,
       isilon_name: filename,
-      isilon_path: "#{folder.full_path}/#{filename}",
+      isilon_path: isilon_path,
       file_size: rand(5_000..75_000_000).to_s,
       file_type: extension,
       migration_status: statuses.sample,
