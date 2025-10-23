@@ -1,0 +1,111 @@
+<% content_for :title do %>
+  Reporting Dashboard
+<% end %>
+
+<header class="main-content__header">
+  <h1 class="main-content__page-title">Migration Reporting</h1>
+</header>
+
+<section class="main-content__body">
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>Volume Progress Leaderboard</h2>
+      <%= column_chart @volume_progress,
+        suffix: "%",
+        max: 100,
+        library: {
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100
+              }
+            }
+          }
+        } %>
+    </div>
+
+    <div class="chart-card">
+      <h2>Asset Backlog by Volume</h2>
+      <%= column_chart @asset_backlog,
+        library: {
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        } %>
+    </div>
+
+    <div class="chart-card">
+      <h2>User Workload Across Volumes</h2>
+      <%= column_chart @user_workload,
+        library: {
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        } %>
+    </div>
+
+    <div class="chart-card">
+      <h2>Assignment Aging (Average Days Outstanding)</h2>
+      <%= column_chart @assignment_aging,
+        library: {
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        } %>
+    </div>
+
+    <div class="chart-card">
+      <h2>Top File Types Migrated</h2>
+      <%= pie_chart @top_file_types, donut: true %>
+    </div>
+
+    <div class="chart-card">
+      <h2>Duplicate or Raw Content</h2>
+      <%= column_chart @duplicate_or_raw,
+        library: {
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        } %>
+    </div>
+  </div>
+</section>
+
+<style>
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+  }
+
+  .chart-card {
+    background: #fff;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .chart-card h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+</style>
