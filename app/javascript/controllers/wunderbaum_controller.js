@@ -11,6 +11,14 @@ export default class extends Controller {
   currentFilterOpts = null;
   currentQuery = "";
   filterMode = "dim";
+  folderCache = new Map();
+  assetCache = new Map();
+  loadedFolders = new Set();
+  loadedAssets = new Set();
+  _pendingChains = [];
+  _pendingChainKeys = new Set();
+  _pendingChainHandle = null;
+  _expandingChains = false;
 
   inflightControllers = new Set();
   _filterTimer = null;
@@ -304,11 +312,17 @@ export default class extends Controller {
       cellElem.dataset.colid = colDef.id;
       this._setFilterIconState(colDef.id, colDef.filterActive);
     });
+
+    this._onTreeScroll = this._onTreeScroll.bind(this);
+    this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
   }
 
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
+    if (this._onTreeScroll) {
+      this.element.removeEventListener("scroll", this._onTreeScroll);
+    }
   }
 
   _setupInlineFilter() {
@@ -342,6 +356,19 @@ export default class extends Controller {
       this.currentFilterOpts = null;
       this.currentQuery = "";
       this.filterMode = "dim";
+      this.loadedFolders.clear();
+      this.loadedAssets.clear();
+      this._pendingChains = [];
+      this._pendingChainKeys.clear();
+      if (this._pendingChainHandle != null) {
+        if (typeof cancelIdleCallback === "function") {
+          cancelIdleCallback(this._pendingChainHandle);
+        } else {
+          clearTimeout(this._pendingChainHandle);
+        }
+        this._pendingChainHandle = null;
+      }
+      this._expandingChains = false;
       if (this.tree?.options?.filter) {
         this.tree.options.filter.mode = this.filterMode;
       }
@@ -360,6 +387,11 @@ export default class extends Controller {
       });
 
       this.tree.clearFilter();
+      if (this.tree?.visit) {
+        this.tree.visit((node) => {
+          if (node.expanded) node.setExpanded(false);
+        });
+      }
       this._collapseFilterExpansions();
       this._setLoading(false);
       this._updateFilterModeButton();
@@ -370,6 +402,19 @@ export default class extends Controller {
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
+    this.loadedFolders.clear();
+    this.loadedAssets.clear();
+    this._pendingChains = [];
+    this._pendingChainKeys = new Set();
+    if (this._pendingChainHandle != null) {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(this._pendingChainHandle);
+      } else {
+        clearTimeout(this._pendingChainHandle);
+      }
+      this._pendingChainHandle = null;
+    }
+    this._expandingChains = false;
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
@@ -397,74 +442,27 @@ export default class extends Controller {
     let folders = [], assets = [];
     try {
       [folders, assets] = await Promise.all([
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?q=${encodeURIComponent(q)}`, searchCtrl).catch(() => []),
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?q=${encodeURIComponent(q)}`, searchCtrl).catch(() => []),
+        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`, searchCtrl).catch(() => []),
+        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`, searchCtrl).catch(() => []),
       ]);
     } finally {
       this.inflightControllers.delete(searchCtrl);
     }
     if (mySeq !== this._filterSeq) return;
 
-    const S = new Set();
-    for (const r of [...folders, ...assets]) {
-      const path = Array.isArray(r.path) ? r.path : [];
-      for (const id of path) S.add(String(id));
-    }
-    for (const f of folders) S.add(String(f.id));
-    for (const a of assets) {
-      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
-      if (pid != null) S.add(String(pid));
-    }
-
-    const parentKeys = Array.from(S);
-    const BATCH = 20;
-    const totalBatches = Math.max(1, Math.ceil(parentKeys.length / BATCH));
-
-    for (let i = 0; i < parentKeys.length; i += BATCH) {
-      if (mySeq !== this._filterSeq) return;
-
-      const idx = Math.floor(i / BATCH) + 1;
-      this._setLoading(true, `Loading results… (${idx}/${totalBatches})`);
-
-      const ids = parentKeys.slice(i, i + BATCH);
-      const ctrl = this._beginFetchGroup();
-      try {
-        const results = await Promise.all(ids.map(async (pid) => {
-          const base = `/volumes/${this.volumeIdValue}`;
-          const [childFolders, childAssets] = await Promise.all([
-            this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-            this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-          ]);
-          return { pid, childFolders, childAssets };
-        }));
-
-        if (mySeq !== this._filterSeq) return;
-
-        for (const { pid, childFolders, childAssets } of results) {
-          const parentNode = this._findNodeByKey(pid);
-          if (!parentNode) continue;
-
-          const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
-          const toAdd = [...(childFolders || []), ...(childAssets || [])]
-            .filter(n => !existing.has(String(n.key ?? n.id)));
-          if (toAdd.length) parentNode.addChildren?.(toAdd);
-        }
-      } finally {
-        this.inflightControllers.delete(ctrl);
-      }
-
-      this._applyPredicate(q);
-      await new Promise(r => requestAnimationFrame(r));
-    }
-
+    const chains = this._buildMatchChains(folders, assets);
+    const INITIAL_EXPAND = Math.min(5, chains.length);
+    const initialChains = chains.slice(0, INITIAL_EXPAND);
+    await this._expandChainsImmediate(initialChains, mySeq);
     if (mySeq !== this._filterSeq) return;
 
+    const remainingChains = chains.slice(INITIAL_EXPAND);
+    if (remainingChains.length) {
+      this._enqueueChains(remainingChains, mySeq);
+      this._schedulePendingChainExpansion();
+    }
+
     this._applyPredicate(q);
-
-    await this._expandAllMatchChainsCancellable(folders, assets, mySeq, 10);
-
-    this._autoExpandSomeMatchingFolders(20);
-
     this._setLoading(false);
   }
 
@@ -612,26 +610,32 @@ _handleInputChange(e) {
   async _hydrateSingleParentByKey(parentKey, mySeq) {
     if (mySeq !== this._filterSeq) return;
     const pid = String(parentKey);
-    const base = `/volumes/${this.volumeIdValue}`;
+    if (!pid) return;
+    if (this.loadedFolders.has(pid)) return;
 
-    const ctrl = this._beginFetchGroup();
-    try {
-      const [childFolders, childAssets] = await Promise.all([
-        this._fetchJson(`${base}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-        this._fetchJson(`${base}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(pid)}`, ctrl).catch(() => []),
-      ]);
-      if (mySeq !== this._filterSeq) return;
+    const parentNode = this._findNodeByKey(pid);
+    if (!parentNode) return;
 
-      const parentNode = this._findNodeByKey(pid);
-      if (!parentNode) return;
-
-      const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
-      const toAdd = [...(childFolders || []), ...(childAssets || [])]
-        .filter(n => !existing.has(String(n.key ?? n.id)));
-      if (toAdd.length) parentNode.addChildren?.(toAdd);
-    } finally {
-      this.inflightControllers.delete(ctrl);
+    let childFolders = this.folderCache.get(pid);
+    if (!childFolders) {
+      const ctrl = this._beginFetchGroup();
+      try {
+        childFolders = await this._fetchJson(
+          `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(pid)}`,
+          ctrl
+        ).catch(() => []);
+      } finally {
+        this.inflightControllers.delete(ctrl);
+      }
+      if (!Array.isArray(childFolders)) childFolders = [];
+      this.folderCache.set(pid, childFolders);
     }
+
+    const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+    const toAdd = childFolders.filter((folder) => !existing.has(String(folder.key ?? folder.id)));
+    if (toAdd.length) parentNode.addChildren?.(toAdd);
+
+    this.loadedFolders.add(pid);
   }
 
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
@@ -640,42 +644,30 @@ _handleInputChange(e) {
 
     const node = this._findNodeByKey(k);
     if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(k); return; }
-
-    const ctrl = this._beginFetchGroup();
-    try {
-      const url = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(k)}`;
-      const assets = await this._fetchJson(url, ctrl);
-      if (mySeq !== this._filterSeq) return;
-
-      if (Array.isArray(assets) && assets.length) {
-        const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
-        const toAdd = assets.filter(a => !existing.has(String(a.key ?? a.id)));
-        if (toAdd.length) {
-          const BATCH_SIZE = 200;
-          let i = 0;
-
-          const addChunk = () => {
-            const slice = toAdd.slice(i, i + BATCH_SIZE);
-            node.addChildren?.(slice);
-            i += BATCH_SIZE;
-
-            if (i < toAdd.length) {
-              requestAnimationFrame(addChunk);
-            } else {
-              this.assetsLoadedFor.add(k);
-            }
-          };
-
-          requestAnimationFrame(addChunk);
-        } else {
-          this.assetsLoadedFor.add(k);
-        }
+    let assets = this.assetCache.get(k);
+    if (!assets) {
+      const ctrl = this._beginFetchGroup();
+      try {
+        assets = await this._fetchJson(
+          `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(k)}`,
+          ctrl
+        ).catch(() => []);
+      } finally {
+        this.inflightControllers.delete(ctrl);
       }
-    } catch {
-    } finally {
-      this.inflightControllers.delete(ctrl);
-      this.assetsLoadedFor.add(k);
+      if (!Array.isArray(assets)) assets = [];
+      this.assetCache.set(k, assets);
     }
+    if (mySeq !== this._filterSeq) return;
+
+    if (assets.length) {
+      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+      const toAdd = assets.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
+      if (toAdd.length) node.addChildren?.(toAdd);
+    }
+
+    this.assetsLoadedFor.add(k);
+    this.loadedAssets.add(k);
   }
 
   async _expandPathCancellable(pathIds, mySeq) {
@@ -713,6 +705,110 @@ _handleInputChange(e) {
 
       await new Promise(r => requestAnimationFrame(r));
     }
+  }
+
+  _buildMatchChains(folders = [], assets = []) {
+    const chains = [];
+
+    for (const folder of folders || []) {
+      const path = Array.isArray(folder.path) ? folder.path : [];
+      const ids = [...path, folder.id].filter((id) => id != null);
+      if (!ids.length) continue;
+      chains.push({ chain: ids.map(String), assetParentId: null });
+    }
+
+    for (const asset of assets || []) {
+      const path = Array.isArray(asset.path) ? asset.path : [];
+      const pid = asset.parent_folder_id ?? asset.folder_id ?? asset.parent_id;
+      const ids = pid != null ? [...path, pid] : path;
+      if (!ids.length) continue;
+      chains.push({ chain: ids.map(String), assetParentId: pid != null ? String(pid) : null });
+    }
+
+    return chains;
+  }
+
+  async _expandChainsImmediate(chains = [], seq) {
+    for (const item of chains) {
+      if (seq !== this._filterSeq) return;
+      await this._loadPath(item.chain, seq);
+      if (item.assetParentId) {
+        await this._ensureAssetsForFolderCancellable(item.assetParentId, seq);
+      }
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  }
+
+  _enqueueChains(chains = [], seq) {
+    for (const item of chains) {
+      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
+      if (this._pendingChainKeys.has(key)) continue;
+      this._pendingChainKeys.add(key);
+      this._pendingChains.push({ ...item, seq });
+    }
+  }
+
+  _schedulePendingChainExpansion() {
+    if (this._expandingChains || !this._pendingChains.length) return;
+    if (this._pendingChainHandle != null) return;
+
+    const callback = () => {
+      this._pendingChainHandle = null;
+      this._expandPendingChains(this._filterSeq, 5);
+    };
+
+    if (typeof requestIdleCallback === "function") {
+      this._pendingChainHandle = requestIdleCallback(callback, { timeout: 200 });
+    } else {
+      this._pendingChainHandle = setTimeout(callback, 0);
+    }
+  }
+
+  async _expandPendingChains(seq, limit) {
+    if (this._expandingChains) return;
+    this._expandingChains = true;
+    let processed = 0;
+
+    while (processed < limit && this._pendingChains.length) {
+      if (seq !== this._filterSeq) break;
+      const item = this._pendingChains.shift();
+      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
+      this._pendingChainKeys.delete(key);
+      if (item.seq !== this._filterSeq) continue;
+      await this._loadPath(item.chain, item.seq);
+      if (item.assetParentId) {
+        await this._ensureAssetsForFolderCancellable(item.assetParentId, item.seq);
+      }
+      processed += 1;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    this._expandingChains = false;
+    if (this._pendingChains.length) this._schedulePendingChainExpansion();
+  }
+
+  async _loadPath(pathIds, seq) {
+    for (const rawId of pathIds) {
+      if (seq !== this._filterSeq) return;
+      const id = String(rawId);
+      if (!id) continue;
+      await this._hydrateSingleParentByKey(id, seq);
+      const node = this._findNodeByKey(id);
+      if (node && !node.expanded) {
+        node.setExpanded(true);
+        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
+      }
+    }
+  }
+
+  _onTreeScroll() {
+    if (!this._pendingChains.length) return;
+    const el = this.element;
+    if (!el) return;
+
+    const nearTop = el.scrollTop <= 200;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
+    if (nearTop || nearBottom) this._schedulePendingChainExpansion();
   }
 
   async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {

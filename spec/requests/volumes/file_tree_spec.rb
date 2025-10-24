@@ -62,37 +62,24 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
     end
   end
 
-describe "GET /volumes/:id/file_tree_assets" do
-  it "returns assets for a given parent_folder_id" do
-    get "/volumes/#{volume.id}/file_tree_assets.json", params: { parent_folder_id: folder_c.id }
-    expect(response).to have_http_status(:ok)
+  describe "GET /volumes/:id/file_tree_assets" do
+    it "returns assets for a given parent_folder_id" do
+      get "/volumes/#{volume.id}/file_tree_assets.json", params: { parent_folder_id: folder_c.id }
+      expect(response).to have_http_status(:ok)
 
-    body = parsed
-    expect(body).to be_a(Array)
-    expect(body).to all(be_a(Hash))
-    expect(body).to all(include("folder", "parent_folder_id"))
-    expect(body).to all(satisfy { |h| h["folder"] == false })
-    expect(body).to all(satisfy { |h| h["parent_folder_id"] == folder_c.id })
-    expect(body).to all(satisfy { |h| h.key?("id") || h.key?("key") })
+      body = parsed
+      expect(body).to be_a(Array)
+      expect(body).to all(be_a(Hash))
+      expect(body).to all(include("folder", "parent_folder_id", "path", "key"))
+      expect(body).to all(satisfy { |h| h["folder"] == false })
+      expect(body).to all(satisfy { |h| h["parent_folder_id"] == folder_c.id })
 
-    names = body.map { |h| h["isilon_name"] || h["title"] }.compact
-    expect(names).to include("scan_beta_001.tif")
+      keys = body.map { |h| h["key"] }
+      expect(keys).to include("a-#{asset.id}")
+      match = body.find { |h| h["key"] == "a-#{asset.id}" }
+      expect(match["path"]).to eq([ root.id, folder_a.id, folder_b.id, folder_c.id ])
+    end
   end
-end
-
-describe "GET /volumes/:id/file_tree_assets_search" do
-  it "finds a deep asset and returns path to its parent folder" do
-    get "/volumes/#{volume.id}/file_tree_assets_search.json", params: { q: "beta" }
-    expect(response).to have_http_status(:ok)
-
-    body = parsed
-    match = body.find { |h| (h["isilon_name"] || h["title"]).to_s.match?(/scan_beta_001\.tif/i) }
-    expect(match).to be_present
-    expect(match["folder"]).to eq(false)
-    expect(match["parent_folder_id"]).to eq(folder_c.id)
-    expect(match["path"]).to eq([ root.id, folder_a.id, folder_b.id, folder_c.id ])
-  end
-end
 
   describe "GET /volumes/:id/file_tree_folders_search" do
     it "finds a nested folder and includes its ancestor path" do
@@ -102,10 +89,7 @@ end
       body = parsed
       expect(body).to be_a(Array)
 
-      match = body.find do |h|
-        name = h["title"] || File.basename(h["full_path"].to_s)
-        name.to_s =~ /TUL_OHIST/i
-      end
+      match = body.find { |h| h["id"] == folder_b.id }
 
       expect(match).to be_present
       expect(match["folder"]).to eq(true)
@@ -129,9 +113,7 @@ end
       body = parsed
       expect(body).to be_a(Array)
 
-      match = body.find do |h|
-        (h["isilon_name"] || h["title"]).to_s.match?(/scan_beta_001\.tif/i)
-      end
+      match = body.find { |h| h["id"] == asset.id }
 
       expect(match).to be_present
       expect(match["folder"]).to eq(false)
