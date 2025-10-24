@@ -1,3 +1,31 @@
+require "simplecov"
+require "simplecov-lcov"
+
+simplecov_formatters = [
+  SimpleCov::Formatter::HTMLFormatter,
+  SimpleCov::Formatter::LcovFormatter
+]
+
+SimpleCov::Formatter::LcovFormatter.config do |c|
+  c.report_with_single_file = true
+  c.single_report_path = "coverage/lcov/app.lcov"
+end
+
+SimpleCov.formatters = SimpleCov::Formatter::MultiFormatter.new(
+  [
+    SimpleCov::Formatter::HTMLFormatter,
+    SimpleCov::Formatter::LcovFormatter
+  ]
+)
+
+SimpleCov.start("rails") do
+  add_filter "app/channels"
+  add_filter "app/fields"
+  add_filter "app/jobs"
+  add_filter "lib"
+end
+
+
 require "factory_bot_rails"
 require "capybara/cuprite"
 
