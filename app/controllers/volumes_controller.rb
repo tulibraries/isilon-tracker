@@ -61,8 +61,11 @@ class VolumesController < ApplicationController
       scope = scope.where(assigned_to: [ nil, "" ])
     end
 
-    assets = scope.includes(parent_folder: :parent_folder)
-    render json: assets.map { |asset| FileTreeSearchResultSerializer.new(asset).as_json }
+    assets = scope.includes(parent_folder: :parent_folder).page(params[:page]).per(100)
+    render json: {
+      results: assets.map { |a| FileTreeSearchResultSerializer.new(a).as_json },
+      next_page: assets.next_page
+    }
   end
 
   def file_tree_updates

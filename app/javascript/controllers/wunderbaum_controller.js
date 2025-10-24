@@ -132,22 +132,21 @@ export default class extends Controller {
 
         lazyLoad: (e) => this._lazyLoadFolderChildren(e),
 
-        expand: async (e) => {
-          const node = e.node;
-          if (!node?.data?.folder) return;
+        expand: (e) => {
+          const node = e.node
+          if (!node?.data?.folder) return
 
-          await this._ensureAssetsForFolderCancellable(String(node.key), this._filterSeq);
+          const key = String(node.key ?? node.data?.key ?? node.data?.id)
+          const seq = this._filterSeq
 
-          requestAnimationFrame(() => {
-            const t = node.tree;
-            if (t?.updateViewport) {
-              t.updateViewport();
-            } else if (t?._updateViewportThrottled) {
-              t._updateViewportThrottled();
+          requestIdleCallback(async () => {
+            try {
+              await this._ensureAssetsForFolderCancellable(key, seq)
+              this._reapplyFilterIfAny()
+            } catch (err) {
+              console.error("Lazy expand failed", err)
             }
-          });
-
-          this._reapplyFilterIfAny();
+          }, { timeout: 200 })
         },
 
         postProcess: (e) => { e.result = e.response; },
@@ -284,18 +283,29 @@ export default class extends Controller {
         source
       });
 
-   requestAnimationFrame(() => {
-      const t = this.tree
-      const listEl = t.listContainerElement
+      requestAnimationFrame(() => {
+          const t = this.tree
+          const listEl = t.listContainerElement
 
-      t.scrollParent = listEl
+          t.scrollParent = listEl
 
-      if (listEl) {
-        listEl.addEventListener("scroll", () => {
-          if (t._updateViewportThrottled) t._updateViewportThrottled()
+          if (listEl) {
+            const parentId = String(e.node.key)
+            let nextPage = 2
+
+            listEl.addEventListener("scroll", async () => {
+              if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100) {
+                if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
+              }
+              if (t._updateViewportThrottled) t._updateViewportThrottled()
+            })
+          }
         })
-      }
-    })
+
+      const listEl = this.tree.listContainerElement
+        if (listEl) {
+          listEl.addEventListener("scroll", () => this.tree.updateViewport?.(), { passive: true })
+        }
 
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
@@ -438,10 +448,28 @@ export default class extends Controller {
     const searchCtrl = this._beginFetchGroup();
     let folders = [], assets = [];
     try {
+      const fetchAllPages = async (urlBase) => {
+        let results = []
+        let next = urlBase
+        while (next) {
+          const resp = await fetch(next, {
+            headers: { Accept: "application/json" },
+            credentials: "same-origin",
+            signal: searchCtrl?.signal
+          })
+          if (!resp.ok) break
+          const data = await resp.json()
+          results = results.concat(data.results || data)
+          next = data.next_page ? `${urlBase}&page=${data.next_page}` : null
+          await new Promise(r => requestAnimationFrame(r))
+        }
+        return results
+      }
+
       [folders, assets] = await Promise.all([
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`, searchCtrl).catch(() => []),
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`, searchCtrl).catch(() => []),
-      ]);
+        fetchAllPages(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`),
+        fetchAllPages(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`)
+      ])
     } finally {
       this.inflightControllers.delete(searchCtrl);
     }
@@ -676,7 +704,17 @@ _handleInputChange(e) {
     if (assets.length) {
       const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
       const toAdd = assets.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
-      if (toAdd.length) node.addChildren?.(toAdd);
+
+      if (toAdd.length) {
+        const BATCH_SIZE = 25;
+        for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
+          const batch = toAdd.slice(i, i + BATCH_SIZE);
+          node.addChildren(batch);
+          await new Promise(r => requestAnimationFrame(r));
+        }
+        await new Promise(r => setTimeout(r, 0));
+        this.tree.updateViewport?.();
+      }
     }
 
     this.assetsLoadedFor.add(k);
@@ -1080,10 +1118,27 @@ _handleInputChange(e) {
       headers: { Accept: "application/json" },
       credentials: "same-origin",
       signal: ctrl?.signal
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    return res.json();
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
+    return res.json()
   }
+
+async _loadNextAssetPage(parentId, nextPage) {
+  const base = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentId}`
+  const url = `${base}&page=${nextPage}`
+  const data = await this._fetchJson(url)
+  const assets = data.results || []
+  const node = this._findNodeByKey(String(parentId))
+
+  if (node && assets.length) {
+    for (let i = 0; i < assets.length; i++) {
+      node.addChildren([assets[i]])
+      if (i % 10 === 0) await new Promise(r => requestAnimationFrame(r))
+    }
+  }
+
+  return data.next_page
+}
 
   _setLoading(isLoading, text = "Loading…") {
     const input = document.getElementById("tree-filter");
