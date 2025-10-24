@@ -10,7 +10,7 @@ export default class extends Controller {
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
-  filterMode = "dim";
+  filterMode = "hide";
   folderCache = new Map();
   assetCache = new Map();
   loadedFolders = new Set();
@@ -23,6 +23,10 @@ export default class extends Controller {
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
+
+  initialize() {
+    this.isVirtualTree = true;
+  }
 
   async connect() {
     try {
@@ -40,9 +44,9 @@ export default class extends Controller {
         checkbox: true,
         lazy: true,
         selectMode: "hier",
+        grid: { debounce: 0 }, 
         columnsResizable: true,
         fixedCol: true,
-
         filter: {
           autoApply: true,
           autoExpand: false,
@@ -126,23 +130,33 @@ export default class extends Controller {
           if (!node.data.folder) return "bi bi-files";
         },
 
-        lazyLoad: (e) => {
-          if (!e.node?.data?.folder) return [];
-          const id = e.node.data.key ?? e.node.data.id;
-          return {
-            url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(String(id))}`,
-            options: { headers: { Accept: "application/json" }, credentials: "same-origin" }
-          };
-        },
+        lazyLoad: (e) => this._lazyLoadFolderChildren(e),
 
         expand: async (e) => {
           const node = e.node;
           if (!node?.data?.folder) return;
-          await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), this._filterSeq);
+
+          await this._ensureAssetsForFolderCancellable(String(node.key), this._filterSeq);
+
+          requestAnimationFrame(() => {
+            const t = node.tree;
+            if (t?.updateViewport) {
+              t.updateViewport();
+            } else if (t?._updateViewportThrottled) {
+              t._updateViewportThrottled();
+            }
+          });
+
           this._reapplyFilterIfAny();
         },
 
         postProcess: (e) => { e.result = e.response; },
+
+        renderHeaderCell: (e) => {
+          const { colDef, cellElem } = e.info;
+          cellElem.dataset.colid = colDef.id;
+          this._setFilterIconState(colDef.id, colDef.filterActive);
+        },
 
         render: (e) => {
           const util = e.util;
@@ -151,105 +165,82 @@ export default class extends Controller {
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
             let value = e.node.data[colId];
-            let selectElem;
+            let elem = colInfo.elem;
 
             switch (colId) {
               case "migration_status":
-                if (this.migrationStatusOptions) {
-                  selectElem = this._buildSelectList(
-                    this.migrationStatusOptions,
-                    value,
-                    "migration_status"
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-
               case "aspace_collection_id":
-                if (this.aspaceCollectionOptions) {
-                  selectElem = this._buildSelectList(
-                    this.aspaceCollectionOptions,
-                    value,
-                    "aspace_collection_id"
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-
               case "contentdm_collection_id":
-                if (this.contentdmCollectionOptions) {
-                  selectElem = this._buildSelectList(
-                    this.contentdmCollectionOptions,
-                    value,
-                    "contentdm_collection_id"
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
+              case "assigned_to": {
+                const options =
+                  colId === "migration_status"
+                    ? this.migrationStatusOptions
+                    : colId === "aspace_collection_id"
+                    ? this.aspaceCollectionOptions
+                    : colId === "contentdm_collection_id"
+                    ? this.contentdmCollectionOptions
+                    : this.userOptions;
 
-              case "assigned_to":
-                if (this.userOptions) {
-                  let effectiveValue = value;
-                  if (
-                    effectiveValue == null ||
-                    effectiveValue === "" ||
-                    effectiveValue === "0"
-                  ) {
-                    effectiveValue = "unassigned";
-                    e.node.data.assigned_to = effectiveValue; // keep data in sync
-                  }
-                  selectElem = this._buildSelectList(
-                    this.userOptions,
-                    effectiveValue,
-                    "assigned_to"
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "Unassigned");
+                if (!options) {
+                  util.setValueToElem(elem, value ?? "");
+                  break;
                 }
+
+                if (!elem.dataset.rendered) {
+                  const select = document.createElement("select");
+                  select.name = colId;
+                  options.forEach((opt) => {
+                    const option = document.createElement("option");
+                    option.value = String(opt.value);
+                    option.textContent = opt.label;
+                    select.appendChild(option);
+                  });
+                  elem.replaceChildren(select);
+                  elem.dataset.rendered = "true";
+                }
+
+                const select = elem.querySelector("select");
+                if (select) select.value = value ?? "";
                 break;
+              }
 
               case "notes":
-              case "preservica_reference_id":
-                // These fields only apply to assets, not folders
-                if (!isFolder) {
+              case "preservica_reference_id": {
+                if (isFolder) {
+                  util.setValueToElem(elem, "");
+                  break;
+                }
+                if (!elem.dataset.rendered) {
                   const input = document.createElement("input");
                   input.type = "text";
                   input.name = colId;
-                  input.value = value ?? "";
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(input);
-                } else {
-                  util.setValueToElem(colInfo.elem, "");
+                  elem.replaceChildren(input);
+                  elem.dataset.rendered = "true";
                 }
+                const input = elem.querySelector("input");
+                if (input) input.value = value ?? "";
                 break;
+              }
 
-              case "aspace_linking_status":
-                // This field only applies to assets, not folders
-                if (!isFolder) {
+              case "aspace_linking_status": {
+                if (isFolder) {
+                  util.setValueToElem(elem, "");
+                  break;
+                }
+                if (!elem.dataset.rendered) {
                   const checkbox = document.createElement("input");
                   checkbox.type = "checkbox";
                   checkbox.name = colId;
-                  checkbox.checked = Boolean(value);
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(checkbox);
-                } else {
-                  util.setValueToElem(colInfo.elem, "");
+                  elem.replaceChildren(checkbox);
+                  elem.dataset.rendered = "true";
                 }
+                const checkbox = elem.querySelector("input");
+                if (checkbox) checkbox.checked = Boolean(value);
                 break;
+              }
 
               default:
-                util.setValueToElem(colInfo.elem, value ?? "");
+                util.setValueToElem(elem, value ?? "");
             }
           }
 
@@ -293,6 +284,19 @@ export default class extends Controller {
         source
       });
 
+   requestAnimationFrame(() => {
+      const t = this.tree
+      const listEl = t.listContainerElement
+
+      t.scrollParent = listEl
+
+      if (listEl) {
+        listEl.addEventListener("scroll", () => {
+          if (t._updateViewportThrottled) t._updateViewportThrottled()
+        })
+      }
+    })
+
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -306,12 +310,6 @@ export default class extends Controller {
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
-
-    this.tree.on("renderHeaderCell", (e) => {
-      const { colDef, cellElem } = e.info;
-      cellElem.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
 
     this._onTreeScroll = this._onTreeScroll.bind(this);
     this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
@@ -398,7 +396,6 @@ export default class extends Controller {
     });
   }
 
-
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
@@ -451,20 +448,22 @@ export default class extends Controller {
     if (mySeq !== this._filterSeq) return;
 
     const chains = this._buildMatchChains(folders, assets);
-    const INITIAL_EXPAND = Math.min(5, chains.length);
-    const initialChains = chains.slice(0, INITIAL_EXPAND);
-    await this._expandChainsImmediate(initialChains, mySeq);
+    await this._expandChainsImmediate(chains, mySeq);
     if (mySeq !== this._filterSeq) return;
 
-    const remainingChains = chains.slice(INITIAL_EXPAND);
-    if (remainingChains.length) {
-      this._enqueueChains(remainingChains, mySeq);
-      this._schedulePendingChainExpansion();
-    }
-
     this._applyPredicate(q);
+
+    requestAnimationFrame(() => {
+      const tree = this.tree;
+      if (tree && typeof tree.updateViewport === "function") {
+        tree.updateViewport();
+      } else if (tree && tree._updateViewportThrottled) {
+        tree._updateViewportThrottled();
+      }
+    });
+
     this._setLoading(false);
-  }
+ }
 
   _applyPredicate(q) {
     const predicate = (node) => {
@@ -478,18 +477,17 @@ export default class extends Controller {
       }
       return true;
     };
-    const opts = { leavesOnly: false, matchBranch: false, mode: this.filterMode };
+
     this.currentFilterPredicate = predicate;
-    this.currentFilterOpts = opts;
-    this.tree.filterNodes(predicate, opts);
+    this.currentFilterOpts = { mode: this.filterMode };
+
+    this.tree.filterNodes(predicate, this.currentFilterOpts);
     this._updateFilterModeButton();
   }
 
   _reapplyFilterIfAny() {
     if (this.currentFilterPredicate) {
-      const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
-      this.currentFilterOpts = opts;
-      this.tree.filterNodes(this.currentFilterPredicate, opts);
+      this.tree.filterNodes(this.currentFilterPredicate, { mode: this.filterMode });
     }
     this._updateFilterModeButton();
   }
@@ -515,10 +513,10 @@ export default class extends Controller {
       if (this.tree?.options?.filter) {
         this.tree.options.filter.mode = this.filterMode;
       }
-      if (this.currentFilterOpts) {
-        this.currentFilterOpts.mode = this.filterMode;
+      if (this.currentFilterPredicate) {
+        this.tree.filterNodes(this.currentFilterPredicate, { mode: this.filterMode });
       }
-      this._reapplyFilterIfAny();
+      this._updateFilterModeButton();
     });
 
     this._updateFilterModeButton();
@@ -636,6 +634,21 @@ _handleInputChange(e) {
     if (toAdd.length) parentNode.addChildren?.(toAdd);
 
     this.loadedFolders.add(pid);
+  }
+
+  async _fetchFolderChildren(parentId) {
+    const url = `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(String(parentId))}`;
+    const resp = await fetch(url, {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin"
+    });
+    if (!resp.ok) throw new Error(`Folder fetch failed with ${resp.status}`);
+    const data = await resp.json();
+
+    const cacheKey = parentId == null ? "root" : String(parentId);
+    this.folderCache.set(cacheKey, data);
+    this.loadedFolders.add(cacheKey);
+    return data;
   }
 
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
@@ -1302,4 +1315,76 @@ _handleInputChange(e) {
       console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
     }
   }
+
+    _optionsFor(colId) {
+    switch (colId) {
+      case "migration_status":
+        return this.migrationStatusOptions;
+      case "aspace_collection_id":
+        return this.aspaceCollectionOptions;
+      case "contentdm_collection_id":
+        return this.contentdmCollectionOptions;
+      case "assigned_to":
+        return this.userOptions;
+    }
+    return null;
+  }
+
+  _renderInput(colInfo, value, colId) {
+    if (!colInfo.elem.dataset.rendered) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.name = colId;
+      input.value = value ?? "";
+      colInfo.elem.innerHTML = "";
+      colInfo.elem.appendChild(input);
+      colInfo.elem.dataset.rendered = "true";
+    } else {
+      const input = colInfo.elem.querySelector("input");
+      if (input) input.value = value ?? "";
+    }
+  }
+
+  _renderCheckbox(colInfo, value, colId) {
+    if (!colInfo.elem.dataset.rendered) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = colId;
+      checkbox.checked = Boolean(value);
+      colInfo.elem.innerHTML = "";
+      colInfo.elem.appendChild(checkbox);
+      colInfo.elem.dataset.rendered = "true";
+    } else {
+      const checkbox = colInfo.elem.querySelector("input");
+      if (checkbox) checkbox.checked = Boolean(value);
+    }
+  }
+
+  async _lazyLoadFolderChildren(e) {
+    const node = e.node;
+    if (!node?.data?.folder) return [];
+
+    const parentId = node.data.key ?? node.data.id;
+    if (!parentId) return [];
+
+    try {
+      const children = await this._fetchFolderChildren(parentId);
+      node.lazy = false;
+      node.data.lazy = false;
+
+      requestAnimationFrame(() => {
+        const t = node.tree;
+        if (t?.updateViewport) t.updateViewport();
+        else if (t?._updateViewportThrottled) t._updateViewportThrottled();
+      });
+
+      return children;
+    } catch (err) {
+      console.error("Folder lazy load failed:", err);
+      node.lazy = false;
+      node.data.lazy = false;
+      return [];
+    }
+  }
+
 }

@@ -34,7 +34,7 @@
 }
 
 div.wunderbaum div.wb-node-list {
-  font-size: 16px !important;    
+  font-size: 16px !important;
 }
 
 .volume-name {
@@ -153,6 +153,11 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   line-height: 1.4;
 }
 
+.wb-col select,
+.wb-col input {
+  will-change: contents !important;
+}
+
 /* ROW HEIGHT AND CELL PADDING */
 .wunderbaum .wb-tree .wb-cell {
   vertical-align: middle !important;
@@ -178,11 +183,22 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   display: none;
 }
 
+.wb-list-container {
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
 .wb-tree {
   border: none !important;
   box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
   font-family: system-ui, sans-serif !important;
   margin-top: 40px !important;
+  height: 600 !important;
+  overflow: hidden !important;
+  contain: content !important;
 }
 
 .wunderbaum .wb-tree .wb-row {
