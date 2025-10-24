@@ -14,7 +14,7 @@ class FileTreeSearchResultSerializer < ActiveModel::Serializer
       ancestor_ids(object)
     else
       parent = object.parent_folder
-      parent ? ancestor_ids(parent) + [parent.id] : []
+      parent ? ancestor_ids(parent) + [ parent.id ] : []
     end
   end
 
