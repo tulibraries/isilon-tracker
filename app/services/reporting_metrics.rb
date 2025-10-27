@@ -47,13 +47,13 @@ module ReportingMetrics
   def assignment_aging_by_user
     Rails.cache.fetch("reporting/assignment_aging", expires_in: CACHE_TTL) do
       age_expression = case ActiveRecord::Base.connection.adapter_name.downcase
-                       when "postgresql"
+      when "postgresql"
                          "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(isilon_assets.updated_at, isilon_assets.created_at))) / 86400.0"
-                       when "sqlite"
+      when "sqlite"
                          "(julianday('now') - julianday(COALESCE(isilon_assets.updated_at, isilon_assets.created_at)))"
-                       else
+      else
                          "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(isilon_assets.updated_at, isilon_assets.created_at))) / 86400.0"
-                       end
+      end
 
       IsilonAsset
         .left_outer_joins(:assigned_to, :migration_status)
@@ -70,11 +70,11 @@ module ReportingMetrics
   end
 
   def top_file_types_migrated(limit: 10)
-    Rails.cache.fetch(["reporting/top_file_types", limit], expires_in: CACHE_TTL) do
+    Rails.cache.fetch([ "reporting/top_file_types", limit ], expires_in: CACHE_TTL) do
       IsilonAsset
         .joins(:migration_status)
         .where(migration_statuses: { name: "Migrated" })
-        .where.not(file_type: [nil, ""])
+        .where.not(file_type: [ nil, "" ])
         .group("LOWER(isilon_assets.file_type)")
         .order(Arel.sql("COUNT(*) DESC"))
         .limit(limit)

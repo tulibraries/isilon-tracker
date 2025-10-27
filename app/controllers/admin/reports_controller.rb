@@ -1,6 +1,5 @@
 module Admin
   class ReportsController < Admin::ApplicationController
-
     def show
       @volume_progress = ReportingMetrics.volume_progress_leaderboard
       @asset_backlog = ReportingMetrics.asset_backlog_by_volume
