@@ -235,7 +235,7 @@ namespace :db do
     folders.each_slice(100) do |folder_batch|
       folder_batch.each do |folder|
         # Randomize number of assets per folder (0 to 2x average)
-        num_assets = rand(0..[assets_per_folder * 2, 5000].min)
+        num_assets = rand(0..[ assets_per_folder * 2, 5000 ].min)
 
         asset_attrs = []
 
