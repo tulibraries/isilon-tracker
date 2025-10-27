@@ -290,9 +290,33 @@ export default class extends Controller {
           this._emitSelectionChange();
         },
 
+        renderHeaderCell: (e) => {
+          const { colDef, cellElem } = e.info
+          cellElem.dataset.colid = colDef.id
+          this._setFilterIconState(colDef.id, colDef.filterActive)
+        },
+
         source
       });
 
+      await new Promise(r => requestAnimationFrame(r))
+
+      const list = this.tree.listContainerElement
+      if (list) {
+        this.tree.scrollParent = list
+
+        Object.defineProperty(this.tree, "virtualMode", { value: true, writable: true })
+        if (!this.tree._viewport) {
+          this.tree._viewport = { top: 0, bottom: list.clientHeight }
+        }
+
+        this.tree.updateViewport?.()
+
+        list.addEventListener("scroll", () => {
+          this.tree.updateViewport?.()
+        }, { passive: true })
+      }
+    
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -306,12 +330,6 @@ export default class extends Controller {
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
-
-    this.tree.on("renderHeaderCell", (e) => {
-      const { colDef, cellElem } = e.info;
-      cellElem.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
 
     this._onTreeScroll = this._onTreeScroll.bind(this);
     this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });

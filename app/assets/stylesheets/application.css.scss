@@ -33,6 +33,14 @@
   --wb-border-color: #dee2e6;
 }
 
+div.wunderbaum {
+  height: 500px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  contain: none !important;
+  position: static !important;
+}
+
 div.wunderbaum div.wb-node-list {
   font-size: 16px !important;    
 }
@@ -119,7 +127,7 @@ a {
 }
 
 /* HEADER ENHANCEMENTS */
-.wunderbaum .wb-tree .wb-header .wb-col {
+.wunderbaum .isilon-tree .wb-header .wb-col {
   background-color: var(--wb-header-bg) !important;
   color: var(--wb-header-color) !important;
   font-size: 1rem !important;
@@ -132,12 +140,12 @@ a {
   padding-top: 4px !important;
 }
 
-.wunderbaum .wb-tree div.wb-header span.wb-col-title {
+.wunderbaum .isilon-tree div.wb-header span.wb-col-title {
   background-color: var(--wb-header-bg) !important;
   padding: 5px 8px !important;
 }
 
-.wunderbaum .wb-tree .wb-header .wb-col + .wb-col {
+.wunderbaum .isilon-tree .wb-header .wb-col + .wb-col {
   border-left: none !important;
 }
 
@@ -145,47 +153,67 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   background-color: #dbeafe !important;
 }
 
-.wb-tree .wb-cell select,
-.wb-tree .wb-cell input[type="text"],
-.wb-tree .wb-cell input[type="checkbox"] {
+.isilon-tree .wb-cell select,
+.isilon-tree .wb-cell input[type="text"],
+.isilon-tree .wb-cell input[type="checkbox"] {
   padding: 5px 8px;
   font-size: 0.9rem;
   line-height: 1.4;
 }
 
 /* ROW HEIGHT AND CELL PADDING */
-.wunderbaum .wb-tree .wb-cell {
+.wunderbaum .isilon-tree .wb-cell {
   vertical-align: middle !important;
   border-bottom: 1px solid var(--wb-border-color);
 }
 
 /* Prevent overlapping select arrows */
-.wunderbaum .wb-tree select {
+.wunderbaum .isilon-tree select {
   appearance: auto !important;
   padding: 5px 8px;
   font-size: 0.9rem;
 }
 
-.wunderbaum .wb-tree .wb-row:hover {
+.wunderbaum .isilon-tree .wb-row:hover {
   background-color: #f1f3f5;
 }
 
-.wb-tree .wb-active {
+.isilon-tree .wb-active {
   background-color: #e9ecef;
 }
 
-.wb-tree .wb-col-sep {
+.isilon-tree .wb-col-sep {
   display: none;
 }
 
-.wb-tree {
-  border: none !important;
-  box-shadow: none !important;
-  font-family: system-ui, sans-serif !important;
-  margin-top: 40px !important;
+.wb-list-container {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
-.wunderbaum .wb-tree .wb-row {
+.tree-wrapper {
+  height: 600px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: static !important;
+}
+
+.isilon-tree {
+  border: none !important;
+  box-shadow: none !important;
+  contain: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  font-family: system-ui, sans-serif !important;
+  margin-top: 40px !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.wunderbaum .isilon-tree .wb-row {
   min-height: 40px !important;
   border-bottom: 1px solid #e0e0e0;
 }
