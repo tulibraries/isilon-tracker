@@ -3,46 +3,6 @@ module ReportingMetrics
 
   CACHE_TTL = 15.minutes
 
-  def volume_progress_over_time
-    Rails.cache.fetch("reporting/volume_progress_over_time", expires_in: CACHE_TTL) do
-      totals = assets_relation
-        .group("volumes.id", volume_label_expression)
-        .pluck("volumes.id", volume_label_expression, "COUNT(isilon_assets.id)")
-        .each_with_object({}) do |(id, label, total), memo|
-          memo[id] = { label: label, total: total.to_i }
-        end
-
-      return {} if totals.empty?
-
-      daily_rows = assets_relation
-        .group(
-          Arel.sql("volumes.id"),
-          Arel.sql(volume_label_expression),
-          Arel.sql("DATE(COALESCE(isilon_assets.updated_at, isilon_assets.created_at))")
-        )
-        .pluck(
-          Arel.sql("volumes.id"),
-          Arel.sql(volume_label_expression),
-          Arel.sql("DATE(COALESCE(isilon_assets.updated_at, isilon_assets.created_at))"),
-          Arel.sql("SUM(CASE WHEN migration_statuses.name = 'Migrated' THEN 1 ELSE 0 END)")
-        )
-
-      daily_rows.group_by { |volume_id, *_| volume_id }.each_with_object({}) do |(volume_id, rows), hash|
-        meta = totals[volume_id]
-        next unless meta && meta[:total].positive?
-
-        cumulative = 0
-        data_points = rows.sort_by { |row| row[2] }.map do |_vid, _label, day, migrated|
-          cumulative += migrated.to_i
-          percentage = ((cumulative.to_f / meta[:total]) * 100).round(2)
-          [day, percentage]
-        end
-
-        hash[meta[:label]] = data_points
-      end
-    end
-  end
-
   def volume_progress_leaderboard
     Rails.cache.fetch("reporting/volume_progress_leaderboard", expires_in: CACHE_TTL) do
       assets_relation
