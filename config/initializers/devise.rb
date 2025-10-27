@@ -319,5 +319,5 @@ Devise.setup do |config|
 
   # Set timeout_in to the timeout interval.  Default is 30.minutes
 
-  config.timeout_in = 1.hour
+  config.timeout_in = 8.hours
 end
