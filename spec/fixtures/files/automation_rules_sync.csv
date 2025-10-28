@@ -1,8 +1,8 @@
 Path,Size,Type,Hash,CreatedAt,ModifiedAt
-/test-volume/deposit/migrated-collection - Migrated/photo.jpg,5000,image/jpeg,hash1,2023-01-01,2023-01-01
-/test-volume/deposit/SCRC Accessions/DELETE-temp/document.pdf,2000,application/pdf,hash2,2023-01-01,2023-01-01
-/test-volume/deposit/original.pdf,2000,application/pdf,hash3,2023-01-01,2023-01-01
-/test-volume/backup/duplicate.pdf,2000,application/pdf,hash3,2023-01-01,2023-01-01
-/test-volume/deposit/digitization/processed/scan001.tiff,10000,image/tiff,hash4,2023-01-01,2023-01-01
-/test-volume/deposit/digitization/unprocessed/scan001.tiff,10000,image/tiff,hash5,2023-01-01,2023-01-01
-/test-volume/regular/normal-file.pdf,1000,application/pdf,hash6,2023-01-01,2023-01-01
+/deposit/migrated-collection - Migrated/photo.jpg,5000,image/jpeg,hash1,2023-01-01,2023-01-01
+/deposit/SCRC Accessions/DELETE-temp/document.pdf,2000,application/pdf,hash2,2023-01-01,2023-01-01
+/deposit/original.pdf,2000,application/pdf,hash3,2023-01-01,2023-01-01
+/deposit/backup/duplicate.pdf,2000,application/pdf,hash3,2023-01-01,2023-01-01
+/deposit/digitization/processed/scan001.tiff,10000,image/tiff,hash4,2023-01-01,2023-01-01
+/deposit/digitization/unprocessed/scan001.tiff,10000,image/tiff,hash5,2023-01-01,2023-01-01
+/deposit/regular/normal-file.pdf,1000,application/pdf,hash6,2023-01-01,2023-01-01

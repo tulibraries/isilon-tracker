@@ -50,6 +50,7 @@ module SyncService
 
         # Ensure directory structure exists before bulk insert
         isilon_path = set_full_path(row["Path"])
+
         if ensure_directory_structure(isilon_path)
           begin
             parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
@@ -63,7 +64,7 @@ module SyncService
               last_modified_in_isilon: row["ModifiedAt"],
               date_created_in_isilon: row["CreatedAt"],
               parent_folder_id: parent_folder_id,
-              migration_status_id: apply_automation_rules(row) || @default_status.id,
+              migration_status_id: apply_automation_rules(row) || @default_status&.id,
               created_at: Time.current,
               updated_at: Time.current
             }
@@ -246,11 +247,17 @@ module SyncService
     end
 
     def rule_2_delete_directory?(asset_path)
-      # Directory is in deposit/SCRC Accessions AND contains "DELETE"
-      return false unless asset_path.downcase.include?("/deposit/scrc accessions")
+      return false unless @parent_volume&.name&.casecmp?("deposit")
 
-      path_segments = asset_path.split("/")
-      path_segments.any? { |segment| segment.downcase.include?("delete") }
+      segments = asset_path.split("/").reject(&:blank?)
+      return false if segments.empty?
+
+      # Ignore the volume segment; CSVs always start with it.
+      segments.shift
+
+      return false unless segments.any? { |segment| segment.casecmp?("scrc accessions") }
+
+      segments.any? { |segment| segment.downcase.include?("delete") }
     end
 
 
