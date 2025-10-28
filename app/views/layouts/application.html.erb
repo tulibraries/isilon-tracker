@@ -23,9 +23,28 @@
     <%= render 'shared/global_navigation' %>
     
     <div class="container">
-      <%= render 'shared/flashes' %>
+      <div id="flash-messages">
+        <%= render 'shared/flashes' %>
+      </div>
       
       <%= yield %>
     </div>
+
+    <% if user_signed_in? %>
+      <% timeout_in_seconds = Devise.timeout_in.to_i %>
+      <% session_data = defined?(warden) ? warden.session(:user) : {} %>
+      <% last_request_at = session_data && session_data["last_request_at"] %>
+      <% expires_at = if last_request_at.present?
+                        last_request_at.to_i + timeout_in_seconds
+                      else
+                        Time.current.to_i + timeout_in_seconds
+                      end %>
+      <div data-controller="session-timeout"
+           data-session-timeout-expires-at-value="<%= expires_at %>"
+           data-session-timeout-duration-value="<%= timeout_in_seconds %>"
+           data-session-timeout-warning-offset-value="15"
+           data-session-timeout-keepalive-url-value="<%= user_session_keepalive_path %>"
+           data-session-timeout-flash-container-value="flash-messages"></div>
+    <% end %>
   </body>
 </html>
