@@ -7,6 +7,11 @@ export default class extends Controller {
     duration: Number,
     warningOffset: Number,
     keepaliveUrl: String,
+    warningMessage: String,
+    staySignedInLabel: String,
+    dismissLabel: String,
+    errorMessage: String,
+    expiredMessage: String,
   };
 
   connect() {
@@ -28,12 +33,20 @@ export default class extends Controller {
     if (!this.hasExpiresAtValue || !this.hasWarningOffsetValue) return;
 
     const warningAt = (this.expiresAtValue - this.warningOffsetValue) * 1000;
+    const expirationAt = this.expiresAtValue * 1000;
     const millisUntilWarning = warningAt - Date.now();
+    const millisUntilExpiration = expirationAt - Date.now();
 
     if (millisUntilWarning <= 0) {
       this.showWarning();
     } else {
       this.warningTimer = setTimeout(() => this.showWarning(), millisUntilWarning);
+    }
+
+    if (millisUntilExpiration <= 0) {
+      this.handleExpiration();
+    } else {
+      this.expirationTimer = setTimeout(() => this.handleExpiration(), millisUntilExpiration);
     }
   }
 
@@ -78,18 +91,22 @@ export default class extends Controller {
   showWarning() {
     if (!this.flashElement || this.warningVisible) return;
 
+    const messageText = (this.warningMessageValue || "").replace("%{seconds}", this.warningOffsetValue);
+    const staySignedInLabel = this.staySignedInLabelValue || "Stay signed in";
+    const dismissLabel = this.dismissLabelValue || "Dismiss";
+
     const alert = document.createElement("div");
     alert.className = "alert alert-warning alert-dismissible fade show mt-3";
     alert.setAttribute("role", "alert");
     alert.innerHTML = `
       <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
-        <span>Your session will expire in ${this.warningOffsetValue} seconds.</span>
+        <span>${messageText}</span>
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-sm btn-primary" data-action="click->session-timeout#resetSession">
-            Stay signed in
+            ${staySignedInLabel}
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" data-action="click->session-timeout#dismissWarning">
-            Dismiss
+            ${dismissLabel}
           </button>
         </div>
       </div>
@@ -110,14 +127,11 @@ export default class extends Controller {
 
   showError() {
     if (!this.flashElement) return;
-
-    const alert = document.createElement("div");
-    alert.className = "alert alert-danger fade show mt-3";
-    alert.setAttribute("role", "alert");
-    alert.textContent = "We couldn't extend your session. Please save your work and sign in again.";
-
-    this.flashElement.prepend(alert);
     this.hideWarning();
+    this.showAlert({
+      level: "danger",
+      message: this.errorMessageValue || "We couldn't extend your session. Please save your work and sign in again.",
+    });
   }
 
   clearTimers() {
@@ -125,10 +139,43 @@ export default class extends Controller {
       clearTimeout(this.warningTimer);
       this.warningTimer = null;
     }
+    if (this.expirationTimer) {
+      clearTimeout(this.expirationTimer);
+      this.expirationTimer = null;
+    }
   }
 
   get csrfToken() {
     const element = document.querySelector("meta[name='csrf-token']");
     return element && element.getAttribute("content");
+  }
+
+  handleExpiration() {
+    this.clearTimers();
+    this.hideWarning();
+    if (!this.flashElement) return;
+
+    this.showAlert({
+      level: "danger",
+      message: this.expiredMessageValue || "Your session has expired. Please sign in again to continue.",
+      trackWarning: true,
+    });
+  }
+
+  showAlert({ level, message, trackWarning = false }) {
+    const alert = document.createElement("div");
+    alert.className = `alert alert-${level} alert-dismissible fade show mt-3`;
+    alert.setAttribute("role", "alert");
+    alert.innerHTML = `
+      <span>${message}</span>
+      <button type="button" class="btn-close" data-action="click->session-timeout#dismissWarning" aria-label="Close"></button>
+    `;
+
+    this.flashElement.prepend(alert);
+
+    if (trackWarning) {
+      this.warningElement = alert;
+      this.warningVisible = true;
+    }
   }
 }
