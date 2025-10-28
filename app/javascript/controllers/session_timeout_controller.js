@@ -91,9 +91,10 @@ export default class extends Controller {
   showWarning() {
     if (!this.flashElement || this.warningVisible) return;
 
-    const messageText = (this.warningMessageValue || "").replace("%{seconds}", this.warningOffsetValue);
-    const staySignedInLabel = this.staySignedInLabelValue || "Stay signed in";
-    const dismissLabel = this.dismissLabelValue || "Dismiss";
+    const messageTemplate = this.valueOrDefault("warningMessage", "Your session will expire in %{seconds} seconds.");
+    const messageText = messageTemplate.replace("%{seconds}", this.warningOffsetValue);
+    const staySignedInLabel = this.valueOrDefault("staySignedInLabel", "Stay signed in");
+    const dismissLabel = this.valueOrDefault("dismissLabel", "Dismiss");
 
     const alert = document.createElement("div");
     alert.className = "alert alert-warning alert-dismissible fade show mt-3";
@@ -130,7 +131,7 @@ export default class extends Controller {
     this.hideWarning();
     this.showAlert({
       level: "danger",
-      message: this.errorMessageValue || "We couldn't extend your session. Please save your work and sign in again.",
+      message: this.valueOrDefault("errorMessage", "We couldn't extend your session. Please save your work and sign in again."),
     });
   }
 
@@ -157,7 +158,7 @@ export default class extends Controller {
 
     this.showAlert({
       level: "danger",
-      message: this.expiredMessageValue || "Your session has expired. Please sign in again to continue.",
+      message: this.valueOrDefault("expiredMessage", "Your session has expired. Please sign in again to continue."),
       trackWarning: true,
     });
   }
@@ -177,5 +178,17 @@ export default class extends Controller {
       this.warningElement = alert;
       this.warningVisible = true;
     }
+  }
+
+  valueOrDefault(name, fallback = "") {
+    const hasKey = this[`has${this.capitalize(name)}Value`];
+    if (hasKey) {
+      return this[`${name}Value`];
+    }
+    return fallback;
+  }
+
+  capitalize(value) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
   }
 }

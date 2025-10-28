@@ -23,7 +23,7 @@
     <%= render 'shared/global_navigation' %>
     
     <div class="container">
-      <% timeout_data = {} %>
+      <% timeout_data = { controller: "session-timeout" } %>
       <% if user_signed_in? %>
         <% timeout_in_seconds = Devise.timeout_in.to_i %>
         <% session_data = defined?(warden) ? warden.session(:user) : {} %>
@@ -33,8 +33,7 @@
                         else
                           Time.current.to_i + timeout_in_seconds
                         end %>
-        <% timeout_data = {
-             controller: "session-timeout",
+        <% timeout_data.merge!(
              session_timeout_expires_at_value: expires_at,
              session_timeout_duration_value: timeout_in_seconds,
              session_timeout_warning_offset_value: 15,
@@ -44,7 +43,7 @@
              session_timeout_dismiss_label_value: t("session_timeout.dismiss"),
              session_timeout_error_message_value: t("session_timeout.error_message"),
              session_timeout_expired_message_value: t("session_timeout.expired_message")
-           } %>
+           ) %>
       <% end %>
       <%= content_tag :div, id: "flash-messages", data: timeout_data do %>
         <%= render 'shared/flashes' %>
