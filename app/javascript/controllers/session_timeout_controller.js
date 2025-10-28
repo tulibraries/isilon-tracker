@@ -7,12 +7,12 @@ export default class extends Controller {
     duration: Number,
     warningOffset: Number,
     keepaliveUrl: String,
-    flashContainer: String,
   };
 
   connect() {
-    this.flashElement = document.getElementById(this.flashContainerValue);
+    this.flashElement = this.element;
     if (!this.flashElement) return;
+    this.requestInFlight = false;
 
     this.resetTimers();
   }
@@ -39,43 +39,61 @@ export default class extends Controller {
 
   resetSession(event) {
     event.preventDefault();
-
-    if (!this.hasKeepaliveUrlValue) return;
+    if (!this.hasKeepaliveUrlValue || this.requestInFlight) return;
+    this.requestInFlight = true;
 
     fetch(this.keepaliveUrlValue, {
       method: "POST",
       headers: {
         "X-CSRF-Token": this.csrfToken,
         "Accept": "application/json",
+        "Content-Type": "application/json",
       },
       credentials: "same-origin",
     })
       .then((response) => {
         if (!response.ok) throw new Error("Keepalive request failed");
-
-        if (this.hasDurationValue) {
+        return response.json().catch(() => ({}));
+      })
+      .then((data) => {
+        if (data.expires_at) {
+          this.expiresAtValue = data.expires_at;
+        } else if (this.hasDurationValue) {
           this.expiresAtValue = Math.floor(Date.now() / 1000) + this.durationValue;
         }
-
         this.hideWarning();
         this.resetTimers();
       })
-      .catch(() => this.showError());
+      .catch(() => this.showError())
+      .finally(() => {
+        this.requestInFlight = false;
+      });
+  }
+
+  dismissWarning(event) {
+    event.preventDefault();
+    this.hideWarning();
   }
 
   showWarning() {
     if (!this.flashElement || this.warningVisible) return;
 
     const alert = document.createElement("div");
-    alert.className = "alert alert-warning fade show mt-3";
+    alert.className = "alert alert-warning alert-dismissible fade show mt-3";
     alert.setAttribute("role", "alert");
     alert.innerHTML = `
       <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
         <span>Your session will expire in ${this.warningOffsetValue} seconds.</span>
-        <button type="button" class="btn btn-sm btn-primary" data-action="session-timeout#resetSession">
-          Stay signed in
-        </button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-primary" data-action="click->session-timeout#resetSession">
+            Stay signed in
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-action="click->session-timeout#dismissWarning">
+            Dismiss
+          </button>
+        </div>
       </div>
+      <button type="button" class="btn-close" data-action="click->session-timeout#dismissWarning" aria-label="Close"></button>
     `;
 
     this.flashElement.prepend(alert);
@@ -99,6 +117,7 @@ export default class extends Controller {
     alert.textContent = "We couldn't extend your session. Please save your work and sign in again.";
 
     this.flashElement.prepend(alert);
+    this.hideWarning();
   }
 
   clearTimers() {

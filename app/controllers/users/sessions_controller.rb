@@ -4,8 +4,8 @@ module Users
     before_action :authenticate_user!, only: :keepalive
 
     def keepalive
-      # Simply touching the session by responding updates Devise's last_request_at timestamp
-      head :no_content
+      expires_at = Time.current.to_i + Devise.timeout_in.to_i
+      render json: { expires_at: expires_at }
     end
   end
 end

@@ -23,28 +23,29 @@
     <%= render 'shared/global_navigation' %>
     
     <div class="container">
-      <div id="flash-messages">
+      <% timeout_data = {} %>
+      <% if user_signed_in? %>
+        <% timeout_in_seconds = Devise.timeout_in.to_i %>
+        <% session_data = defined?(warden) ? warden.session(:user) : {} %>
+        <% last_request_at = session_data && session_data["last_request_at"] %>
+        <% expires_at = if last_request_at.present?
+                          last_request_at.to_i + timeout_in_seconds
+                        else
+                          Time.current.to_i + timeout_in_seconds
+                        end %>
+        <% timeout_data = {
+             controller: "session-timeout",
+             session_timeout_expires_at_value: expires_at,
+             session_timeout_duration_value: timeout_in_seconds,
+             session_timeout_warning_offset_value: 15,
+             session_timeout_keepalive_url_value: user_session_keepalive_path
+           } %>
+      <% end %>
+      <%= content_tag :div, id: "flash-messages", data: timeout_data do %>
         <%= render 'shared/flashes' %>
-      </div>
+      <% end %>
       
       <%= yield %>
     </div>
-
-    <% if user_signed_in? %>
-      <% timeout_in_seconds = Devise.timeout_in.to_i %>
-      <% session_data = defined?(warden) ? warden.session(:user) : {} %>
-      <% last_request_at = session_data && session_data["last_request_at"] %>
-      <% expires_at = if last_request_at.present?
-                        last_request_at.to_i + timeout_in_seconds
-                      else
-                        Time.current.to_i + timeout_in_seconds
-                      end %>
-      <div data-controller="session-timeout"
-           data-session-timeout-expires-at-value="<%= expires_at %>"
-           data-session-timeout-duration-value="<%= timeout_in_seconds %>"
-           data-session-timeout-warning-offset-value="15"
-           data-session-timeout-keepalive-url-value="<%= user_session_keepalive_path %>"
-           data-session-timeout-flash-container-value="flash-messages"></div>
-    <% end %>
   </body>
 </html>
