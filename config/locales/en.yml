@@ -34,6 +34,5 @@ en:
   session_timeout:
     warning_message: "Your session will expire in %{seconds} seconds."
     stay_signed_in: "Stay signed in"
-    dismiss: "Dismiss"
     error_message: "We couldn't extend your session. Please save your work and sign in again."
     expired_message: "Your session has expired. Please sign in again to continue."

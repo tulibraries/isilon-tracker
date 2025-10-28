@@ -9,7 +9,6 @@ export default class extends Controller {
     keepaliveUrl: String,
     warningMessage: String,
     staySignedInLabel: String,
-    dismissLabel: String,
     errorMessage: String,
     expiredMessage: String,
   };
@@ -83,18 +82,12 @@ export default class extends Controller {
       });
   }
 
-  dismissWarning(event) {
-    event.preventDefault();
-    this.hideWarning();
-  }
-
   showWarning() {
     if (!this.flashElement || this.warningVisible) return;
 
     const messageTemplate = this.valueOrDefault("warningMessage", "Your session will expire in %{seconds} seconds.");
     const messageText = messageTemplate.replace("%{seconds}", this.warningOffsetValue);
     const staySignedInLabel = this.valueOrDefault("staySignedInLabel", "Stay signed in");
-    const dismissLabel = this.valueOrDefault("dismissLabel", "Dismiss");
 
     const alert = document.createElement("div");
     alert.className = "alert alert-warning alert-dismissible fade show mt-3";
@@ -106,12 +99,8 @@ export default class extends Controller {
           <button type="button" class="btn btn-sm btn-primary" data-action="click->session-timeout#resetSession">
             ${staySignedInLabel}
           </button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-action="click->session-timeout#dismissWarning">
-            ${dismissLabel}
-          </button>
         </div>
       </div>
-      <button type="button" class="btn-close" data-action="click->session-timeout#dismissWarning" aria-label="Close"></button>
     `;
 
     this.flashElement.prepend(alert);
@@ -169,7 +158,7 @@ export default class extends Controller {
     alert.setAttribute("role", "alert");
     alert.innerHTML = `
       <span>${message}</span>
-      <button type="button" class="btn-close" data-action="click->session-timeout#dismissWarning" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-action="click->session-timeout#hideAlert" aria-label="Close"></button>
     `;
 
     this.flashElement.prepend(alert);
@@ -178,6 +167,11 @@ export default class extends Controller {
       this.warningElement = alert;
       this.warningVisible = true;
     }
+  }
+
+  hideAlert(event) {
+    event.preventDefault();
+    this.hideWarning();
   }
 
   valueOrDefault(name, fallback = "") {
