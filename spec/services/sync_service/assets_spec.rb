@@ -3,7 +3,7 @@
 require 'rails_helper'
 
 RSpec.describe SyncService::Assets, type: :service do
-  let!(:volume) { FactoryBot.create(:volume, name: "test-volume") }
+  let!(:volume) { FactoryBot.create(:volume, name: "deposit") }
   let!(:default_migration_status) { MigrationStatus.create!(name: "Needs review", active: true, default: true) }
   let!(:migrated_status) { MigrationStatus.create!(name: "Migrated", active: true, default: false) }
   let!(:dont_migrate_status) { MigrationStatus.create!(name: "Don't migrate", active: true, default: false) }
@@ -57,7 +57,7 @@ RSpec.describe SyncService::Assets, type: :service do
 
     context 'No rules apply' do
       it 'returns nil for regular files' do
-        row = { "Path" => "/test-volume/some-other-area/regular-file.pdf" }
+        row = { "Path" => "/deposit/some-other-area/regular-file.pdf" }
         result = service.send(:apply_automation_rules, row)
         expect(result).to be_nil
       end
@@ -72,11 +72,11 @@ RSpec.describe SyncService::Assets, type: :service do
       service.sync
 
       # Rule 1: Migrated directory
-      migrated_asset = IsilonAsset.find_by(isilon_path: "/deposit/migrated-collection - Migrated/photo.jpg")
+      migrated_asset = IsilonAsset.find_by(isilon_path: "/migrated-collection - Migrated/photo.jpg")
       expect(migrated_asset.migration_status).to eq(migrated_status)
 
       # Rule 2: DELETE directory
-      delete_asset = IsilonAsset.find_by(isilon_path: "/deposit/SCRC Accessions/DELETE-temp/document.pdf")
+      delete_asset = IsilonAsset.find_by(isilon_path: "/SCRC Accessions/DELETE-temp/document.pdf")
       expect(delete_asset.migration_status).to eq(dont_migrate_status)
 
       # Rule 3: Duplicate outside main areas - NOW HANDLED BY SEPARATE TASK
