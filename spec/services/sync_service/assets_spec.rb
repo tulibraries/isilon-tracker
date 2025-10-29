@@ -90,6 +90,12 @@ RSpec.describe SyncService::Assets, type: :service do
       # No rules applied
       normal_asset = IsilonAsset.find_by(isilon_path: "/regular/normal-file.pdf")
       expect(normal_asset.migration_status).to eq(default_migration_status)
+
+      # Root-level asset (no parent folders) should import successfully
+      root_asset = IsilonAsset.find_by(isilon_path: "/root-level.txt")
+      expect(root_asset).to be_present
+      expect(root_asset.parent_folder_id).to be_nil
+      expect(root_asset.migration_status).to eq(default_migration_status)
     end
   end
 

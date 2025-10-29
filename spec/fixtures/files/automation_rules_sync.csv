@@ -6,3 +6,4 @@ Path,Size,Type,Hash,CreatedAt,ModifiedAt
 /deposit/digitization/processed/scan001.tiff,10000,image/tiff,hash4,2023-01-01,2023-01-01
 /deposit/digitization/unprocessed/scan001.tiff,10000,image/tiff,hash5,2023-01-01,2023-01-01
 /deposit/regular/normal-file.pdf,1000,application/pdf,hash6,2023-01-01,2023-01-01
+/deposit/root-level.txt,500,application/octet-stream,hash7,2023-01-01,2023-01-01

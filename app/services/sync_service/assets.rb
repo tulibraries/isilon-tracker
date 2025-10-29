@@ -94,7 +94,7 @@ module SyncService
     def ensure_directory_structure(isilon_path)
       all_directories = isilon_path.split("/").compact_blank
       directories = all_directories[0...-1]
-      return false if directories.empty?
+      return true if directories.empty?
 
       volume = Volume.find_by(name: @parent_volume.name)
 
