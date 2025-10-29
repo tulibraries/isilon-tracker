@@ -303,9 +303,6 @@ export default class extends Controller {
 
       this.element.wb = this.tree;
       await new Promise(r => requestAnimationFrame(r))
-      await this.tree.ready
-      requestAnimationFrame(() => this.tree.view.renderHeader())
-
 
       const list = this.tree.listContainerElement
       const vlist = this.tree.view?.virtualList
