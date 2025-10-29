@@ -71,40 +71,38 @@
         <li class="nav-item d-lg-none">
           <hr class="dropdown-divider">
         </li>
-        <% if user_signed_in? %>
-          <li class="nav-item dropdown d-lg-none">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-person-circle"></i>
-              <%= current_user.name || current_user.email %>
-            </a>
-            <ul class="dropdown-menu">
-              <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
-            </ul>
-          </li>
-        <% else %>
-          <li class="nav-item d-lg-none">
-            <%= link_to "Sign In", new_user_session_path, class: "nav-link" %>
-          </li>
-        <% end %>
+        <li class="nav-item dropdown d-lg-none <%= user_signed_in? ? '' : 'd-none' %>" data-session-timeout-signed-in>
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle"></i>
+            <%= current_user&.name || current_user&.email %>
+          </a>
+          <ul class="dropdown-menu">
+            <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
+          </ul>
+        </li>
+        <li class="nav-item d-lg-none <%= user_signed_in? ? 'd-none' : '' %>" data-session-timeout-signed-out>
+          <%= link_to "Sign In", new_user_session_path, class: "nav-link" %>
+        </li>
       </ul>
     </div>
   </div>
   
   <!-- Right side user menu - positioned absolutely on desktop, hidden on mobile -->
   <div class="user-menu-container d-none d-lg-block">
-    <% if user_signed_in? %>
+    <div class="<%= user_signed_in? ? '' : 'd-none' %>" data-session-timeout-signed-in>
       <!-- User dropdown -->
       <div class="dropdown">
         <a class="nav-link dropdown-toggle d-flex align-items-center user-menu-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-person-circle me-1"></i>
-          <%= current_user.name || current_user.email %>
+          <%= current_user&.name || current_user&.email %>
         </a>
         <ul class="dropdown-menu dropdown-menu-end">
           <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
         </ul>
       </div>
-    <% else %>
+    </div>
+    <div class="<%= user_signed_in? ? 'd-none' : '' %>" data-session-timeout-signed-out>
       <%= link_to "Sign In", new_user_session_path, class: "nav-link user-menu-link" %>
-    <% end %>
+    </div>
   </div>
 </nav>

@@ -17,6 +17,8 @@ export default class extends Controller {
     this.flashElement = this.element;
     if (!this.flashElement) return;
     this.requestInFlight = false;
+    this.cacheMenuElements();
+    this.toggleMenus(this.hasExpiresAtValue);
 
     this.resetTimers();
   }
@@ -75,6 +77,7 @@ export default class extends Controller {
         }
         this.hideWarning();
         this.resetTimers();
+        this.toggleMenus(true);
       })
       .catch(() => this.showError())
       .finally(() => {
@@ -144,6 +147,7 @@ export default class extends Controller {
     this.clearTimers();
     this.hideWarning();
     if (!this.flashElement) return;
+    this.toggleMenus(false);
 
     this.showAlert({
       level: "danger",
@@ -171,7 +175,13 @@ export default class extends Controller {
 
   hideAlert(event) {
     event.preventDefault();
-    this.hideWarning();
+    const alert = event.target.closest(".alert");
+    if (!alert) return;
+    if (alert === this.warningElement) {
+      this.warningElement = null;
+      this.warningVisible = false;
+    }
+    alert.remove();
   }
 
   valueOrDefault(name, fallback = "") {
@@ -184,5 +194,24 @@ export default class extends Controller {
 
   capitalize(value) {
     return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+
+  cacheMenuElements() {
+    this.signedInMenus = Array.from(document.querySelectorAll("[data-session-timeout-signed-in]"));
+    this.signedOutMenus = Array.from(document.querySelectorAll("[data-session-timeout-signed-out]"));
+  }
+
+  toggleMenus(isSignedIn) {
+    if (!this.signedInMenus || !this.signedOutMenus) {
+      this.cacheMenuElements();
+    }
+
+    this.signedInMenus?.forEach((element) => this.setVisibility(element, isSignedIn));
+    this.signedOutMenus?.forEach((element) => this.setVisibility(element, !isSignedIn));
+  }
+
+  setVisibility(element, shouldShow) {
+    if (!element) return;
+    element.classList.toggle("d-none", !shouldShow);
   }
 }
