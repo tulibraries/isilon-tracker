@@ -141,6 +141,12 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   background-color: #dbeafe !important;
 }
 
+.wunderbaum .wb-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+}
+
 .isilon-tree .wb-cell select,
 .isilon-tree .wb-cell input[type="text"],
 .isilon-tree .wb-cell input[type="checkbox"] {
@@ -174,32 +180,24 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   display: none;
 }
 
-div.wunderbaum div.wb-node-list {
-  position: relative !important;
-  height: auto !important;
-  min-height: 100%;
-}
-
 .wb-list-container {
-  position: relative !important;
-  height: 600px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  contain: content !important;
+  flex: 1 1 auto;
+  height: 70vh !important;
+  overflow: visible !important;
 }
 
 .isilon-tree {
   border: none !important;
   font-family: system-ui, sans-serif !important;
   margin-top: 40px !important;
-  display: block !important;
-  height: auto !important;
-  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column;
+  height: 600px !important;
+  overflow: auto !important;
   contain: none !important;
 }
 
 .wunderbaum .isilon-tree .wb-row {
-  height: var(--wb-row-outer-height) !important;
   line-height: var(--wb-row-outer-height) !important;
   border-bottom: 1px solid #e0e0e0;
 }

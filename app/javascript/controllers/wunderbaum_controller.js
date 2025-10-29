@@ -302,7 +302,21 @@ export default class extends Controller {
       });
 
       this.element.wb = this.tree;
+      await new Promise(r => requestAnimationFrame(r))
 
+      const list = this.tree.listContainerElement
+      const vlist = this.tree.view?.virtualList
+      if (!list || !vlist) return
+
+      const sync = () => {
+        const top = list.scrollTop
+        const bottom = top + list.clientHeight
+        vlist.renderWindow(top, bottom)
+      }
+
+      list.addEventListener("scroll", sync, { passive: true })
+      sync()
+     
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -313,29 +327,6 @@ export default class extends Controller {
       this._setupFilterModeToggle();
       requestAnimationFrame(() => this._tagHeaderCells());
 
-      await new Promise(r => requestAnimationFrame(r));
-
-      const list = this.tree.listContainerElement;
-      if (list) {
-        this.tree.scrollParent = list;
-        this.tree.virtualMode = true;
-        if (!this.tree._viewport) {
-          this.tree._viewport = { top: 0, bottom: list.clientHeight };
-        }
-
-        const updateViewport = () => {
-          const top = list.scrollTop;
-          const bottom = top + list.clientHeight;
-          this.tree._viewport.top = top;
-          this.tree._viewport.bottom = bottom;
-          this.tree.updateViewport?.();
-        };
-
-        list.addEventListener("scroll", updateViewport, { passive: true });
-        updateViewport();
-      }
-
-      
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
@@ -659,12 +650,60 @@ _handleInputChange(e) {
     this.loadedFolders.add(pid);
   }
 
+  async _batchAddChildren(node, items, chunkSize = 25, delayMs = 0) {
+    if (!items || !items.length) return;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const slice = items.slice(i, i + chunkSize);
+      try {
+        node.addChildren?.(slice);
+      } catch (err) {
+        for (const it of slice) {
+          try { node.addChildren?.([it]); } catch (_) {}
+        }
+      }
+      await new Promise(r => setTimeout(r, delayMs));
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
+  _enqueueBackgroundAdd(k, node, items, chunkSize = 25, delayMs = 30) {
+    this._bgAddQueue = this._bgAddQueue || [];
+    this._bgAddQueue.push({ k, node, items, chunkSize, delayMs });
+    this._processBgAdds();
+  }
+
+  async _processBgAdds() {
+    if (this._bgAddRunning) return;
+    this._bgAddRunning = true;
+    this._bgAddQueue = this._bgAddQueue || [];
+    while (this._bgAddQueue.length) {
+      const { k, node, items, chunkSize, delayMs } = this._bgAddQueue.shift();
+      try {
+        await this._batchAddChildren(node, items, chunkSize, delayMs);
+      } catch (err) {
+        try {
+          await this._batchAddChildren(node, items, Math.max(10, Math.floor(chunkSize / 2)), delayMs * 2);
+        } catch (_) {}
+      } finally {
+        this.assetsLoadedFor.add(k);
+        this.loadedAssets.add(k);
+      }
+      // small gap between folder background jobs
+      await new Promise(r => setTimeout(r, 50));
+    }
+    this._bgAddRunning = false;
+  }
+
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
     const k = String(folderKey);
     if (this.assetsLoadedFor.has(k)) return;
 
     const node = this._findNodeByKey(k);
-    if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(k); return; }
+    if (!node || node.data?.folder !== true) {
+      this.assetsLoadedFor.add(k);
+      return;
+    }
+
     let assets = this.assetCache.get(k);
     if (!assets) {
       const ctrl = this._beginFetchGroup();
@@ -679,16 +718,48 @@ _handleInputChange(e) {
       if (!Array.isArray(assets)) assets = [];
       this.assetCache.set(k, assets);
     }
+
     if (mySeq !== this._filterSeq) return;
 
-    if (assets.length) {
-      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
-      const toAdd = assets.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
-      if (toAdd.length) node.addChildren?.(toAdd);
+    if (!assets.length) {
+      this.assetsLoadedFor.add(k);
+      this.loadedAssets.add(k);
+      return;
     }
 
-    this.assetsLoadedFor.add(k);
-    this.loadedAssets.add(k);
+    const children = assets.map(a => ({
+      key: a.key ?? `a-${a.id}`,
+      title: a.title ?? a.name ?? a.filename ?? `Asset ${a.id}`,
+      folder: false,
+      ...a
+    }));
+
+    const INITIAL_RENDER_LIMIT = 50;
+    const CHUNK_SIZE = 25;
+    const DELAY_MS = 20;
+
+    const initial = children.slice(0, INITIAL_RENDER_LIMIT);
+    const remaining = children.slice(INITIAL_RENDER_LIMIT);
+
+    if (initial.length) {
+      await new Promise(r => requestAnimationFrame(r));
+      try {
+        if (initial.length <= CHUNK_SIZE) {
+          node.addChildren?.(initial);
+        } else {
+          await this._batchAddChildren(node, initial, CHUNK_SIZE, DELAY_MS);
+        }
+      } catch (err) {
+        await this._batchAddChildren(node, initial, Math.min(10, CHUNK_SIZE), DELAY_MS * 2);
+      }
+    }
+
+    if (remaining.length) {
+      this._enqueueBackgroundAdd(k, node, remaining, CHUNK_SIZE, DELAY_MS);
+    } else {
+      this.assetsLoadedFor.add(k);
+      this.loadedAssets.add(k);
+    }
   }
 
   async _expandPathCancellable(pathIds, mySeq) {
