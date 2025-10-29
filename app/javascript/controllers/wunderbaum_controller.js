@@ -303,20 +303,50 @@ export default class extends Controller {
 
       this.element.wb = this.tree;
       await new Promise(r => requestAnimationFrame(r))
+      await this.tree.ready
+      requestAnimationFrame(() => this.tree.view.renderHeader())
+
 
       const list = this.tree.listContainerElement
       const vlist = this.tree.view?.virtualList
       if (!list || !vlist) return
 
+      let lastTop = 0
       const sync = () => {
         const top = list.scrollTop
         const bottom = top + list.clientHeight
+        if (!vlist) return
+
+        const goingUp = top < lastTop
+        if (goingUp) {
+          vlist._windowTop = -1
+          vlist._windowBottom = -1
+        }
+
         vlist.renderWindow(top, bottom)
+        lastTop = top
       }
 
       list.addEventListener("scroll", sync, { passive: true })
       sync()
-     
+
+      setTimeout(() => {
+        const t = this.tree
+        const vlist = t.view?.virtualList
+        const list = t.listContainerElement
+        if (!vlist || !list) return
+
+        const rh = list.querySelector(".wb-row")?.offsetHeight || 22
+        const total = t.root?.countChildren(true) || 0
+        vlist.rowHeight = rh
+        vlist.totalHeight = total * rh
+        list.style.minHeight = `${vlist.totalHeight}px`
+
+        const top = list.scrollTop
+        const bottom = top + list.clientHeight
+        vlist.renderWindow(top, bottom)
+      }, 100)
+
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -650,7 +680,7 @@ _handleInputChange(e) {
     this.loadedFolders.add(pid);
   }
 
-  async _batchAddChildren(node, items, chunkSize = 25, delayMs = 0) {
+  async _batchAddChildren(node, items, chunkSize = 25, delayMs = 30) {
     if (!items || !items.length) return;
     for (let i = 0; i < items.length; i += chunkSize) {
       const slice = items.slice(i, i + chunkSize);
