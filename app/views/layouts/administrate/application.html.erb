@@ -34,7 +34,7 @@
           <% timeout_data.merge!(
                session_timeout_expires_at_value: expires_at,
                session_timeout_duration_value: timeout_in_seconds,
-               session_timeout_warning_offset_value: 15,
+               session_timeout_warning_offset_value: Rails.application.config.session_management.warning_lead_time.to_i,
                session_timeout_keepalive_url_value: user_session_keepalive_path,
                session_timeout_warning_message_value: t("session_timeout.warning_message"),
                session_timeout_stay_signed_in_label_value: t("session_timeout.stay_signed_in"),
