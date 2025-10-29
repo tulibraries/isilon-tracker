@@ -32,6 +32,8 @@ export default class extends Controller {
       });
       const source = await res.json();
 
+      await new Promise(r => requestAnimationFrame(r));
+
       this.tree = new Wunderbaum({
         element: this.element,
         id: "tree",
@@ -299,24 +301,8 @@ export default class extends Controller {
         source
       });
 
-      await new Promise(r => requestAnimationFrame(r))
+      this.element.wb = this.tree;
 
-      const list = this.tree.listContainerElement
-      if (list) {
-        this.tree.scrollParent = list
-
-        Object.defineProperty(this.tree, "virtualMode", { value: true, writable: true })
-        if (!this.tree._viewport) {
-          this.tree._viewport = { top: 0, bottom: list.clientHeight }
-        }
-
-        this.tree.updateViewport?.()
-
-        list.addEventListener("scroll", () => {
-          this.tree.updateViewport?.()
-        }, { passive: true })
-      }
-    
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -327,20 +313,37 @@ export default class extends Controller {
       this._setupFilterModeToggle();
       requestAnimationFrame(() => this._tagHeaderCells());
 
+      await new Promise(r => requestAnimationFrame(r));
+
+      const list = this.tree.listContainerElement;
+      if (list) {
+        this.tree.scrollParent = list;
+        this.tree.virtualMode = true;
+        if (!this.tree._viewport) {
+          this.tree._viewport = { top: 0, bottom: list.clientHeight };
+        }
+
+        const updateViewport = () => {
+          const top = list.scrollTop;
+          const bottom = top + list.clientHeight;
+          this.tree._viewport.top = top;
+          this.tree._viewport.bottom = bottom;
+          this.tree.updateViewport?.();
+        };
+
+        list.addEventListener("scroll", updateViewport, { passive: true });
+        updateViewport();
+      }
+
+      
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
-
-    this._onTreeScroll = this._onTreeScroll.bind(this);
-    this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
   }
 
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
-    if (this._onTreeScroll) {
-      this.element.removeEventListener("scroll", this._onTreeScroll);
-    }
   }
 
   _setupInlineFilter() {
@@ -819,16 +822,6 @@ _handleInputChange(e) {
     }
   }
 
-  _onTreeScroll() {
-    if (!this._pendingChains.length) return;
-    const el = this.element;
-    if (!el) return;
-
-    const nearTop = el.scrollTop <= 200;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
-    if (nearTop || nearBottom) this._schedulePendingChainExpansion();
-  }
-
   async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
     const chains = [];
 
@@ -996,7 +989,6 @@ _handleInputChange(e) {
       const colDef = this.tree.columns.find(c => c.id === colId);
       if (colDef) colDef.filterActive = isActive;
       this._setFilterIconState(colId, isActive);
-
       this._runDeepFilter(this.currentQuery);
     });
 
@@ -1025,9 +1017,7 @@ _handleInputChange(e) {
       popup.style.left = `${window.scrollX + r.left}px`;
       popup.style.minWidth = `${r.width}px`;
       let top = window.scrollY + r.top - popup.offsetHeight - 4;
-      if (top < window.scrollY) {
-        top = window.scrollY + r.bottom + 4;
-      }
+      if (top < window.scrollY) top = window.scrollY + r.bottom + 4;
       popup.style.top = `${top}px`;
       popup.style.zIndex = "1000";
       rafId = requestAnimationFrame(updatePos);
@@ -1038,7 +1028,9 @@ _handleInputChange(e) {
       if (rafId != null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(updatePos);
     };
-    window.addEventListener("scroll", reposition, true);
+
+    const scrollTarget = this.tree?.element?.closest(".wb-list-container") || window;
+    scrollTarget.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
 
     const cleanup = () => {
@@ -1046,16 +1038,14 @@ _handleInputChange(e) {
         cancelAnimationFrame(rafId);
         rafId = null;
       }
-      window.removeEventListener("scroll", reposition, true);
+      scrollTarget.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
       document.removeEventListener("mousedown", outsideClickHandler);
       popup.remove();
     };
 
     const outsideClickHandler = (e) => {
-      if (!popup.contains(e.target) && !anchorEl.contains(e.target)) {
-        cleanup();
-      }
+      if (!popup.contains(e.target) && !anchorEl.contains(e.target)) cleanup();
     };
 
     document.addEventListener("mousedown", outsideClickHandler);

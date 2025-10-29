@@ -33,18 +33,6 @@
   --wb-border-color: #dee2e6;
 }
 
-div.wunderbaum {
-  height: 500px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  contain: none !important;
-  position: static !important;
-}
-
-div.wunderbaum div.wb-node-list {
-  font-size: 16px !important;    
-}
-
 .volume-name {
   font-size: 24px;
 }
@@ -186,35 +174,33 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   display: none;
 }
 
-.wb-list-container {
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+div.wunderbaum div.wb-node-list {
+  position: relative !important;
+  height: auto !important;
+  min-height: 100%;
 }
 
-.tree-wrapper {
+.wb-list-container {
+  position: relative !important;
   height: 600px !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  position: static !important;
+  contain: content !important;
 }
 
 .isilon-tree {
   border: none !important;
-  box-shadow: none !important;
-  contain: none !important;
-  display: flex !important;
-  flex-direction: column !important;
   font-family: system-ui, sans-serif !important;
   margin-top: 40px !important;
-  min-height: 100% !important;
+  display: block !important;
   height: auto !important;
-  overflow: visible !important;
+  overflow: hidden !important;
+  contain: none !important;
 }
 
 .wunderbaum .isilon-tree .wb-row {
-  min-height: 40px !important;
+  height: var(--wb-row-outer-height) !important;
+  line-height: var(--wb-row-outer-height) !important;
   border-bottom: 1px solid #e0e0e0;
 }
 
