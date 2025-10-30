@@ -26,6 +26,6 @@ module TulIsilonTracker
 
     config.session_management = ActiveSupport::OrderedOptions.new
     config.session_management.timeout = 8.hours
-    config.session_management.warning_lead_time = 30.minutes
+    config.session_management.warning_lead_time = 5.minutes
   end
 end
