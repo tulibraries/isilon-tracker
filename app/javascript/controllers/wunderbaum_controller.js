@@ -219,7 +219,16 @@ export default class extends Controller {
                 }
                 break;
 
-              case "notes":
+              case "notes": {
+                const input = document.createElement("input");
+                input.type = "text";
+                input.name = colId;
+                input.value = value ?? "";
+                colInfo.elem.innerHTML = "";
+                colInfo.elem.appendChild(input);
+                break;
+              }
+
               case "preservica_reference_id":
                 // These fields only apply to assets, not folders
                 if (!isFolder) {

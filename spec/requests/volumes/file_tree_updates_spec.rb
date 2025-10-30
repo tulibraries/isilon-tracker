@@ -23,6 +23,18 @@ RSpec.describe "FileTreeUpdates", type: :request do
         expect(response).to have_http_status(:ok)
         expect(asset.reload.notes).to eq("reviewed")
       end
+
+      it "updates and persists a folder" do
+        patch file_tree_updates_volume_path(volume), params: {
+          node_id: folder.id,
+          node_type: "folder",
+          field: "notes",
+          value: "Folder note"
+        }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(folder.reload.notes).to eq("Folder note")
+      end
     end
 
     context "with an invalid node_id" do
