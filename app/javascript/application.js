@@ -1,5 +1,6 @@
 import "@hotwired/turbo-rails";
-import "./controllers";
+import { application } from "./controllers";
+window.Stimulus = application;
 import * as bootstrap from "bootstrap";
 window.bootstrap = bootstrap; // Make Bootstrap globally available
 

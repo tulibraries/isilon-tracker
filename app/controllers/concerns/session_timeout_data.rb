@@ -17,9 +17,9 @@ module SessionTimeoutData
 
     expires_at = if last_request_at.present?
                    last_request_at.to_i + timeout_in_seconds
-                 else
+    else
                    Time.current.to_i + timeout_in_seconds
-                 end
+    end
 
     data.merge(
       session_timeout_expires_at_value: expires_at,
