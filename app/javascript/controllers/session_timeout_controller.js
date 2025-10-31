@@ -88,8 +88,9 @@ export default class extends Controller {
   showWarning() {
     if (!this.flashElement || this.warningVisible) return;
 
-    const messageTemplate = this.valueOrDefault("warningMessage", "Your session will expire in %{seconds} seconds.");
-    const messageText = messageTemplate.replace("%{seconds}", this.warningOffsetValue);
+    const remainingMinutes = this.minutesFromSeconds(this.warningOffsetValue);
+    const messageTemplate = this.valueOrDefault("warningMessage", "Your session will expire in %{minutes} minutes.");
+    const messageText = messageTemplate.replace("%{minutes}", remainingMinutes);
     const staySignedInLabel = this.valueOrDefault("staySignedInLabel", "Stay signed in");
 
     const alert = document.createElement("div");
@@ -182,6 +183,11 @@ export default class extends Controller {
       this.warningVisible = false;
     }
     alert.remove();
+  }
+
+  minutesFromSeconds(seconds) {
+    const minutes = Math.ceil(seconds / 60);
+    return Math.max(minutes, 1);
   }
 
   valueOrDefault(name, fallback = "") {

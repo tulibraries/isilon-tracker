@@ -36,7 +36,7 @@ RSpec.describe "Session Timeout", type: :system, js: true do
 
     expect(page).to have_css(
       ".alert-warning",
-      text: I18n.t("session_timeout.warning_message", seconds: warning_offset_seconds)
+      text: expected_warning_message(warning_offset_seconds)
     )
   end
 
@@ -146,6 +146,14 @@ RSpec.describe "Session Timeout", type: :system, js: true do
     page.all("[data-session-timeout-signed-out]").each do |element|
       expect(element[:class].to_s).not_to include("d-none")
     end
+  end
+
+  def expected_warning_message(seconds)
+    I18n.t("session_timeout.warning_message", minutes: minutes_from_seconds(seconds))
+  end
+
+  def minutes_from_seconds(seconds)
+    [ (seconds / 60.0).ceil, 1 ].max
   end
 
   def wait_for_session_timeout_controller
