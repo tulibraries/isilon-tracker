@@ -135,18 +135,12 @@ export default class extends Controller {
         expand: (e) => {
           const node = e.node
           if (!node?.data?.folder) return
-
-          const key = String(node.key ?? node.data?.key ?? node.data?.id)
-          const seq = this._filterSeq
-
-          requestIdleCallback(async () => {
-            try {
-              await this._ensureAssetsForFolderCancellable(key, seq)
-              this._reapplyFilterIfAny()
-            } catch (err) {
-              console.error("Lazy expand failed", err)
-            }
-          }, { timeout: 200 })
+          requestAnimationFrame(() => {
+            this._ensureAssetsForFolderCancellable(
+              String(node.key ?? node.data?.key ?? node.data?.id),
+              this._filterSeq
+            ).then(() => this._reapplyFilterIfAny())
+          })
         },
 
         postProcess: (e) => { e.result = e.response; },
@@ -284,23 +278,24 @@ export default class extends Controller {
       });
 
       requestAnimationFrame(() => {
-          const t = this.tree
-          const listEl = t.listContainerElement
+        const t = this.tree
+        const listEl = t.listContainerElement
+        t.scrollParent = listEl
 
-          t.scrollParent = listEl
+        if (listEl) {
+          const root = t.root
+          const parentId = root?.key || "root"
+          let nextPage = 2
 
-          if (listEl) {
-            const parentId = String(e.node.key)
-            let nextPage = 2
-
-            listEl.addEventListener("scroll", async () => {
-              if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100) {
-                if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
-              }
-              if (t._updateViewportThrottled) t._updateViewportThrottled()
-            })
-          }
-        })
+          listEl.addEventListener("scroll", async () => {
+            if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100) {
+              if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
+            }
+            if (t.updateViewport) t.updateViewport()
+            else if (t._updateViewportThrottled) t._updateViewportThrottled()
+          })
+        }
+      })
 
       const listEl = this.tree.listContainerElement
         if (listEl) {
@@ -315,7 +310,10 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-      requestAnimationFrame(() => this._tagHeaderCells());
+      requestAnimationFrame(() => {
+        this._tagHeaderCells()
+        this._deferSelectHydration()
+      })
 
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
@@ -550,21 +548,19 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
-  _updateFilterModeButton() {
+ _updateFilterModeButton() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
-    const hasActiveFilter = Boolean(this.currentFilterPredicate);
-    btn.disabled = !hasActiveFilter;
-    btn.classList.toggle("active", hasActiveFilter && this.filterMode === "hide");
-    btn.setAttribute("title", this.filterMode === "hide" ? "Hide unmatched nodes" : "Dim unmatched nodes");
+
     const icon = btn.querySelector("i");
+    const isHideMode = this.filterMode === "hide";
+
+    btn.classList.toggle("active", isHideMode);
+    btn.setAttribute("title", isHideMode ? "Hide unmatched nodes" : "Dim unmatched nodes");
+
     if (icon) {
       icon.classList.remove("bi-filter-square", "bi-filter-square-fill");
-      if (this.filterMode === "hide") {
-        icon.classList.add("bi-filter-square-fill");
-      } else {
-        icon.classList.add("bi-filter-square");
-      }
+      icon.classList.add(isHideMode ? "bi-filter-square-fill" : "bi-filter-square");
     }
   }
 
@@ -680,45 +676,72 @@ _handleInputChange(e) {
   }
 
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
-    const k = String(folderKey);
-    if (this.assetsLoadedFor.has(k)) return;
+    const k = String(folderKey)
+    if (this.assetsLoadedFor.has(k)) return
 
-    const node = this._findNodeByKey(k);
-    if (!node || node.data?.folder !== true) { this.assetsLoadedFor.add(k); return; }
-    let assets = this.assetCache.get(k);
+    const node = this._findNodeByKey(k)
+    if (!node || node.data?.folder !== true) {
+      this.assetsLoadedFor.add(k)
+      return
+    }
+
+    let assets = this.assetCache.get(k)
     if (!assets) {
-      const ctrl = this._beginFetchGroup();
+      const ctrl = this._beginFetchGroup()
       try {
         assets = await this._fetchJson(
           `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${encodeURIComponent(k)}`,
           ctrl
-        ).catch(() => []);
+        ).catch(() => [])
       } finally {
-        this.inflightControllers.delete(ctrl);
+        this.inflightControllers.delete(ctrl)
       }
-      if (!Array.isArray(assets)) assets = [];
-      this.assetCache.set(k, assets);
+      if (!Array.isArray(assets)) assets = []
+      this.assetCache.set(k, assets)
     }
-    if (mySeq !== this._filterSeq) return;
 
-    if (assets.length) {
-      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
-      const toAdd = assets.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
+    if (mySeq !== this._filterSeq) return
+    if (!assets.length) {
+      this.assetsLoadedFor.add(k)
+      this.loadedAssets.add(k)
+      return
+    }
 
-      if (toAdd.length) {
-        const BATCH_SIZE = 25;
-        for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
-          const batch = toAdd.slice(i, i + BATCH_SIZE);
-          node.addChildren(batch);
-          await new Promise(r => requestAnimationFrame(r));
+    const children = assets.map(a => ({
+      key: a.key ?? `a-${a.id}`,
+      title: a.title ?? a.name ?? a.filename ?? `Asset ${a.id}`,
+      folder: false,
+      ...a
+    }))
+
+    const INITIAL_RENDER_LIMIT = 20
+    const CHUNK_SIZE = 10
+
+    const initial = children.slice(0, INITIAL_RENDER_LIMIT)
+    const remaining = children.slice(INITIAL_RENDER_LIMIT)
+
+    if (initial.length) node.addChildren(initial)
+
+    if (remaining.length) {
+      let i = 0
+      const schedule = () => {
+        if (i >= remaining.length) {
+          this.assetsLoadedFor.add(k)
+          this.loadedAssets.add(k)
+          this.tree?.updateViewport?.()
+          return
         }
-        await new Promise(r => setTimeout(r, 0));
-        this.tree.updateViewport?.();
+        const slice = remaining.slice(i, i + CHUNK_SIZE)
+        i += CHUNK_SIZE
+        node.addChildren(slice)
+        this.tree?.updateViewport?.()
+        requestIdleCallback(schedule, { timeout: 200 })
       }
+      requestIdleCallback(schedule, { timeout: 200 })
+    } else {
+      this.assetsLoadedFor.add(k)
+      this.loadedAssets.add(k)
     }
-
-    this.assetsLoadedFor.add(k);
-    this.loadedAssets.add(k);
   }
 
   async _expandPathCancellable(pathIds, mySeq) {
@@ -815,6 +838,15 @@ _handleInputChange(e) {
     }
   }
 
+  _deferSelectHydration() {
+    if (typeof requestIdleCallback !== "function") return
+    requestIdleCallback(() => {
+      this.tree?.visit(node => {
+        if (!node.data.folder) node.renderColumns?.()
+      })
+    }, { timeout: 300 })
+  }
+
   async _expandPendingChains(seq, limit) {
     if (this._expandingChains) return;
     this._expandingChains = true;
@@ -896,6 +928,26 @@ _handleInputChange(e) {
     }
   }
 
+  _enqueueLazyAssetBatches(node, assets) {
+    const queue = [...assets]
+    const BATCH_SIZE = 50
+
+    const processNext = () => {
+      const batch = queue.splice(0, BATCH_SIZE)
+      if (batch.length) node.addChildren(batch)
+      if (queue.length) {
+        requestIdleCallback(processNext, { timeout: 200 })
+      } else {
+        requestAnimationFrame(() => {
+          const t = node.tree
+          if (t.updateViewport) t.updateViewport()
+        })
+      }
+    }
+
+    requestIdleCallback(processNext, { timeout: 200 })
+  }
+
   _autoExpandSomeMatchingFolders(cap = 20) {
     if (!this.currentFilterPredicate || !this.tree) return;
     let expanded = 0;
@@ -921,25 +973,6 @@ _handleInputChange(e) {
     }
     this.expandedByFilter.clear();
   }
-
-  _buildSelectList(options, currentValue, selectName) {
-  const select = document.createElement("select");
-  select.name = selectName;
-
-  const normalized = String(currentValue ?? "");
-
-  options.forEach(opt => {
-    const option = document.createElement("option");
-    option.value = String(opt.value);
-    option.textContent = opt.label;
-    if (String(opt.value) === normalized) {
-      option.selected = true;
-    }
-    select.appendChild(option);
-  });
-
-  return select;
-}
   
   showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
@@ -1122,6 +1155,49 @@ _handleInputChange(e) {
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
     return res.json()
   }
+
+async _batchAddChildren(node, items, chunkSize = 10, delayMs = 10) {
+  if (!items?.length) return
+  let i = 0
+  while (i < items.length) {
+    const slice = items.slice(i, i + chunkSize)
+    try {
+      node.addChildren?.(slice)
+    } catch {
+      for (const it of slice) {
+        try { node.addChildren?.([it]) } catch {}
+      }
+    }
+    i += chunkSize
+    await new Promise(r => requestAnimationFrame(r))
+  }
+}
+
+_enqueueBackgroundAdd(k, node, items, chunkSize = 10) {
+  this._bgAddQueue = this._bgAddQueue || []
+  this._bgAddQueue.push({ k, node, items, chunkSize })
+  this._processBgAdds()
+}
+
+async _processBgAdds() {
+  if (this._bgAddRunning) return
+  this._bgAddRunning = true
+  this._bgAddQueue = this._bgAddQueue || []
+  while (this._bgAddQueue.length) {
+    const { k, node, items, chunkSize } = this._bgAddQueue.shift()
+    try {
+      await this._batchAddChildren(node, items, chunkSize)
+    } finally {
+      this.assetsLoadedFor.add(k)
+      this.loadedAssets.add(k)
+    }
+    await new Promise(r => setTimeout(r, 30))
+  }
+  this._bgAddRunning = false
+  requestAnimationFrame(() => {
+    this.tree?.updateViewport?.()
+  })
+}
 
 async _loadNextAssetPage(parentId, nextPage) {
   const base = `/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentId}`
