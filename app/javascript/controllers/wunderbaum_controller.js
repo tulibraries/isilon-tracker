@@ -291,16 +291,58 @@ export default class extends Controller {
             if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100) {
               if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
             }
-            if (t.updateViewport) t.updateViewport()
+            if (t.updateViewport) t.updateViewport?.(true)
             else if (t._updateViewportThrottled) t._updateViewportThrottled()
           })
         }
       })
 
-      const listEl = this.tree.listContainerElement
-        if (listEl) {
-          listEl.addEventListener("scroll", () => this.tree.updateViewport?.(), { passive: true })
+      let viewportFrozen = false
+
+      const freezeViewport = () => {
+        if (viewportFrozen) return
+        viewportFrozen = true
+
+        this._origUpdateViewport = this.tree.updateViewport
+        this._origThrottled = this.tree._updateViewportThrottled
+
+        const noop = () => {}
+        const wrappedThrottled = Object.assign(noop, {
+          pending: () => false,
+          cancel: () => {},
+          flush: () => {}
+        })
+
+        this.tree.updateViewport = (force) => {
+          if (force === true) this._origUpdateViewport?.()
         }
+
+        this.tree._updateViewportThrottled = (force) => {
+          if (force === true) this._origThrottled?.()
+          return wrappedThrottled
+        }
+      }
+
+      const unfreezeViewport = () => {
+        if (!viewportFrozen) return
+        viewportFrozen = false
+
+        if (this._origUpdateViewport) this.tree.updateViewport = this._origUpdateViewport
+        if (this._origThrottled) this.tree._updateViewportThrottled = this._origThrottled
+
+        this._origUpdateViewport = null
+        this._origThrottled = null
+
+        requestAnimationFrame(() => this.tree.updateViewport?.(true))
+      }
+
+      this.element.addEventListener("focusin", e => {
+        if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") freezeViewport()
+      })
+
+      this.element.addEventListener("focusout", e => {
+        if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") unfreezeViewport()
+      })
 
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
@@ -313,6 +355,7 @@ export default class extends Controller {
       requestAnimationFrame(() => {
         this._tagHeaderCells()
         this._deferSelectHydration()
+        this._setupVirtualWindow()
       })
 
     } catch (err) {
@@ -482,9 +525,9 @@ export default class extends Controller {
     requestAnimationFrame(() => {
       const tree = this.tree;
       if (tree && typeof tree.updateViewport === "function") {
-        tree.updateViewport();
-      } else if (tree && tree._updateViewportThrottled) {
-        tree._updateViewportThrottled();
+        tree.updateViewport?.(true);
+      } else if (tree && tree._updateViewportThrottled?.(true)) {
+        tree._updateViewportThrottled?.(true);
       }
     });
 
@@ -728,13 +771,13 @@ _handleInputChange(e) {
         if (i >= remaining.length) {
           this.assetsLoadedFor.add(k)
           this.loadedAssets.add(k)
-          this.tree?.updateViewport?.()
+          this.tree?.updateViewport?.(true)
           return
         }
         const slice = remaining.slice(i, i + CHUNK_SIZE)
         i += CHUNK_SIZE
         node.addChildren(slice)
-        this.tree?.updateViewport?.()
+        this.tree?.updateViewport?.(true)
         requestIdleCallback(schedule, { timeout: 200 })
       }
       requestIdleCallback(schedule, { timeout: 200 })
@@ -940,7 +983,7 @@ _handleInputChange(e) {
       } else {
         requestAnimationFrame(() => {
           const t = node.tree
-          if (t.updateViewport) t.updateViewport()
+          if (t.updateViewport) t.updateViewport?.(true)
         })
       }
     }
@@ -1195,7 +1238,7 @@ async _processBgAdds() {
   }
   this._bgAddRunning = false
   requestAnimationFrame(() => {
-    this.tree?.updateViewport?.()
+    this.tree?.updateViewport?.(true)
   })
 }
 
@@ -1505,8 +1548,8 @@ async _loadNextAssetPage(parentId, nextPage) {
 
       requestAnimationFrame(() => {
         const t = node.tree;
-        if (t?.updateViewport) t.updateViewport();
-        else if (t?._updateViewportThrottled) t._updateViewportThrottled();
+        if (t?.updateViewport) t.updateViewport?.(true);
+        else if (t?._updateViewportThrottled) t._updateViewportThrottled?.(true);
       });
 
       return children;
@@ -1516,6 +1559,60 @@ async _loadNextAssetPage(parentId, nextPage) {
       node.data.lazy = false;
       return [];
     }
+  }
+
+  _setupVirtualWindow() {
+    const list = this.tree.listContainerElement
+    if (!list) return
+
+    const rowH = list.querySelector(".wb-row")?.offsetHeight || 24
+    const buffer = 40
+    let scheduled = false
+    let virtualActive = true
+
+    const renderWindow = () => {
+      scheduled = false
+      if (!virtualActive) return
+
+      const top = list.scrollTop
+      const bottom = top + list.clientHeight
+      const startIdx = Math.max(0, Math.floor(top / rowH) - buffer)
+      const endIdx = Math.ceil(bottom / rowH) + buffer
+      let idx = 0
+
+      const iterator = this.tree.visit((node) => {
+        if (!node.parent?.expanded || node.data.folder) return true
+        const el = node.tr || node.li
+        if (!el) return
+        const visible = idx >= startIdx && idx <= endIdx
+        el.hidden = !visible
+        idx++
+      })
+
+      // yield control after big trees
+      if (idx > 500) requestIdleCallback(() => iterator, { timeout: 200 })
+    }
+
+    const schedule = () => {
+      if (!scheduled) {
+        scheduled = true
+        requestAnimationFrame(renderWindow)
+      }
+    }
+
+    list.addEventListener("scroll", schedule, { passive: true })
+
+    document.addEventListener("focusin", e => {
+      if (e.target?.tagName === "SELECT") virtualActive = false
+    })
+    document.addEventListener("focusout", e => {
+      if (e.target?.tagName === "SELECT") {
+        virtualActive = true
+        schedule()
+      }
+    })
+
+    renderWindow()
   }
 
 }
