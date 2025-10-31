@@ -7,9 +7,23 @@ class IsilonAsset < ApplicationRecord
 
   # Self-referencing association for duplicate tracking
   belongs_to :duplicate_of, class_name: "IsilonAsset", foreign_key: "duplicate_of_id", optional: true
-  has_many :duplicates, class_name: "IsilonAsset", foreign_key: "duplicate_of_id", dependent: :nullify
+  has_many :linked_duplicates,
+    class_name: "IsilonAsset",
+    foreign_key: "duplicate_of_id",
+    inverse_of: :duplicate_of,
+    dependent: :nullify
 
   before_validation :set_default_migration_status, on: :create
+
+  # Returns other assets that share the same checksum as this record, ordered by name.
+  def duplicates
+    return IsilonAsset.none if file_checksum.blank?
+
+    IsilonAsset
+      .where(file_checksum:)
+      .where.not(id:)
+      .order(:isilon_name)
+  end
 
   private
 

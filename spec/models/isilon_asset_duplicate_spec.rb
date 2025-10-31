@@ -3,10 +3,11 @@
 require 'rails_helper'
 
 RSpec.describe IsilonAsset, type: :model do
-  describe 'duplicate associations' do
-    let!(:original_asset) { FactoryBot.create(:isilon_asset, isilon_name: 'original_file.jpg') }
-    let!(:duplicate_asset) { FactoryBot.create(:isilon_asset, isilon_name: 'duplicate_file.jpg', duplicate_of: original_asset) }
-    let!(:another_duplicate) { FactoryBot.create(:isilon_asset, isilon_name: 'another_duplicate.jpg', duplicate_of: original_asset) }
+  describe 'duplicate handling' do
+    let!(:original_asset) { FactoryBot.create(:isilon_asset, isilon_name: 'original_file.jpg', file_checksum: 'abc123') }
+    let!(:duplicate_asset) { FactoryBot.create(:isilon_asset, isilon_name: 'duplicate_file.jpg', duplicate_of: original_asset, file_checksum: 'abc123') }
+    let!(:second_linked_duplicate) { FactoryBot.create(:isilon_asset, isilon_name: 'duplicate_file_two.jpg', duplicate_of: original_asset, file_checksum: 'abc123') }
+    let!(:checksum_only_asset) { FactoryBot.create(:isilon_asset, isilon_name: 'checksum_match.jpg', file_checksum: 'abc123') }
 
     describe 'belongs_to :duplicate_of' do
       it 'allows an asset to reference another asset as its duplicate source' do
@@ -18,15 +19,21 @@ RSpec.describe IsilonAsset, type: :model do
       end
     end
 
-    describe 'has_many :duplicates' do
-      it 'allows an asset to have multiple duplicates' do
-        expect(original_asset.duplicates).to include(duplicate_asset, another_duplicate)
-        expect(original_asset.duplicates.count).to eq(2)
+    describe '#duplicates' do
+      it 'returns assets that share the same checksum, excluding the asset itself' do
+        expect(original_asset.duplicates).to contain_exactly(duplicate_asset, second_linked_duplicate, checksum_only_asset)
       end
 
-      it 'returns empty collection when asset has no duplicates' do
-        standalone_asset = FactoryBot.create(:isilon_asset, isilon_name: 'standalone_file.jpg')
+      it 'returns an empty relation when checksum is blank' do
+        standalone_asset = FactoryBot.create(:isilon_asset, isilon_name: 'standalone_file.jpg', file_checksum: nil)
         expect(standalone_asset.duplicates).to be_empty
+      end
+    end
+
+    describe 'has_many :linked_duplicates' do
+      it 'tracks explicitly linked duplicates' do
+        expect(original_asset.linked_duplicates).to include(duplicate_asset, second_linked_duplicate)
+        expect(original_asset.linked_duplicates.count).to eq(2)
       end
     end
 

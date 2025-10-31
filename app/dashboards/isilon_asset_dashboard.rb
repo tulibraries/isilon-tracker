@@ -19,8 +19,8 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
       class_name: "IsilonAsset",
       foreign_key: "duplicate_of_id"
     ),
-    duplicates: Field::HasMany.with_options(
-      class_name: "IsilonAsset"
+    duplicates: ChecksumDuplicatesField.with_options(
+      limit: nil
     ),
     file_checksum: Field::String,
     file_size: Field::String,
@@ -68,7 +68,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     aspace_linking_status
     contentdm_collection
     preservica_reference_id
-    duplicate_of
     duplicates
     notes
     assigned_to
