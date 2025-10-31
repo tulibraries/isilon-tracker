@@ -21,7 +21,9 @@
     
     <div class="app-container">
       <main class="main-content" role="main">
-        <%= render 'shared/flashes' %>
+        <%= content_tag :div, id: "flash-messages", data: session_timeout_data do %>
+          <%= render 'shared/flashes' %>
+        <% end %>
         <%= yield %>
       </main>
     </div>

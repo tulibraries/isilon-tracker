@@ -1,8 +1,12 @@
 Rails.application.routes.draw do
-  devise_for :users, controllers: { omniauth_callbacks: "users/omniauth_callbacks" }
+  devise_for :users, controllers: {
+    omniauth_callbacks: "users/omniauth_callbacks",
+    sessions: "users/sessions"
+  }
 
   devise_scope :user do
-    get "/users/sign_out" => "devise/sessions#destroy"
+    get "/users/sign_out" => "users/sessions#destroy"
+    post "/users/session/keepalive" => "users/sessions#keepalive", as: :user_session_keepalive
   end
 
   namespace :admin do
