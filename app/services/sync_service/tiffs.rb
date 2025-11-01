@@ -65,6 +65,8 @@ module SyncService
 
     private
 
+    ROOT_CHILD_KEY = "__root__".freeze
+
     def find_parent_dirs_with_matching_tiff_counts_ar
       base_query = build_base_tiff_query
       assets = base_query.pluck(:isilon_path)
@@ -79,13 +81,13 @@ module SyncService
 
       assets.each do |path|
         parent_dir, child_folder, category = extract_parent_child_and_category(path)
-        next unless parent_dir && child_folder && category
+        next unless parent_dir && category
 
         parent_key = parent_dir.downcase
         record = stats[parent_key]
         record[:original_parent] ||= parent_dir
 
-        child_key = child_folder.downcase
+        child_key = (child_folder || ROOT_CHILD_KEY).downcase
         bucket = category == :processed ? :processed : :unprocessed
         entry = record[bucket][child_key]
         entry[:count] += 1
@@ -103,7 +105,7 @@ module SyncService
           next unless unprocessed_entry[:count].positive?
 
           original_parent = record[:original_parent] || parent_key
-          child_display = processed_entry[:name] || unprocessed_entry[:name] || child_key
+          child_display = processed_entry[:name] || unprocessed_entry[:name]
 
           next unless processed_entry[:count] == unprocessed_entry[:count]
 
@@ -154,15 +156,26 @@ module SyncService
     end
 
     def extract_parent_child_and_category(path)
-      if (match = path.match(/^(.*?)(\/processed\/)([^\/]+)\/.+/i))
-        [match[1], match[3], :processed]
-      elsif (match = path.match(/^(.*?)(\/unprocessed\/)([^\/]+)\/.+/i))
-        [match[1], match[3], :unprocessed]
-      elsif (match = path.match(/^(.*?)(\/raw\/)([^\/]+)\/.+/i))
-        [match[1], match[3], :unprocessed]
-      else
-        nil
-      end
+      segments = path.split("/")
+      key_index = segments.index { |segment| %w[processed unprocessed raw].include?(segment&.downcase) }
+      return nil unless key_index
+
+      parent_segments = segments[0...key_index]
+      parent_dir = parent_segments.join("/")
+      parent_dir = "/#{parent_dir}".gsub(%r{//+}, "/")
+      parent_dir = "/" if parent_dir.blank?
+      parent_dir = parent_dir.downcase
+
+      remainder = segments[(key_index + 1)..]
+      child_folder = if remainder && remainder.length > 1
+                       remainder.first.downcase
+                     else
+                       nil
+                     end
+
+      category = segments[key_index].downcase == "processed" ? :processed : :unprocessed
+
+      [parent_dir, child_folder, category]
     end
 
     def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, child_folder, child_key, parent_key, count)
@@ -173,12 +186,23 @@ module SyncService
         return 0
       end
 
-      # Build query for unprocessed TIFFs in this parent directory
+      patterns =
+        if child_key == ROOT_CHILD_KEY
+          [
+            "#{parent_key}/unprocessed/%",
+            "#{parent_key}/raw/%"
+          ]
+        else
+          [
+            "#{parent_key}/unprocessed/#{child_key}/%",
+            "#{parent_key}/raw/#{child_key}/%"
+          ]
+        end
+
       query = IsilonAsset.joins(parent_folder: :volume)
         .where(
           "(LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?)",
-          "#{parent_key}/unprocessed/#{child_key}/%",
-          "#{parent_key}/raw/#{child_key}/%"
+          *patterns
         )
         .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
 
@@ -188,11 +212,22 @@ module SyncService
       updated_count = query.update_all(migration_status_id: dont_migrate_status.id)
 
       stdout_and_log(
-        "Rule 4: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir}/(#{child_folder}) "\
+        "Rule 4: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir}/(#{child_folder || 'root'}) "\
         "(#{count} processed = #{count} unprocessed)"
       )
 
       updated_count
+    end
+
+    def extract_parent_directory(path)
+      extract_parent_child_and_category(path)&.first
+    end
+
+    def classify_subdirectory_type(path)
+      _, _, category = extract_parent_child_and_category(path)
+      return nil unless category
+
+      category == :processed ? "processed" : "unprocessed"
     end
 
     def log_tiff_directory(parent_dir, child_folder, processed_count, unprocessed_count)
