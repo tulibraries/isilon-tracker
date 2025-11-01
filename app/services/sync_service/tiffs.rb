@@ -169,13 +169,13 @@ module SyncService
       remainder = segments[(key_index + 1)..]
       child_folder = if remainder && remainder.length > 1
                        remainder.first.downcase
-                     else
+      else
                        nil
-                     end
+      end
 
       category = segments[key_index].downcase == "processed" ? :processed : :unprocessed
 
-      [parent_dir, child_folder, category]
+      [ parent_dir, child_folder, category ]
     end
 
     def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, child_folder, child_key, parent_key, count)
