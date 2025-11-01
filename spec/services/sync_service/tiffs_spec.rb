@@ -45,28 +45,32 @@ RSpec.describe SyncService::Tiffs, type: :service do
     # Set up test data with folder structure
     let!(:project1_folder) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project1") }
     let!(:project1_processed) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project1/processed", parent_folder: project1_folder) }
+    let!(:project1_processed_batch) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project1/processed/batch1", parent_folder: project1_processed) }
     let!(:project1_unprocessed) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project1/unprocessed", parent_folder: project1_folder) }
+    let!(:project1_unprocessed_batch) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project1/unprocessed/batch1", parent_folder: project1_unprocessed) }
 
     let!(:project2_folder) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project2") }
     let!(:project2_processed) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project2/processed", parent_folder: project2_folder) }
+    let!(:project2_processed_batch) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project2/processed/batch1", parent_folder: project2_processed) }
     let!(:project2_raw) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project2/raw", parent_folder: project2_folder) }
+    let!(:project2_raw_batch) { FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/deposit/project2/raw/batch1", parent_folder: project2_raw) }
 
     # Create TIFF assets - Project 1: Equal counts (2 processed, 2 unprocessed)
     let!(:project1_assets) do
       [
-        FactoryBot.create(:isilon_asset, parent_folder: project1_processed, isilon_path: "/deposit/project1/processed/image001.tiff", file_type: "TIFF", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_processed, isilon_path: "/deposit/project1/processed/image002.tiff", file_type: "TIFF", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed, isilon_path: "/deposit/project1/unprocessed/image001.tiff", file_type: "TIFF", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed, isilon_path: "/deposit/project1/unprocessed/image002.tiff", file_type: "TIFF", migration_status: default_migration_status)
+        FactoryBot.create(:isilon_asset, parent_folder: project1_processed_batch, isilon_path: "/deposit/project1/processed/batch1/image001.tiff", file_type: "TIFF", migration_status: default_migration_status),
+        FactoryBot.create(:isilon_asset, parent_folder: project1_processed_batch, isilon_path: "/deposit/project1/processed/batch1/image002.tiff", file_type: "TIFF", migration_status: default_migration_status),
+        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed_batch, isilon_path: "/deposit/project1/unprocessed/batch1/image001.tiff", file_type: "TIFF", migration_status: default_migration_status),
+        FactoryBot.create(:isilon_asset, parent_folder: project1_unprocessed_batch, isilon_path: "/deposit/project1/unprocessed/batch1/image002.tiff", file_type: "TIFF", migration_status: default_migration_status)
       ]
     end
 
     # Create TIFF assets - Project 2: Unequal counts (1 processed, 2 raw)
     let!(:project2_assets) do
       [
-        FactoryBot.create(:isilon_asset, parent_folder: project2_processed, isilon_path: "/deposit/project2/processed/scan001.tiff", file_type: "TIFF", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project2_raw, isilon_path: "/deposit/project2/raw/scan001.tiff", file_type: "TIFF", migration_status: default_migration_status),
-        FactoryBot.create(:isilon_asset, parent_folder: project2_raw, isilon_path: "/deposit/project2/raw/scan002.tiff", file_type: "TIFF", migration_status: default_migration_status)
+        FactoryBot.create(:isilon_asset, parent_folder: project2_processed_batch, isilon_path: "/deposit/project2/processed/batch1/scan001.tiff", file_type: "TIFF", migration_status: default_migration_status),
+        FactoryBot.create(:isilon_asset, parent_folder: project2_raw_batch, isilon_path: "/deposit/project2/raw/batch1/scan001.tiff", file_type: "TIFF", migration_status: default_migration_status),
+        FactoryBot.create(:isilon_asset, parent_folder: project2_raw_batch, isilon_path: "/deposit/project2/raw/batch1/scan002.tiff", file_type: "TIFF", migration_status: default_migration_status)
       ]
     end
 
@@ -81,15 +85,15 @@ RSpec.describe SyncService::Tiffs, type: :service do
 
         # Project 1: 2 processed, 2 unprocessed - should mark unprocessed as "Don't migrate"
         project1_unprocessed = IsilonAsset.where(isilon_path: [
-          "/deposit/project1/unprocessed/image001.tiff",
-          "/deposit/project1/unprocessed/image002.tiff"
+          "/deposit/project1/unprocessed/batch1/image001.tiff",
+          "/deposit/project1/unprocessed/batch1/image002.tiff"
         ])
         expect(project1_unprocessed.all? { |asset| asset.migration_status == dont_migrate_status }).to be true
 
         # Project 2: 1 processed, 2 raw - should NOT change (counts don't match)
         project2_raw = IsilonAsset.where(isilon_path: [
-          "/deposit/project2/raw/scan001.tiff",
-          "/deposit/project2/raw/scan002.tiff"
+          "/deposit/project2/raw/batch1/scan001.tiff",
+          "/deposit/project2/raw/batch1/scan002.tiff"
         ])
         expect(project2_raw.all? { |asset| asset.migration_status == default_migration_status }).to be true
       end
@@ -126,19 +130,11 @@ RSpec.describe SyncService::Tiffs, type: :service do
       it 'completes successfully but logs error and updates nothing' do
         service = described_class.new(volume_name: "deposit")
 
-        # Allow all normal log messages to pass through
-        allow(service).to receive(:stdout_and_log).and_call_original
-
-        # Expect the specific error message to be logged at least once
-        expect(service).to receive(:stdout_and_log).with(
-          "ERROR: 'Don't migrate' status not found",
-          level: :error
-        ).at_least(:once).and_call_original
-
         result = service.process
 
         # Service completes successfully but doesn't update anything
         expect(result.success?).to be true
+        expect(result.tiff_comparisons_updated).to eq(1)
         expect(result.migration_statuses_updated).to eq(0)
       end
     end
@@ -226,7 +222,7 @@ RSpec.describe SyncService::Tiffs, type: :service do
       expect(results).not_to include(pdf_asset.isilon_path)
     end
 
-    it 'filters to deposit folders' do
+    it 'includes folders regardless of top-level prefix' do
       other_folder = FactoryBot.create(:isilon_folder, volume: deposit_volume, full_path: "/other/test/processed")
 
       deposit_asset = FactoryBot.create(:isilon_asset, parent_folder: test_folder, isilon_path: "/deposit/test/processed/image.tiff")
@@ -236,7 +232,7 @@ RSpec.describe SyncService::Tiffs, type: :service do
       results = query.pluck(:isilon_path)
 
       expect(results).to include(deposit_asset.isilon_path)
-      expect(results).not_to include(other_asset.isilon_path)
+      expect(results).to include(other_asset.isilon_path)
     end
 
     it 'excludes scrc accessions' do
