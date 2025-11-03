@@ -9,26 +9,28 @@ namespace :sync do
 
   desc "Process TIFF files for deduplication"
   task :tiffs, [ :volume_name ] => :environment do |_t, args|
-    unless args[:volume_name]
+    requested_volume = args[:volume_name].to_s
+
+    if requested_volume.blank?
       puts "Error: volume_name argument is required"
       puts "Usage: rake sync:tiffs[deposit] or rake sync:tiffs[media-repository]"
       exit 1
     end
 
-    valid_volumes = %w[deposit media-repository]
-    unless valid_volumes.include?(args[:volume_name])
+    valid_volumes = %w[Deposit Media-Repository]
+    unless valid_volumes.map(&:downcase).include?(requested_volume.downcase)
       puts "Error: volume_name must be one of: #{valid_volumes.join(', ')}"
       exit 1
     end
 
-    volume = Volume.find_by(name: args[:volume_name])
+    volume = Volume.where("LOWER(name) = ?", requested_volume.downcase).first
     unless volume
-      puts "Error: Volume '#{args[:volume_name]}' not found in database"
+      puts "Error: Volume '#{requested_volume}' not found in database"
       exit 1
     end
 
     begin
-      SyncService::Tiffs.call(volume_name: args[:volume_name])
+      SyncService::Tiffs.call(volume_name: requested_volume)
     rescue => e
       puts "Error during TIFF processing: #{e.message}"
       puts e.backtrace.first(5).join("\n") if e.backtrace
