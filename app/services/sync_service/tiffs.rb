@@ -9,14 +9,18 @@ module SyncService
       new(volume_name: volume_name).process
     end
 
+    ALLOWED_VOLUME_NAMES = %w[Deposit Media-Repository].freeze
+
     def initialize(volume_name: nil)
       @volume_name = volume_name
       @log = Logger.new("log/isilon-post-processing.log")
       @stdout = Logger.new($stdout)
 
       if @volume_name
-        @parent_volume = Volume.find_by(name: @volume_name)
+        validate_volume_name!(@volume_name)
+        @parent_volume = find_volume_case_insensitive(@volume_name)
         raise ArgumentError, "Volume '#{@volume_name}' not found" unless @parent_volume
+        @volume_name = @parent_volume.name
       else
         @parent_volume = nil  # Will process all volumes
       end
@@ -237,6 +241,17 @@ module SyncService
     def stdout_and_log(message, level: :info)
       @log.send(level, message)
       @stdout.send(level, message)
+    end
+
+    def validate_volume_name!(name)
+      return if ALLOWED_VOLUME_NAMES.any? { |allowed| allowed.casecmp?(name.to_s) }
+
+      allowed_display = ALLOWED_VOLUME_NAMES.join(", ")
+      raise ArgumentError, "Volume '#{name}' is not supported. Use one of: #{allowed_display}"
+    end
+
+    def find_volume_case_insensitive(name)
+      Volume.where("LOWER(name) = ?", name.to_s.downcase).first
     end
   end
 end

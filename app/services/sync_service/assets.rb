@@ -96,7 +96,7 @@ module SyncService
       directories = all_directories[0...-1]
       return true if directories.empty?
 
-      volume = Volume.find_by(name: @parent_volume.name)
+      volume = @parent_volume
 
       (directories.size).downto(0) do |i|
         if directories.present?
@@ -140,17 +140,21 @@ module SyncService
     end
 
     def set_full_path(path)
-      volume_segment = [ "/", @parent_volume.name ].join
-      path.gsub(volume_segment, "")
+      segments = path.to_s.split("/").reject(&:blank?)
+      return "/" if segments.size <= 1
+
+      "/" + segments[1..].join("/")
     end
 
     def check_volume(path)
       first_row = CSV.read(path, headers: true).first
       volume = first_row["Path"].split("/").compact_blank[0]
 
-      if Volume.exists?(name: volume)
-        stdout_and_log("Volume #{volume} already exists.")
-        Volume.find_by(name: volume)
+      existing_volume = find_volume_case_insensitive(volume)
+
+      if existing_volume
+        stdout_and_log("Volume #{existing_volume.name} already exists.")
+        existing_volume
       else
         new_volume = Volume.create!(name: volume)
         begin
@@ -176,6 +180,10 @@ module SyncService
       return nil unless path.present?
 
       find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+    end
+
+    def find_volume_case_insensitive(name)
+      Volume.where("LOWER(name) = ?", name.to_s.downcase).first
     end
 
     def find_or_create_folder_safely(volume_id, full_path)
