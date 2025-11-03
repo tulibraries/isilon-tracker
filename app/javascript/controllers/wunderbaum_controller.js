@@ -152,6 +152,10 @@ export default class extends Controller {
         },
 
         render: (e) => {
+          if (!this._renderCount) this._renderCount = 0;
+          this._renderCount++;
+          if (this._renderCount % 10 === 0) console.log("render", this._renderCount);
+
           const util = e.util;
           const isFolder = e.node.data.folder === true;
 
@@ -277,6 +281,10 @@ export default class extends Controller {
         source
       });
 
+      if (!this._renderCount) this._renderCount = 0
+      this._renderCount++
+      if (this._renderCount % 50 === 0) console.log("renders:", this._renderCount)
+
       requestAnimationFrame(() => {
         const t = this.tree
         const listEl = t.listContainerElement
@@ -292,58 +300,11 @@ export default class extends Controller {
               if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
             }
             if (t.updateViewport) t.updateViewport?.(true)
-            else if (t._updateViewportThrottled) t._updateViewportThrottled()
+            else if (t._updateViewportThrottled) t._updateViewportThrottled?.(true)
           })
         }
       })
-
-      let viewportFrozen = false
-
-      const freezeViewport = () => {
-        if (viewportFrozen) return
-        viewportFrozen = true
-
-        this._origUpdateViewport = this.tree.updateViewport
-        this._origThrottled = this.tree._updateViewportThrottled
-
-        const noop = () => {}
-        const wrappedThrottled = Object.assign(noop, {
-          pending: () => false,
-          cancel: () => {},
-          flush: () => {}
-        })
-
-        this.tree.updateViewport = (force) => {
-          if (force === true) this._origUpdateViewport?.()
-        }
-
-        this.tree._updateViewportThrottled = (force) => {
-          if (force === true) this._origThrottled?.()
-          return wrappedThrottled
-        }
-      }
-
-      const unfreezeViewport = () => {
-        if (!viewportFrozen) return
-        viewportFrozen = false
-
-        if (this._origUpdateViewport) this.tree.updateViewport = this._origUpdateViewport
-        if (this._origThrottled) this.tree._updateViewportThrottled = this._origThrottled
-
-        this._origUpdateViewport = null
-        this._origThrottled = null
-
-        requestAnimationFrame(() => this.tree.updateViewport?.(true))
-      }
-
-      this.element.addEventListener("focusin", e => {
-        if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") freezeViewport()
-      })
-
-      this.element.addEventListener("focusout", e => {
-        if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") unfreezeViewport()
-      })
-
+      
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -355,7 +316,7 @@ export default class extends Controller {
       requestAnimationFrame(() => {
         this._tagHeaderCells()
         this._deferSelectHydration()
-        this._setupVirtualWindow()
+        // this._setupVirtualWindow()
       })
 
     } catch (err) {
@@ -1561,58 +1522,58 @@ async _loadNextAssetPage(parentId, nextPage) {
     }
   }
 
-  _setupVirtualWindow() {
-    const list = this.tree.listContainerElement
-    if (!list) return
+  // _setupVirtualWindow() {
+  //   const list = this.tree.listContainerElement
+  //   if (!list) return
 
-    const rowH = list.querySelector(".wb-row")?.offsetHeight || 24
-    const buffer = 40
-    let scheduled = false
-    let virtualActive = true
+  //   const rowH = list.querySelector(".wb-row")?.offsetHeight || 24
+  //   const buffer = 40
+  //   let scheduled = false
+  //   let virtualActive = true
 
-    const renderWindow = () => {
-      scheduled = false
-      if (!virtualActive) return
+  //   const renderWindow = () => {
+  //     scheduled = false
+  //     if (!virtualActive) return
 
-      const top = list.scrollTop
-      const bottom = top + list.clientHeight
-      const startIdx = Math.max(0, Math.floor(top / rowH) - buffer)
-      const endIdx = Math.ceil(bottom / rowH) + buffer
-      let idx = 0
+  //     const top = list.scrollTop
+  //     const bottom = top + list.clientHeight
+  //     const startIdx = Math.max(0, Math.floor(top / rowH) - buffer)
+  //     const endIdx = Math.ceil(bottom / rowH) + buffer
+  //     let idx = 0
 
-      const iterator = this.tree.visit((node) => {
-        if (!node.parent?.expanded || node.data.folder) return true
-        const el = node.tr || node.li
-        if (!el) return
-        const visible = idx >= startIdx && idx <= endIdx
-        el.hidden = !visible
-        idx++
-      })
+  //     const iterator = this.tree.visit((node) => {
+  //       if (!node.parent?.expanded || node.data.folder) return true
+  //       const el = node.tr || node.li
+  //       if (!el) return
+  //       const visible = idx >= startIdx && idx <= endIdx
+  //       el.hidden = !visible
+  //       idx++
+  //     })
 
-      // yield control after big trees
-      if (idx > 500) requestIdleCallback(() => iterator, { timeout: 200 })
-    }
+  //     // yield control after big trees
+  //     if (idx > 500) requestIdleCallback(() => iterator, { timeout: 200 })
+  //   }
 
-    const schedule = () => {
-      if (!scheduled) {
-        scheduled = true
-        requestAnimationFrame(renderWindow)
-      }
-    }
+  //   const schedule = () => {
+  //     if (!scheduled) {
+  //       scheduled = true
+  //       requestAnimationFrame(renderWindow)
+  //     }
+  //   }
 
-    list.addEventListener("scroll", schedule, { passive: true })
+  //   list.addEventListener("scroll", schedule, { passive: true })
 
-    document.addEventListener("focusin", e => {
-      if (e.target?.tagName === "SELECT") virtualActive = false
-    })
-    document.addEventListener("focusout", e => {
-      if (e.target?.tagName === "SELECT") {
-        virtualActive = true
-        schedule()
-      }
-    })
+  //   document.addEventListener("focusin", e => {
+  //     if (e.target?.tagName === "SELECT") virtualActive = false
+  //   })
+  //   document.addEventListener("focusout", e => {
+  //     if (e.target?.tagName === "SELECT") {
+  //       virtualActive = true
+  //       schedule()
+  //     }
+  //   })
 
-    renderWindow()
-  }
+  //   renderWindow()
+  // }
 
 }
