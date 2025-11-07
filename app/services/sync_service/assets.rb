@@ -50,6 +50,7 @@ module SyncService
 
         # Ensure directory structure exists before bulk insert
         isilon_path = set_full_path(row["Path"])
+
         if ensure_directory_structure(isilon_path)
           begin
             parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
@@ -63,7 +64,7 @@ module SyncService
               last_modified_in_isilon: row["ModifiedAt"],
               date_created_in_isilon: row["CreatedAt"],
               parent_folder_id: parent_folder_id,
-              migration_status_id: apply_automation_rules(row) || @default_status.id,
+              migration_status_id: apply_automation_rules(row) || @default_status&.id,
               created_at: Time.current,
               updated_at: Time.current
             }
@@ -93,9 +94,9 @@ module SyncService
     def ensure_directory_structure(isilon_path)
       all_directories = isilon_path.split("/").compact_blank
       directories = all_directories[0...-1]
-      return false if directories.empty?
+      return true if directories.empty?
 
-      volume = Volume.find_by(name: @parent_volume.name)
+      volume = @parent_volume
 
       (directories.size).downto(0) do |i|
         if directories.present?
@@ -139,17 +140,21 @@ module SyncService
     end
 
     def set_full_path(path)
-      volume_segment = [ "/", @parent_volume.name ].join
-      path.gsub(volume_segment, "")
+      segments = path.to_s.split("/").reject(&:blank?)
+      return "/" if segments.size <= 1
+
+      "/" + segments[1..].join("/")
     end
 
     def check_volume(path)
       first_row = CSV.read(path, headers: true).first
       volume = first_row["Path"].split("/").compact_blank[0]
 
-      if Volume.exists?(name: volume)
-        stdout_and_log("Volume #{volume} already exists.")
-        Volume.find_by(name: volume)
+      existing_volume = find_volume_case_insensitive(volume)
+
+      if existing_volume
+        stdout_and_log("Volume #{existing_volume.name} already exists.")
+        existing_volume
       else
         new_volume = Volume.create!(name: volume)
         begin
@@ -175,6 +180,10 @@ module SyncService
       return nil unless path.present?
 
       find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+    end
+
+    def find_volume_case_insensitive(name)
+      Volume.where("LOWER(name) = ?", name.to_s.downcase).first
     end
 
     def find_or_create_folder_safely(volume_id, full_path)
@@ -246,11 +255,17 @@ module SyncService
     end
 
     def rule_2_delete_directory?(asset_path)
-      # Directory is in deposit/SCRC Accessions AND contains "DELETE"
-      return false unless asset_path.downcase.include?("/deposit/scrc accessions")
+      return false unless @parent_volume&.name&.casecmp?("deposit")
 
-      path_segments = asset_path.split("/")
-      path_segments.any? { |segment| segment.downcase.include?("delete") }
+      segments = asset_path.split("/").reject(&:blank?)
+      return false if segments.empty?
+
+      # Ignore the volume segment; CSVs always start with it.
+      segments.shift
+
+      return false unless segments.any? { |segment| segment.casecmp?("scrc accessions") }
+
+      segments.any? { |segment| segment.downcase.include?("delete") }
     end
 
 

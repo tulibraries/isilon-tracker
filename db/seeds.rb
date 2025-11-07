@@ -30,6 +30,7 @@ end
 puts "Seeded #{MigrationStatus.count} MigrationStatuses."
 
 require 'csv'
+require 'rake'
 
 puts "Seeding AspaceCollections..."
 file_path = Rails.root.join("db", "data", "aspace-collection.csv")
@@ -67,3 +68,13 @@ User.create!([
 
       { email: root_email, remember_created_at: nil, provider: nil, uid: nil, name: "Temple University Libraries", status: "active" }
 ]) unless User.exists?(email: root_email)
+
+puts "Running user setup tasks..."
+
+Rails.application.load_tasks unless Rake::Task.task_defined?("users:sync_initial")
+
+%w[users:sync_initial users:generate_passwords].each do |task_name|
+  task = Rake::Task[task_name]
+  task.reenable
+  task.invoke
+end

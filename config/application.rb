@@ -23,5 +23,9 @@ module TulIsilonTracker
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    config.session_management = ActiveSupport::OrderedOptions.new
+    config.session_management.timeout = 8.hours
+    config.session_management.warning_lead_time = 5.minutes
   end
 end

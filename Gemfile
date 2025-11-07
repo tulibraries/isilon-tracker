@@ -51,10 +51,11 @@ group :test do
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
   gem "selenium-webdriver"
-  gem "shoulda-matchers", "~> 6.5"
+  gem "shoulda-matchers", "~> 7.0"
   gem "simplecov"
   gem "simplecov-lcov"
   gem "webdrivers", "5.3.1"
+  gem "coveralls", require: false
 end
 
 # Required for memcached

@@ -9,24 +9,24 @@ module SyncService
       new(volume_name: volume_name).process
     end
 
+    ALLOWED_VOLUME_NAMES = %w[Deposit Media-Repository].freeze
+
     def initialize(volume_name: nil)
       @volume_name = volume_name
       @log = Logger.new("log/isilon-post-processing.log")
       @stdout = Logger.new($stdout)
 
       if @volume_name
-        @parent_volume = Volume.find_by(name: @volume_name)
+        validate_volume_name!(@volume_name)
+        @parent_volume = find_volume_case_insensitive(@volume_name)
         raise ArgumentError, "Volume '#{@volume_name}' not found" unless @parent_volume
-        stdout_and_log("Starting post-processing for volume: #{@volume_name}")
+        @volume_name = @parent_volume.name
       else
         @parent_volume = nil  # Will process all volumes
-        stdout_and_log("Starting post-processing for all volumes")
       end
     end
 
     def process
-      stdout_and_log("Starting Rule 4 post-processing for TIFF comparison...")
-
       begin
         # Use ActiveRecord to find parent directories with matching TIFF counts
         parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts_ar
@@ -36,7 +36,13 @@ module SyncService
         # Update unprocessed TIFFs in bulk
         total_updated = 0
         parent_dirs_with_counts.each do |parent_info|
-          updated = mark_unprocessed_tiffs_as_dont_migrate(parent_info[:parent_dir], parent_info[:processed_count])
+          updated = mark_unprocessed_tiffs_as_dont_migrate(
+            parent_info[:parent_dir],
+            parent_info[:child_folder],
+            parent_info[:child_key],
+            parent_info[:parent_key],
+            parent_info[:processed_count]
+          )
           total_updated += updated
         end
 
@@ -63,43 +69,69 @@ module SyncService
 
     private
 
-    def find_parent_dirs_with_matching_tiff_counts_ar
-      # Base query for all TIFF assets in deposit folders (excluding scrc accessions)
-      base_query = build_base_tiff_query
+    ROOT_CHILD_KEY = "__root__".freeze
 
-      # Get all matching assets and group them in Ruby
+    def find_parent_dirs_with_matching_tiff_counts_ar
+      base_query = build_base_tiff_query
       assets = base_query.pluck(:isilon_path)
 
-      # Group assets by parent directory and classify as processed/unprocessed
-      parent_dir_stats = {}
-
-      assets.each do |path|
-        parent_dir = extract_parent_directory(path)
-        next unless parent_dir
-
-        subdirectory_type = classify_subdirectory_type(path)
-        next unless subdirectory_type
-
-        parent_dir_stats[parent_dir] ||= { processed: 0, unprocessed: 0 }
-        parent_dir_stats[parent_dir][subdirectory_type.to_sym] += 1
-      end
-
-      # Filter to only include directories where processed count equals unprocessed count
-      # and both counts are > 0
-      matching_dirs = parent_dir_stats.select do |parent_dir, counts|
-        counts[:processed] > 0 &&
-        counts[:unprocessed] > 0 &&
-        counts[:processed] == counts[:unprocessed]
-      end
-
-      # Convert to the expected format
-      matching_dirs.map do |parent_dir, counts|
-        {
-          parent_dir: parent_dir,
-          processed_count: counts[:processed],
-          unprocessed_count: counts[:unprocessed]
+      stats = Hash.new do |hash, parent_key|
+        hash[parent_key] = {
+          original_parent: nil,
+          processed: Hash.new { |child_hash, key| child_hash[key] = { count: 0, name: nil } },
+          unprocessed: Hash.new { |child_hash, key| child_hash[key] = { count: 0, name: nil } }
         }
       end
+
+      assets.each do |path|
+        parent_dir, child_folder, category = extract_parent_child_and_category(path)
+        next unless parent_dir && category
+
+        parent_key = parent_dir.downcase
+        record = stats[parent_key]
+        record[:original_parent] ||= parent_dir
+
+        child_key = (child_folder || ROOT_CHILD_KEY).downcase
+        bucket = category == :processed ? :processed : :unprocessed
+        entry = record[bucket][child_key]
+        entry[:count] += 1
+        entry[:name] ||= child_folder
+      end
+
+      matches = []
+
+      stats.each do |parent_key, record|
+        processed_children = record[:processed]
+        next if processed_children.empty?
+
+        processed_children.each do |child_key, processed_entry|
+          unprocessed_entry = record[:unprocessed][child_key]
+          next unless unprocessed_entry[:count].positive?
+
+          original_parent = record[:original_parent] || parent_key
+          child_display = processed_entry[:name] || unprocessed_entry[:name]
+
+          next unless processed_entry[:count] == unprocessed_entry[:count]
+
+          log_tiff_directory(
+            original_parent,
+            child_display,
+            processed_entry[:count],
+            unprocessed_entry[:count]
+          )
+
+          matches << {
+            parent_dir: original_parent,
+            parent_key: parent_key,
+            child_folder: child_display,
+            child_key: child_key,
+            processed_count: processed_entry[:count],
+            unprocessed_count: unprocessed_entry[:count]
+          }
+        end
+      end
+
+      matches
     end
 
     def build_base_tiff_query
@@ -112,9 +144,8 @@ module SyncService
         "%tiff%", "%.tiff", "%.tif"
       )
 
-      # Filter to deposit folders, excluding scrc accessions
-      query = query.where("LOWER(isilon_path) LIKE ?", "%/deposit/%")
-      query = query.where("LOWER(isilon_path) NOT LIKE ?", "%/deposit/scrc accessions%")
+      # Exclude SCRC Accessions regardless of volume prefix stripping
+      query = query.where("LOWER(isilon_path) NOT LIKE ?", "%/scrc accessions/%")
 
       # Filter to processed, unprocessed, or raw subdirectories
       query = query.where(
@@ -128,32 +159,30 @@ module SyncService
       query
     end
 
-    def extract_parent_directory(path)
-      # Extract the parent directory before /processed/, /unprocessed/, or /raw/
-      case path.downcase
-      when /^(.+)\/processed\//
-        $1
-      when /^(.+)\/unprocessed\//
-        $1
-      when /^(.+)\/raw\//
-        $1
+    def extract_parent_child_and_category(path)
+      segments = path.split("/")
+      key_index = segments.index { |segment| %w[processed unprocessed raw].include?(segment&.downcase) }
+      return nil unless key_index
+
+      parent_segments = segments[0...key_index]
+      parent_dir = parent_segments.join("/")
+      parent_dir = "/#{parent_dir}".gsub(%r{//+}, "/")
+      parent_dir = "/" if parent_dir.blank?
+      parent_dir = parent_dir.downcase
+
+      remainder = segments[(key_index + 1)..]
+      child_folder = if remainder && remainder.length > 1
+                       remainder.first.downcase
       else
-        nil
+                       nil
       end
+
+      category = segments[key_index].downcase == "processed" ? :processed : :unprocessed
+
+      [ parent_dir, child_folder, category ]
     end
 
-    def classify_subdirectory_type(path)
-      case path.downcase
-      when /\/processed\//
-        "processed"
-      when /\/unprocessed\//, /\/raw\//
-        "unprocessed"
-      else
-        nil
-      end
-    end
-
-    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, count)
+    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, child_folder, child_key, parent_key, count)
       dont_migrate_status = MigrationStatus.find_by(name: "Don't migrate")
 
       unless dont_migrate_status
@@ -161,10 +190,24 @@ module SyncService
         return 0
       end
 
-      # Build query for unprocessed TIFFs in this parent directory
+      patterns =
+        if child_key == ROOT_CHILD_KEY
+          [
+            "#{parent_key}/unprocessed/%",
+            "#{parent_key}/raw/%"
+          ]
+        else
+          [
+            "#{parent_key}/unprocessed/#{child_key}/%",
+            "#{parent_key}/raw/#{child_key}/%"
+          ]
+        end
+
       query = IsilonAsset.joins(parent_folder: :volume)
-        .where("isilon_path LIKE ?", "#{parent_dir}/%")
-        .where("(LOWER(isilon_path) LIKE '%/unprocessed/%' OR LOWER(isilon_path) LIKE '%/raw/%')")
+        .where(
+          "(LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?)",
+          *patterns
+        )
         .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
 
       # Add volume filter if processing specific volume
@@ -172,14 +215,43 @@ module SyncService
 
       updated_count = query.update_all(migration_status_id: dont_migrate_status.id)
 
-      stdout_and_log("Rule 4: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir} (#{count} processed = #{count} unprocessed)")
+      stdout_and_log(
+        "Rule 4: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir}/(#{child_folder || 'root'}) "\
+        "(#{count} processed = #{count} unprocessed)"
+      )
 
       updated_count
+    end
+
+    def extract_parent_directory(path)
+      extract_parent_child_and_category(path)&.first
+    end
+
+    def classify_subdirectory_type(path)
+      _, _, category = extract_parent_child_and_category(path)
+      return nil unless category
+
+      category == :processed ? "processed" : "unprocessed"
+    end
+
+    def log_tiff_directory(parent_dir, child_folder, processed_count, unprocessed_count)
+      # intentionally suppressed verbose candidate logging
     end
 
     def stdout_and_log(message, level: :info)
       @log.send(level, message)
       @stdout.send(level, message)
+    end
+
+    def validate_volume_name!(name)
+      return if ALLOWED_VOLUME_NAMES.any? { |allowed| allowed.casecmp?(name.to_s) }
+
+      allowed_display = ALLOWED_VOLUME_NAMES.join(", ")
+      raise ArgumentError, "Volume '#{name}' is not supported. Use one of: #{allowed_display}"
+    end
+
+    def find_volume_case_insensitive(name)
+      Volume.where("LOWER(name) = ?", name.to_s.downcase).first
     end
   end
 end
