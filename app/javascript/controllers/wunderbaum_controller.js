@@ -29,6 +29,7 @@ export default class extends Controller {
   }
 
   async connect() {
+    window.wbController = this;
     try {
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
@@ -44,7 +45,6 @@ export default class extends Controller {
         checkbox: true,
         lazy: true,
         selectMode: "hier",
-        grid: { debounce: 0 }, 
         columnsResizable: true,
         fixedCol: true,
         filter: {
@@ -178,27 +178,24 @@ export default class extends Controller {
                     ? this.contentdmCollectionOptions
                     : this.userOptions;
 
-                if (!options) {
-                  util.setValueToElem(elem, value ?? "");
-                  break;
+                if (!elem.dataset.bound) {
+                  const select = document.createElement("select")
+                  select.name = colId
+                  ;(options || []).forEach(opt => {
+                    const o = document.createElement("option")
+                    o.value = String(opt.value)
+                    o.textContent = opt.label
+                    select.appendChild(o)
+                  })
+                  elem.textContent = ""
+                  elem.appendChild(select)
+                  elem.dataset.bound = "1"
+                  select.addEventListener("change", ev => {
+                    node.data[colId] = ev.target.value
+                  })
                 }
-
-                if (!elem.dataset.rendered) {
-                  const select = document.createElement("select");
-                  select.name = colId;
-                  options.forEach((opt) => {
-                    const option = document.createElement("option");
-                    option.value = String(opt.value);
-                    option.textContent = opt.label;
-                    select.appendChild(option);
-                  });
-                  elem.replaceChildren(select);
-                  elem.dataset.rendered = "true";
-                }
-
-                const select = elem.querySelector("select");
-                if (select) select.value = value ?? "";
-                break;
+                elem.querySelector("select").value = value ?? ""
+                break
               }
 
               case "notes":
@@ -280,10 +277,61 @@ export default class extends Controller {
 
         source
       });
+      const t = this.tree;
+      let lastTop = -1
+
+      if (t && typeof t.updateViewport === "function") {
+        const orig = t.updateViewport
+        t.updateViewport = function (force) {
+          const el = this.listContainerElement
+          if (!el) return
+          const top = el.scrollTop
+          if (!force && Math.abs(top - lastTop) < 8) return
+          lastTop = top
+          return orig.call(this, force)
+        }
+      }
+
+      requestAnimationFrame(() => {
+        const list = this.tree?.listContainerElement
+        if (list) {
+          list.style.lineHeight = "24px"
+          list.style.rowHeight = "24px"
+        }
+        this.tree.rowHeight = 24
+      })
+
+      if (t && typeof t.updateViewport === "function") {
+        const origUpdate = t.updateViewport;
+        let ticking = false;
+
+        t.updateViewport = (force) => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(() => {
+            try {
+              origUpdate.call(t, force);
+            } catch (err) {
+              console.error("updateViewport failed:", err);
+            } finally {
+              ticking = false;
+            }
+          });
+        };
+      }
+
+      this.$scrollContainer = [this.tree.listContainerElement];
+      // this._setupScrollHandler();
 
       if (!this._renderCount) this._renderCount = 0
       this._renderCount++
       if (this._renderCount % 50 === 0) console.log("renders:", this._renderCount)
+
+      if (!this._renderCount) this._renderCount = 0;
+      this._renderCount++;
+      if (this._renderCount % 10 === 0) {
+        console.log("render", this._renderCount, this.tree.listContainerElement?.scrollTop);
+}
 
       requestAnimationFrame(() => {
         const t = this.tree
@@ -295,13 +343,24 @@ export default class extends Controller {
           const parentId = root?.key || "root"
           let nextPage = 2
 
-          listEl.addEventListener("scroll", async () => {
-            if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100) {
-              if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage)
+          let scrollTicking = false;
+
+        listEl.addEventListener("scroll", async () => {
+          if (scrollTicking) return;
+          scrollTicking = true;
+
+          requestAnimationFrame(async () => {
+            const atBottom = listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 100;
+
+            if (atBottom && !this._pageLoading) {
+              this._pageLoading = true;
+              if (nextPage) nextPage = await this._loadNextAssetPage(parentId, nextPage);
+              this._pageLoading = false;
             }
-            if (t.updateViewport) t.updateViewport?.(true)
-            else if (t._updateViewportThrottled) t._updateViewportThrottled?.(true)
-          })
+            console.log("scroll fired", listEl.scrollTop, listEl.scrollHeight, performance.now());
+            scrollTicking = false;
+          });
+        });
         }
       })
       
@@ -315,7 +374,7 @@ export default class extends Controller {
       this._setupFilterModeToggle();
       requestAnimationFrame(() => {
         this._tagHeaderCells()
-        this._deferSelectHydration()
+        // this._deferSelectHydration()
         // this._setupVirtualWindow()
       })
 
@@ -728,20 +787,25 @@ _handleInputChange(e) {
 
     if (remaining.length) {
       let i = 0
-      const schedule = () => {
-        if (i >= remaining.length) {
+      const total = remaining.length
+      const processNextChunk = () => {
+        if (i >= total) {
           this.assetsLoadedFor.add(k)
           this.loadedAssets.add(k)
-          this.tree?.updateViewport?.(true)
           return
         }
-        const slice = remaining.slice(i, i + CHUNK_SIZE)
-        i += CHUNK_SIZE
-        node.addChildren(slice)
-        this.tree?.updateViewport?.(true)
-        requestIdleCallback(schedule, { timeout: 200 })
+        const slice = remaining.slice(i, i + 50)
+        i += 50
+        node.addChildren(slice, { batch: true })
+        if (!this._assetViewportTimer) {
+          this._assetViewportTimer = setTimeout(() => {
+            this._assetViewportTimer = null
+            this.tree?.updateViewport?.(true)
+          }, 200)
+        }
+        requestIdleCallback(processNextChunk, { timeout: 250 })
       }
-      requestIdleCallback(schedule, { timeout: 200 })
+      requestIdleCallback(processNextChunk, { timeout: 250 })
     } else {
       this.assetsLoadedFor.add(k)
       this.loadedAssets.add(k)
@@ -941,11 +1005,6 @@ _handleInputChange(e) {
       if (batch.length) node.addChildren(batch)
       if (queue.length) {
         requestIdleCallback(processNext, { timeout: 200 })
-      } else {
-        requestAnimationFrame(() => {
-          const t = node.tree
-          if (t.updateViewport) t.updateViewport?.(true)
-        })
       }
     }
 
@@ -1199,7 +1258,7 @@ async _processBgAdds() {
   }
   this._bgAddRunning = false
   requestAnimationFrame(() => {
-    this.tree?.updateViewport?.(true)
+    //requestAnimationFrame(() => this.tree?.update?.("lazy"))
   })
 }
 
@@ -1507,12 +1566,6 @@ async _loadNextAssetPage(parentId, nextPage) {
       node.lazy = false;
       node.data.lazy = false;
 
-      requestAnimationFrame(() => {
-        const t = node.tree;
-        if (t?.updateViewport) t.updateViewport?.(true);
-        else if (t?._updateViewportThrottled) t._updateViewportThrottled?.(true);
-      });
-
       return children;
     } catch (err) {
       console.error("Folder lazy load failed:", err);
@@ -1522,58 +1575,55 @@ async _loadNextAssetPage(parentId, nextPage) {
     }
   }
 
-  // _setupVirtualWindow() {
-  //   const list = this.tree.listContainerElement
-  //   if (!list) return
+  _setupScrollHandler() {
+    console.log("_setupScrollHandler called, container:", this.$scrollContainer);
+    if (!this.$scrollContainer || !this.$scrollContainer[0]) {
+      console.log("container missing, will retry");
+      setTimeout(() => this._setupScrollHandler(), 50);
+      return;
+    }
 
-  //   const rowH = list.querySelector(".wb-row")?.offsetHeight || 24
-  //   const buffer = 40
-  //   let scheduled = false
-  //   let virtualActive = true
+    const container = this.$scrollContainer[0];
+    console.log("container found:", container);
 
-  //   const renderWindow = () => {
-  //     scheduled = false
-  //     if (!virtualActive) return
+    let isUpdating = false;
 
-  //     const top = list.scrollTop
-  //     const bottom = top + list.clientHeight
-  //     const startIdx = Math.max(0, Math.floor(top / rowH) - buffer)
-  //     const endIdx = Math.ceil(bottom / rowH) + buffer
-  //     let idx = 0
+    container.addEventListener("scroll", () => {
+      console.log("scroll event fired");
+      if (isUpdating) return;
+      isUpdating = true;
 
-  //     const iterator = this.tree.visit((node) => {
-  //       if (!node.parent?.expanded || node.data.folder) return true
-  //       const el = node.tr || node.li
-  //       if (!el) return
-  //       const visible = idx >= startIdx && idx <= endIdx
-  //       el.hidden = !visible
-  //       idx++
-  //     })
+      requestAnimationFrame(() => {
+        console.log("_setupVirtualWindow triggered");
+        // this._setupVirtualWindow();
+        isUpdating = false;
+      });
+    });
+  }
 
-  //     // yield control after big trees
-  //     if (idx > 500) requestIdleCallback(() => iterator, { timeout: 200 })
-  //   }
+  _setupVirtualWindow() {
+    if (this._inVirtualUpdate) return;
+    this._inVirtualUpdate = true;
 
-  //   const schedule = () => {
-  //     if (!scheduled) {
-  //       scheduled = true
-  //       requestAnimationFrame(renderWindow)
-  //     }
-  //   }
+    if (!this.$scrollContainer || !this.$scrollContainer[0]) return;
 
-  //   list.addEventListener("scroll", schedule, { passive: true })
+    const container = this.$scrollContainer[0];
+    const scrollTop = container.scrollTop;
+    const viewportHeight = container.clientHeight;
+    const rowHeight = this.rowHeight || 24;
 
-  //   document.addEventListener("focusin", e => {
-  //     if (e.target?.tagName === "SELECT") virtualActive = false
-  //   })
-  //   document.addEventListener("focusout", e => {
-  //     if (e.target?.tagName === "SELECT") {
-  //       virtualActive = true
-  //       schedule()
-  //     }
-  //   })
+    const first = Math.floor(scrollTop / rowHeight);
+    const last = Math.ceil((scrollTop + viewportHeight) / rowHeight);
 
-  //   renderWindow()
-  // }
+    if (first === this._prevFirst && last === this._prevLast) return;
+    this._prevFirst = first;
+    this._prevLast = last;
+
+    const active = document.activeElement;
+    if (active && this.element.contains(active)) return;
+
+    this.tree?.update?.("scroll");
+    this._inVirtualUpdate = false;
+  }
 
 }
