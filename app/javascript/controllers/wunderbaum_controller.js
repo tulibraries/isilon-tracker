@@ -10,7 +10,7 @@ export default class extends Controller {
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
-  filterMode = "dim";
+  filterMode = "hide";
   folderCache = new Map();
   assetCache = new Map();
   loadedFolders = new Set();
@@ -536,18 +536,15 @@ export default class extends Controller {
   _updateFilterModeButton() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
-    const hasActiveFilter = Boolean(this.currentFilterPredicate);
-    btn.disabled = !hasActiveFilter;
-    btn.classList.toggle("active", hasActiveFilter && this.filterMode === "hide");
-    btn.setAttribute("title", this.filterMode === "hide" ? "Hide unmatched nodes" : "Dim unmatched nodes");
     const icon = btn.querySelector("i");
+    const isHideMode = this.filterMode === "hide";
+
+    btn.classList.toggle("active", isHideMode);
+    btn.setAttribute("title", isHideMode ? "Hide unmatched nodes" : "Dim unmatched nodes");
+
     if (icon) {
       icon.classList.remove("bi-filter-square", "bi-filter-square-fill");
-      if (this.filterMode === "hide") {
-        icon.classList.add("bi-filter-square-fill");
-      } else {
         icon.classList.add("bi-filter-square");
-      }
     }
   }
 

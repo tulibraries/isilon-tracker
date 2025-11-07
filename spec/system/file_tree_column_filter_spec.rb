@@ -59,21 +59,20 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     expect(page).to have_selector(".wb-popup", count: 1)
   end
 
-  it "allows switching between dim and hide filter modes" do
-    expect(page).to have_selector("#filter-mode-toggle[disabled]")
+  it "allows switching between hide and dim filter modes" do
+    expect(page).to have_no_selector("#filter-mode-toggle[disabled]")
 
     fill_in "tree-filter", with: match_asset.isilon_name
 
+    expect(page).to have_selector("#tree.wb-ext-filter-hide")
+
+    find("#filter-mode-toggle").click
     expect(page).to have_selector("#tree.wb-ext-filter-dim")
-    expect(page).to have_no_selector("#filter-mode-toggle[disabled]", wait: 10)
+    expect(page).to have_no_selector("#filter-mode-toggle.active")
 
     find("#filter-mode-toggle").click
     expect(page).to have_selector("#tree.wb-ext-filter-hide")
-    expect(page).to have_selector("#filter-mode-toggle.active")
-
-    find("#filter-mode-toggle").click
-    expect(page).to have_no_selector("#tree.wb-ext-filter-hide")
-    expect(page).to have_selector("#tree.wb-ext-filter-dim")
+    expect(page).to have_no_selector("#tree.wb-ext-filter-dim")
   end
 
   it "clears column filter indicators when clearing all filters at once" do
@@ -94,7 +93,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     click_button "Clear All Filters"
 
     expect(page).to have_no_selector(".wb-header [data-command='filter'].wb-helper-invalid", wait: 10)
-    expect(page).to have_selector("#filter-mode-toggle[disabled]", wait: 10)
+    expect(page).to have_no_selector("#filter-mode-toggle[disabled]", wait: 10)
     expect(page).to have_no_selector("#tree.wb-ext-filter-dim", wait: 10)
   end
 end
