@@ -22,9 +22,9 @@ RUN apk add -U --no-cache \
       bash=5.2.37-r0 \
       busybox=1.37.0-r19 \
       gcompat=1.1.0-r4 \
-      imagemagick=7.1.2.3-r0 \
+      imagemagick=7.1.2.8-r0 \
       libxslt=1.1.43-r3 \
-      postgresql16-client=16.10-r0 \
+      postgresql16-client=16.11-r0 \
       sqlite=3.49.2-r1 \
       shared-mime-info=2.4-r6 \
       ssl_client=1.37.0-r19 \
@@ -37,7 +37,7 @@ RUN apk add -U --no-cache \
       libjpeg-turbo-dev=3.1.0-r0 \
       libxslt-dev=1.1.43-r3 \
       libxml2-dev=2.13.9-r0 \
-      postgresql16-dev=16.10-r0 \
+      postgresql16-dev=16.11-r0 \
       sqlite-dev=3.49.2-r1 \
       nodejs=22.16.0-r2 \
       yarn=1.22.22-r1 && \
