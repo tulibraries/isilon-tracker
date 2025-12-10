@@ -45,6 +45,7 @@ tag:
 deploy:
   variables:
     IMAGE: $HARBOR/tulibraries/isilon-tracker
+    RANCHER: np-rancher
     CLUSTER: $DEV_CLUSTER
   stage: deploy
   extends: .helm_setup
