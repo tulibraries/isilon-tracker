@@ -2,7 +2,7 @@
 require 'rails_helper'
 
 RSpec.describe "Admin::IsilonAssets", type: :request do
-  let!(:migration_status) { MigrationStatus.create!(name: "Migrated", active: true) }
+  let!(:migration_status) { FactoryBot.create(:migration_status, :migrated) }
 
   let!(:aspace_collection) { AspaceCollection.create!(name: "Aspace Foo", active: true) }
 

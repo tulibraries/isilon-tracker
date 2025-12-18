@@ -46,7 +46,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     find("[data-command='filter']", match: :first).click
     expect(page).to have_selector(".wb-popup", visible: true)
 
-    find("body").click
+    page.execute_script("document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))")
     expect(page).to have_no_selector(".wb-popup", visible: true)
   end
 
