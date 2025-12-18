@@ -6,6 +6,14 @@ FactoryBot.define do
     active { true }
     default { false }
 
+    initialize_with do
+      MigrationStatus.find_or_initialize_by(name: name).tap do |status|
+        status.active = active
+        status.default = default
+        status.save!
+      end
+    end
+
     trait :default do
       name { "Needs review" }
       default { true }

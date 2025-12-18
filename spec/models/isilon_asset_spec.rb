@@ -2,7 +2,7 @@
 require "rails_helper"
 
 RSpec.describe IsilonAsset, type: :model do
-  let!(:migration_status) { MigrationStatus.create!(name: "Needs review", active: true, default: true) }
+  let!(:migration_status) { FactoryBot.create(:migration_status, :default) }
 
   it "can be created with a migration status" do
     asset = IsilonAsset.create!(

@@ -4,9 +4,9 @@ require 'rails_helper'
 
 RSpec.describe SyncService::Assets, type: :service do
   let!(:volume) { FactoryBot.create(:volume, name: "deposit") }
-  let!(:default_migration_status) { MigrationStatus.create!(name: "Needs review", active: true, default: true) }
-  let!(:migrated_status) { MigrationStatus.create!(name: "Migrated", active: true, default: false) }
-  let!(:dont_migrate_status) { MigrationStatus.create!(name: "Don't migrate", active: true, default: false) }
+  let!(:default_migration_status) { FactoryBot.create(:migration_status, :default) }
+  let!(:migrated_status) { FactoryBot.create(:migration_status, :migrated) }
+  let!(:dont_migrate_status) { FactoryBot.create(:migration_status, :dont_migrate) }
 
   describe '#apply_automation_rules' do
     let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
