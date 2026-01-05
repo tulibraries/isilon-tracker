@@ -49,6 +49,7 @@ export default class extends Controller {
         credentials: "same-origin"
       });
       const source = await res.json();
+      this._isScrollDrivenExpansion = false;
 
       this.tree = new Wunderbaum({
         element: this.element,
@@ -169,7 +170,9 @@ export default class extends Controller {
             this._filterSeq
           );
 
-          this._reapplyFilterIfAny();
+          if (!this._isScrollDrivenExpansion) {
+            this._reapplyFilterIfAny();
+          }
         },
 
         postProcess: (e) => { e.result = e.response; },
@@ -442,8 +445,15 @@ export default class extends Controller {
         if (select.options.length > 0) select.selectedIndex = 0;
       });
 
+      if (this.tree?.root) {
+        this.tree.root.visit((node) => {
+          if (node.expanded) {
+            node.setExpanded(false);
+          }
+        });
+      }
+
       this.tree.clearFilter();
-      this._collapseFilterExpansions();
       this._setLoading(false);
       this._updateFilterModeButton();
     });
@@ -830,6 +840,7 @@ _handleInputChange(e) {
     }
 
     this._expandingChains = false;
+    this._isScrollDrivenExpansion = false;
     if (this._pendingChains.length) this._schedulePendingChainExpansion();
   }
 
@@ -858,7 +869,10 @@ _handleInputChange(e) {
   }
 
   _onTreeScroll() {
+    this._isScrollDrivenExpansion = true;
+
     if (!this._pendingChains.length) return;
+
     const el = this.element;
     if (!el) return;
 
