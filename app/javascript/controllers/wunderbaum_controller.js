@@ -5,8 +5,11 @@ export default class extends Controller {
   static values = { url: String, volumeId: Number };
 
   columnFilters = new Map();
+  columnValueCache = new Map();
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
+  expandedNodes = new Set();
+  expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
@@ -138,11 +141,29 @@ export default class extends Controller {
         expand: async (e) => {
           const node = e.node;
           if (!node?.data?.folder) return;
-          await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), this._filterSeq);
+
+          const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+          this.expandedNodes.add(nodeKey);
+
+          if (this.expandingNodes.has(nodeKey)) {
+            return;
+          }
+
+          await this._ensureAssetsForFolderCancellable(
+            nodeKey,
+            this._filterSeq
+          );
+
           this._reapplyFilterIfAny();
         },
 
         postProcess: (e) => { e.result = e.response; },
+
+        renderHeaderCell: (e) => {
+          const { colDef, cellElem } = e.info;
+          cellElem.dataset.colid = colDef.id;
+          this._setFilterIconState(colDef.id, colDef.filterActive);
+        },
 
         render: (e) => {
           const util = e.util;
@@ -152,6 +173,15 @@ export default class extends Controller {
             const colId = colInfo.id;
             let value = e.node.data[colId];
             let selectElem;
+
+            if (value != null) {
+              let set = this.columnValueCache.get(colId);
+              if (!set) {
+                set = new Set();
+                this.columnValueCache.set(colId, set);
+              }
+              set.add(String(value));
+            }
 
             switch (colId) {
               case "migration_status":
@@ -316,12 +346,6 @@ export default class extends Controller {
       console.error("Wunderbaum failed to load:", err);
     }
 
-    this.tree.on("renderHeaderCell", (e) => {
-      const { colDef, cellElem } = e.info;
-      cellElem.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
-
     this._onTreeScroll = this._onTreeScroll.bind(this);
     this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
   }
@@ -344,6 +368,7 @@ export default class extends Controller {
     });
 
     input.addEventListener("keydown", (e) => {
+      
       if (e.key === "Escape") {
         input.value = "";
         this._runDeepFilter("");
@@ -359,8 +384,9 @@ export default class extends Controller {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
 
+      this.columnValueCache.clear();
       this.columnFilters.clear();
-
+      this.expandedNodes.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
@@ -396,11 +422,6 @@ export default class extends Controller {
       });
 
       this.tree.clearFilter();
-      if (this.tree?.visit) {
-        this.tree.visit((node) => {
-          if (node.expanded) node.setExpanded(false);
-        });
-      }
       this._collapseFilterExpansions();
       this._setLoading(false);
       this._updateFilterModeButton();
@@ -478,9 +499,17 @@ export default class extends Controller {
   _applyPredicate(q) {
     const predicate = (node) => {
       if (q) {
-        const t = (node.title || "").toLowerCase();
-        if (!t.includes(q)) return false;
+      const text =
+          String(
+            node.data.title ??
+            node.data.name ??
+            node.title ??
+            ""
+          ).toLowerCase();
+
+        if (!text.includes(q)) return false;
       }
+
       for (const [colId, val] of this.columnFilters.entries()) {
         const nv = node.data[colId];
         if (nv == null || String(nv).toLowerCase() !== String(val).toLowerCase()) return false;
@@ -505,13 +534,7 @@ export default class extends Controller {
 
   _findNodeByKey(key) {
     const skey = String(key);
-    let n = this.tree.getNodeByKey?.(skey);
-    if (n) return n;
-    this.tree.visit((node) => {
-      const k = String(node.key ?? node.data?.key ?? node.data?.id);
-      if (k === skey) { n = node; return false; }
-    });
-    return n;
+    return this.tree?.findKey?.(skey) ?? null;
   }
 
   _setupFilterModeToggle() {
@@ -698,10 +721,6 @@ _handleInputChange(e) {
         await this._hydrateSingleParentByKey(hopKey, mySeq);
       }
 
-      if ((!node.children || node.children.length === 0) && node.lazy) {
-        try { await node.loadLazy(); } catch {}
-      }
-
       if (!node.expanded) {
         node.setExpanded?.(true);
         this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
@@ -800,9 +819,19 @@ _handleInputChange(e) {
       if (!id) continue;
       await this._hydrateSingleParentByKey(id, seq);
       const node = this._findNodeByKey(id);
-      if (node && !node.expanded) {
-        node.setExpanded(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
+      const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+
+      if (node && !node.expanded && !this.expandingNodes.has(nodeKey)) {
+        this.expandingNodes.add(nodeKey);
+        try {
+          node.setExpanded(true);
+          this.expandedByFilter.add(nodeKey);
+        } finally {
+          // clear on next microtask so Wunderbaum can flip its internal loading flag
+          Promise.resolve().then(() => {
+            this.expandingNodes.delete(nodeKey);
+          });
+        }
       }
     }
   }
@@ -853,14 +882,22 @@ _handleInputChange(e) {
 
   _autoExpandSomeMatchingFolders(cap = 20) {
     if (!this.currentFilterPredicate || !this.tree) return;
+
     let expanded = 0;
+    let visited = 0;
+    const VISIT_LIMIT = 500;
+
     this.tree.visit((node) => {
+      if (++visited > VISIT_LIMIT) return false;
       if (expanded >= cap) return false;
+
       const isFolder = node.data?.folder === true;
       if (!isFolder) return;
+
       let matched = false;
       try { matched = this.currentFilterPredicate(node); } catch {}
       if (!matched) return;
+
       if (!node.expanded) {
         node.setExpanded(true);
         this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
@@ -938,12 +975,8 @@ _handleInputChange(e) {
         <option value="">⨉ Clear Filter</option>
       `;
     } else {
-      const values = new Set();
-      this.tree.visit((node) => {
-        const val = node.data[colId];
-        if (val != null) values.add(val);
-      });
-      const sorted = [...values].map(String).sort();
+      const values = this.columnValueCache.get(colId) ?? new Set();
+      const sorted = [...values].sort();
       select.innerHTML =
         sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
         `<option value="">⨉ Clear Filter</option>`;
