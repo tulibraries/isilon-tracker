@@ -8,6 +8,8 @@ export default class extends Controller {
   columnValueCache = new Map();
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
+  expandedNodes = new Set();
+  expandedNodes = new Set();
   expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
@@ -142,6 +144,8 @@ export default class extends Controller {
           if (!node?.data?.folder) return;
 
           const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+          this.expandedNodes.add(nodeKey);
+
           if (this.expandingNodes.has(nodeKey)) {
             return;
           }
@@ -365,6 +369,7 @@ export default class extends Controller {
     });
 
     input.addEventListener("keydown", (e) => {
+      
       if (e.key === "Escape") {
         input.value = "";
         this._runDeepFilter("");
@@ -382,7 +387,7 @@ export default class extends Controller {
 
       this.columnValueCache.clear();
       this.columnFilters.clear();
-
+      this.expandedNodes.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
