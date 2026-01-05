@@ -8,6 +8,7 @@ export default class extends Controller {
   columnValueCache = new Map();
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
+  expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
@@ -139,11 +140,27 @@ export default class extends Controller {
         expand: async (e) => {
           const node = e.node;
           if (!node?.data?.folder) return;
-          await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), this._filterSeq);
+
+          const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+          if (this.expandingNodes.has(nodeKey)) {
+            return;
+          }
+
+          await this._ensureAssetsForFolderCancellable(
+            nodeKey,
+            this._filterSeq
+          );
+
           this._reapplyFilterIfAny();
         },
 
         postProcess: (e) => { e.result = e.response; },
+
+        renderHeaderCell: (e) => {
+          const { colDef, cellElem } = e.info;
+          cellElem.dataset.colid = colDef.id;
+          this._setFilterIconState(colDef.id, colDef.filterActive);
+        },
 
         render: (e) => {
           const util = e.util;
@@ -325,12 +342,6 @@ export default class extends Controller {
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
-
-    this.tree.on("renderHeaderCell", (e) => {
-      const { colDef, cellElem } = e.info;
-      cellElem.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
 
     this._onTreeScroll = this._onTreeScroll.bind(this);
     this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
@@ -706,10 +717,6 @@ _handleInputChange(e) {
         await this._hydrateSingleParentByKey(hopKey, mySeq);
       }
 
-      if ((!node.children || node.children.length === 0) && node.lazy) {
-        try { await node.loadLazy(); } catch {}
-      }
-
       if (!node.expanded) {
         node.setExpanded?.(true);
         this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
@@ -808,9 +815,19 @@ _handleInputChange(e) {
       if (!id) continue;
       await this._hydrateSingleParentByKey(id, seq);
       const node = this._findNodeByKey(id);
-      if (node && !node.expanded) {
-        node.setExpanded(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
+      const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+
+      if (node && !node.expanded && !this.expandingNodes.has(nodeKey)) {
+        this.expandingNodes.add(nodeKey);
+        try {
+          node.setExpanded(true);
+          this.expandedByFilter.add(nodeKey);
+        } finally {
+          // clear on next microtask so Wunderbaum can flip its internal loading flag
+          Promise.resolve().then(() => {
+            this.expandingNodes.delete(nodeKey);
+          });
+        }
       }
     }
   }
