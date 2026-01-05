@@ -9,7 +9,6 @@ export default class extends Controller {
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
   expandedNodes = new Set();
-  expandedNodes = new Set();
   expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
