@@ -27,6 +27,21 @@ export default class extends Controller {
   _filterTimer = null;
   _filterSeq = 0;
 
+  folderInputColumns = new Set([
+    "notes",
+    "assigned_to"
+  ]);
+
+  assetInputColumns = new Set([
+    "migration_status",
+    "assigned_to",
+    "contentdm_collection_id",
+    "aspace_collection_id",
+    "preservica_reference_id",
+    "aspace_linking_status",
+    "notes",
+  ]);
+
   async connect() {
     try {
       const res = await fetch(this.urlValue, {
@@ -172,7 +187,16 @@ export default class extends Controller {
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
             let value = e.node.data[colId];
-            let selectElem;
+
+            if (isFolder && !this.folderInputColumns.has(colId)) {
+              colInfo.elem.innerHTML = "";
+              continue;
+            }
+
+            if (!isFolder && !this.assetInputColumns.has(colId)) {
+              colInfo.elem.innerHTML = "";
+              continue;
+            }
 
             if (value != null) {
               let set = this.columnValueCache.get(colId);
@@ -184,49 +208,52 @@ export default class extends Controller {
             }
 
             switch (colId) {
-              case "migration_status":
+              case "migration_status": {
                 if (this.migrationStatusOptions) {
-                  selectElem = this._buildSelectList(
+                  const select = this._buildSelectList(
                     this.migrationStatusOptions,
                     value,
-                    "migration_status"
+                    colId
                   );
                   colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
+                  colInfo.elem.appendChild(select);
                 } else {
                   util.setValueToElem(colInfo.elem, value ?? "");
                 }
                 break;
+              }   
 
-              case "aspace_collection_id":
+              case "aspace_collection_id": {
                 if (this.aspaceCollectionOptions) {
-                  selectElem = this._buildSelectList(
+                  const select = this._buildSelectList(
                     this.aspaceCollectionOptions,
                     value,
-                    "aspace_collection_id"
+                    colId
                   );
                   colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
+                  colInfo.elem.appendChild(select);
                 } else {
                   util.setValueToElem(colInfo.elem, value ?? "");
                 }
                 break;
+              }
 
-              case "contentdm_collection_id":
+              case "contentdm_collection_id": {
                 if (this.contentdmCollectionOptions) {
-                  selectElem = this._buildSelectList(
+                  const select = this._buildSelectList(
                     this.contentdmCollectionOptions,
                     value,
-                    "contentdm_collection_id"
+                    colId
                   );
                   colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
+                  colInfo.elem.appendChild(select);
                 } else {
                   util.setValueToElem(colInfo.elem, value ?? "");
                 }
                 break;
+              }
 
-              case "assigned_to":
+              case "assigned_to": {
                 if (this.userOptions) {
                   let effectiveValue = value;
                   if (
@@ -235,19 +262,21 @@ export default class extends Controller {
                     effectiveValue === "0"
                   ) {
                     effectiveValue = "unassigned";
-                    e.node.data.assigned_to = effectiveValue; // keep data in sync
+                    e.node.data.assigned_to = effectiveValue;
                   }
-                  selectElem = this._buildSelectList(
+
+                  const select = this._buildSelectList(
                     this.userOptions,
                     effectiveValue,
-                    "assigned_to"
+                    colId
                   );
                   colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(selectElem);
+                  colInfo.elem.appendChild(select);
                 } else {
                   util.setValueToElem(colInfo.elem, value ?? "Unassigned");
                 }
                 break;
+              }
 
               case "notes": {
                 const input = document.createElement("input");
@@ -259,33 +288,25 @@ export default class extends Controller {
                 break;
               }
 
-              case "preservica_reference_id":
-                // These fields only apply to assets, not folders
-                if (!isFolder) {
-                  const input = document.createElement("input");
-                  input.type = "text";
-                  input.name = colId;
-                  input.value = value ?? "";
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(input);
-                } else {
-                  util.setValueToElem(colInfo.elem, "");
-                }
+              case "preservica_reference_id": {
+                const input = document.createElement("input");
+                input.type = "text";
+                input.name = colId;
+                input.value = value ?? "";
+                colInfo.elem.innerHTML = "";
+                colInfo.elem.appendChild(input);
                 break;
+              }
 
-              case "aspace_linking_status":
-                // This field only applies to assets, not folders
-                if (!isFolder) {
-                  const checkbox = document.createElement("input");
-                  checkbox.type = "checkbox";
-                  checkbox.name = colId;
-                  checkbox.checked = Boolean(value);
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(checkbox);
-                } else {
-                  util.setValueToElem(colInfo.elem, "");
-                }
-                break;
+              case "aspace_linking_status": {
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.name = colId;
+              checkbox.checked = Boolean(value);
+              colInfo.elem.innerHTML = "";
+              colInfo.elem.appendChild(checkbox);
+              break;
+            }
 
               default:
                 util.setValueToElem(colInfo.elem, value ?? "");
