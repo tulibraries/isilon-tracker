@@ -5,12 +5,9 @@ export default class extends Controller {
   static values = { url: String, volumeId: Number };
 
   columnFilters = new Map();
-  columnValueCache = new Map();
   assetsLoadedFor = new Set();
   expandedByFilter = new Set();
-  expandedNodes = new Set();
   expandingNodes = new Set();
-  selectTemplateCache = new Map();
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
@@ -18,11 +15,6 @@ export default class extends Controller {
   folderCache = new Map();
   assetCache = new Map();
   loadedFolders = new Set();
-  loadedAssets = new Set();
-  // _pendingChains = [];
-  // _pendingChainKeys = new Set();
-  // _pendingChainHandle = null;
-  // _expandingChains = false;
 
   inflightControllers = new Set();
   _filterTimer = null;
@@ -149,7 +141,6 @@ export default class extends Controller {
           if (!node?.data?.folder) return;
 
           const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
-          this.expandedNodes.add(nodeKey);
 
           if (this.expandingNodes.has(nodeKey)) {
             return;
@@ -229,7 +220,6 @@ export default class extends Controller {
         },
         
         buttonClick: (e) => {
-          console.log("ButtonClick triggered for:", e.command, e.info?.colDef?.id);
           if (e.command === "filter") {
             const colId = e.info.colDef.id;
             const colIdx = e.info.colIdx;
@@ -238,7 +228,7 @@ export default class extends Controller {
             if (!colCell) return;
             const icon = colCell.querySelector("[data-command='filter']");
             if (!icon) return;
-            this.showDropdownFilter(icon, colId, colIdx);
+            this._showDropdownFilter(icon, colId, colIdx);
           }
         },
 
@@ -257,15 +247,7 @@ export default class extends Controller {
 
         source
       });
-
-      // let scrolling = false;
-      // this.element.addEventListener("scroll", () => {
-      //   if (scrolling) return;
-      //   scrolling = true;
-      //   requestAnimationFrame(() => {
-      //     scrolling = false;
-      //   });
-      // }, { passive: true });
+    
 
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
@@ -275,7 +257,6 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-      // requestAnimationFrame(() => this._tagHeaderCells());
 
       this.tree.visit((node) => {
         const rowEl = node.elem;
@@ -293,19 +274,12 @@ export default class extends Controller {
       });
 
     } catch (err) {
-      console.error("Wunderbaum failed to load:", err);
-    }
-
-    // this._onTreeScroll = this._onTreeScroll.bind(this);
-    // this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
+      console.error("Wunderbaum failed to load:", err);    }
   }
 
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
-    // if (this._onTreeScroll) {
-    //   this.element.removeEventListener("scroll", this._onTreeScroll);
-    // }
   }
 
   _setupInlineFilter() {
@@ -334,30 +308,12 @@ export default class extends Controller {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
 
-      this.columnValueCache.clear();
       this.columnFilters.clear();
-      this.expandedNodes.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
       this.filterMode = "dim";
       this.loadedFolders.clear();
-      this.loadedAssets.clear();
-      // this._pendingChains = [];
-      // this._pendingChainKeys.clear();
-      // if (this._pendingChainHandle != null) {
-      //   if (typeof cancelIdleCallback === "function") {
-      //     cancelIdleCallback(this._pendingChainHandle);
-      //   } else {
-      //     clearTimeout(this._pendingChainHandle);
-      //   }
-      //   this._pendingChainHandle = null;
-      // }
-      // this._expandingChains = false;
-      // if (this.tree?.options?.filter) {
-      //   this.tree.options.filter.mode = this.filterMode;
-      // }
-
       if (this.tree?.columns) {
         this.tree.columns.forEach((col) => {
           col.filterActive = false;
@@ -389,18 +345,6 @@ export default class extends Controller {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
-    this.loadedAssets.clear();
-    // this._pendingChains = [];
-    // this._pendingChainKeys = new Set();
-    // if (this._pendingChainHandle != null) {
-    //   if (typeof cancelIdleCallback === "function") {
-    //     cancelIdleCallback(this._pendingChainHandle);
-    //   } else {
-    //     clearTimeout(this._pendingChainHandle);
-    //   }
-    //   this._pendingChainHandle = null;
-    // }
-    // this._expandingChains = false;
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
@@ -436,17 +380,7 @@ export default class extends Controller {
     }
     if (mySeq !== this._filterSeq) return;
 
-    // const chains = this._buildMatchChains(folders, assets);
-    // const INITIAL_EXPAND = Math.min(5, chains.length);
-    // const initialChains = chains.slice(0, INITIAL_EXPAND);
-    // await this._expandChainsImmediate(initialChains, mySeq);
-    // if (mySeq !== this._filterSeq) return;
-
-    // const remainingChains = chains.slice(INITIAL_EXPAND);
-    // if (remainingChains.length) {
-    //   this._enqueueChains(remainingChains, mySeq);
-    //   this._schedulePendingChainExpansion();
-    // }
+    await this._materializeSearchResults(folders, assets, mySeq);
 
     this._applyPredicate(q);
     this._setLoading(false);
@@ -547,17 +481,6 @@ export default class extends Controller {
     icon.dataset.filterActive = isActive ? "true" : "false";
   }
 
-  _tagHeaderCells() {
-    const cells = this.element?.querySelectorAll(".wb-header .wb-col");
-    if (!cells || !this.tree?.columns) return;
-    cells.forEach((cell, idx) => {
-      const colDef = this.tree.columns[idx];
-      if (!colDef) return;
-      if (!cell.dataset.colid) cell.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
-  }
-
 _handleInputChange(e) {
   const target = e.target;
   if (!(target instanceof HTMLSelectElement || target instanceof HTMLInputElement)) return;
@@ -652,7 +575,6 @@ _handleInputChange(e) {
     }
 
     this.assetsLoadedFor.add(k);
-    this.loadedAssets.add(k);
   }
 
   async _expandPathCancellable(pathIds, mySeq) {
@@ -683,8 +605,6 @@ _handleInputChange(e) {
       }
 
       await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), mySeq);
-
-      // await new Promise(r => requestAnimationFrame(r));
     }
   }
 
@@ -716,58 +636,41 @@ _handleInputChange(e) {
       if (item.assetParentId) {
         await this._ensureAssetsForFolderCancellable(item.assetParentId, seq);
       }
-      // await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 
-  // _enqueueChains(chains = [], seq) {
-  //   for (const item of chains) {
-  //     const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-  //     if (this._pendingChainKeys.has(key)) continue;
-  //     this._pendingChainKeys.add(key);
-  //     this._pendingChains.push({ ...item, seq });
-  //   }
-  // }
+  _enqueueChains(chains = [], seq) {
+    for (const item of chains) {
+      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
+      if (this._pendingChainKeys.has(key)) continue;
+      this._pendingChainKeys.add(key);
+      this._pendingChains.push({ ...item, seq });
+    }
+  }
 
-  // _schedulePendingChainExpansion() {
-  //   if (this._expandingChains || !this._pendingChains.length) return;
-  //   if (this._pendingChainHandle != null) return;
+  async _materializeSearchResults(folders, assets, seq) {
+    const paths = new Set();
 
-  //   const callback = () => {
-  //     this._pendingChainHandle = null;
-  //     this._expandPendingChains(this._filterSeq, 5);
-  //   };
+    for (const folder of folders) {
+      if (Array.isArray(folder.path)) {
+        paths.add([...folder.path, folder.id].map(String).join(">"));
+      }
+    }
 
-  //   if (typeof requestIdleCallback === "function") {
-  //     this._pendingChainHandle = requestIdleCallback(callback, { timeout: 200 });
-  //   } else {
-  //     this._pendingChainHandle = setTimeout(callback, 0);
-  //   }
-  // }
+    for (const asset of assets) {
+      if (Array.isArray(asset.path)) {
+        const pid = asset.parent_folder_id ?? asset.folder_id;
+        if (pid != null) {
+          paths.add([...asset.path, pid].map(String).join(">"));
+        }
+      }
+    }
 
-  // async _expandPendingChains(seq, limit) {
-  //   if (this._expandingChains) return;
-  //   this._expandingChains = true;
-  //   let processed = 0;
-
-  //   while (processed < limit && this._pendingChains.length) {
-  //     if (seq !== this._filterSeq) break;
-  //     const item = this._pendingChains.shift();
-  //     const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-  //     this._pendingChainKeys.delete(key);
-  //     if (item.seq !== this._filterSeq) continue;
-  //     await this._loadPath(item.chain, item.seq);
-  //     if (item.assetParentId) {
-  //       await this._ensureAssetsForFolderCancellable(item.assetParentId, item.seq);
-  //     }
-  //     processed += 1;
-  //     await new Promise((resolve) => requestAnimationFrame(resolve));
-  //   }
-
-  //   this._expandingChains = false;
-  //   this._isScrollDrivenExpansion = false;
-  //   if (this._pendingChains.length) this._schedulePendingChainExpansion();
-  // }
+    for (const path of paths) {
+      if (seq !== this._filterSeq) return;
+      await this._loadPath(path.split(">"), seq);
+    }
+  }
 
   async _loadPath(pathIds, seq) {
     for (const rawId of pathIds) {
@@ -776,6 +679,10 @@ _handleInputChange(e) {
       if (!id) continue;
       await this._hydrateSingleParentByKey(id, seq);
       const node = this._findNodeByKey(id);
+      if (!node) {
+        return;
+      }
+
       const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
 
       if (node && !node.expanded && !this.expandingNodes.has(nodeKey)) {
@@ -784,86 +691,12 @@ _handleInputChange(e) {
           node.setExpanded(true);
           this.expandedByFilter.add(nodeKey);
         } finally {
-          // clear on next microtask so Wunderbaum can flip its internal loading flag
           Promise.resolve().then(() => {
             this.expandingNodes.delete(nodeKey);
           });
         }
       }
     }
-  }
-
-  // _onTreeScroll() {
-  //   this._isScrollDrivenExpansion = true;
-
-  //   if (!this._pendingChains.length) return;
-
-  //   const el = this.element;
-  //   if (!el) return;
-
-  //   const nearTop = el.scrollTop <= 200;
-  //   const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
-  //   if (nearTop || nearBottom) this._schedulePendingChainExpansion();
-  // }
-
-  // async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
-  //   const chains = [];
-
-  //   for (const f of folderHits) {
-  //     const path = Array.isArray(f.path) ? f.path : [];
-  //     chains.push([...path, f.id]);
-  //   }
-  //   for (const a of assetHits) {
-  //     const path = Array.isArray(a.path) ? a.path : [];
-  //     const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
-  //     if (pid != null) chains.push([...path, pid]);
-  //   }
-
-  //   const seen = new Set(), uniq = [];
-  //   for (const c of chains) {
-  //     const k = c.map(x => String(x)).join(">");
-  //     if (!seen.has(k)) { seen.add(k); uniq.push(c); }
-  //   }
-
-  //   for (let i = 0; i < uniq.length; i += chunkSize) {
-  //     if (mySeq !== this._filterSeq) return;
-
-  //     const batch = uniq.slice(i, i + chunkSize);
-  //     await Promise.all(batch.map(chain => this._expandPathCancellable(chain, mySeq)));
-
-  //     this._reapplyFilterIfAny();
-
-  //     const done = Math.min(i + chunkSize, uniq.length);
-  //     this._setLoading(true, `Loading results… (${done}/${uniq.length})`);
-
-  //     // await new Promise(r => requestAnimationFrame(r));
-  //   }
-  // }
-
-  _autoExpandSomeMatchingFolders(cap = 20) {
-    if (!this.currentFilterPredicate || !this.tree) return;
-
-    let expanded = 0;
-    let visited = 0;
-    const VISIT_LIMIT = 500;
-
-    this.tree.visit((node) => {
-      if (++visited > VISIT_LIMIT) return false;
-      if (expanded >= cap) return false;
-
-      const isFolder = node.data?.folder === true;
-      if (!isFolder) return;
-
-      let matched = false;
-      try { matched = this.currentFilterPredicate(node); } catch {}
-      if (!matched) return;
-
-      if (!node.expanded) {
-        node.setExpanded(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
-        expanded += 1;
-      }
-    });
   }
 
   _collapseFilterExpansions() {
@@ -888,46 +721,8 @@ _handleInputChange(e) {
       return [];
   }
 }
-
-  _buildSelectList(options, currentValue, selectName) {
-    const select = document.createElement("select");
-    select.name = selectName;
-
-    const normalized = String(currentValue ?? "");
-
-    options.forEach(opt => {
-      const option = document.createElement("option");
-      option.value = String(opt.value);
-      option.textContent = opt.label;
-      if (String(opt.value) === normalized) {
-        option.selected = true;
-      }
-      select.appendChild(option);
-    });
-
-    return select;
-  }
-
-  _getSelectTemplate(options, colId) {
-    let template = this.selectTemplateCache.get(colId);
-    if (template) return template;
-
-    const select = document.createElement("select");
-    select.name = colId;
-
-    options.forEach(opt => {
-      const option = document.createElement("option");
-      option.value = String(opt.value);
-      option.textContent = opt.label;
-      select.appendChild(option);
-    });
-
-    template = select;
-    this.selectTemplateCache.set(colId, template);
-    return template;
-  }
   
-  showDropdownFilter(anchorEl, colId, colIdx) {
+  _showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
       existing.remove();
@@ -969,7 +764,6 @@ _handleInputChange(e) {
         <option value="">⨉ Clear Filter</option>
       `;
     } else {
-      const values = this.columnValueCache.get(colId) ?? new Set();
       const sorted = [...values].sort();
       select.innerHTML =
         sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
@@ -985,13 +779,11 @@ _handleInputChange(e) {
       const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
       select.size = visibleCount;
       select.classList.remove("popup-select--collapsed");
-      // requestAnimationFrame(() => updatePos());
     };
 
     const collapseSelect = () => {
       select.removeAttribute("size");
       select.classList.add("popup-select--collapsed");
-      // requestAnimationFrame(() => updatePos());
     };
 
     expandSelect();
@@ -1109,10 +901,8 @@ _handleInputChange(e) {
     const input = document.getElementById("tree-filter");
     if (!input) return;
 
-    // Try to find or create a stable container just below the toolbar row
     let container = document.querySelector(".wb-loading-container");
     if (!container) {
-      // Create a new container right *after* the toolbar row (not inside it)
       const toolbar = input.closest(".wb-toolbar") || input.parentElement;
       container = document.createElement("div");
       container.className = "wb-loading-container";
@@ -1181,19 +971,16 @@ _handleInputChange(e) {
   }
 
   _emitSelectionChange() {
-    // Get selected asset IDs (excluding folders)
     const selectedAssetIds = this.tree.getSelectedNodes()
       .filter(node => !node.data.folder && node.key && node.key.startsWith('a-'))
       .map(node => parseInt(node.key.replace('a-', ''), 10))
       .filter(id => !isNaN(id));
 
-    // Get selected folder IDs
     const selectedFolderIds = this.tree.getSelectedNodes()
       .filter(node => node.data.folder && node.key && !node.key.startsWith('a-'))
       .map(node => parseInt(node.key, 10))
       .filter(id => !isNaN(id));
 
-    // Emit custom event for batch actions controller
     const event = new CustomEvent("wunderbaum:selectionChanged", {
       detail: { selectedAssetIds, selectedFolderIds }
     });
@@ -1210,7 +997,6 @@ _handleInputChange(e) {
   // Public method to refresh tree display after batch updates
   async refreshTreeDisplay(updatedAssetIds = [], updatedFolderIds = []) {
     
-    // Handle updated folders first
     if (this.tree && updatedFolderIds.length > 0) {
       
       for (const folderId of updatedFolderIds) {
@@ -1218,16 +1004,12 @@ _handleInputChange(e) {
         const node = this.tree.findKey(nodeKey);
         
         if (node) {
-          // Refresh the folder node by re-fetching its data
           await this.refreshFolderNode(node, folderId);
         }
       }
     }
     
-    // Handle updated assets
     if (this.tree && updatedAssetIds.length > 0) {
-      
-      // Get unique parent folder IDs for the updated assets
       const parentFolderIds = new Set();
       
       updatedAssetIds.forEach(assetId => {
@@ -1238,7 +1020,6 @@ _handleInputChange(e) {
         }
       });
       
-      // Refresh assets for each affected parent folder
       for (const folderId of parentFolderIds) {
         await this.refreshFolderAssets(folderId, updatedAssetIds);
       }
@@ -1250,7 +1031,6 @@ _handleInputChange(e) {
   async refreshFolderNode(node, folderId) {
     try {
       
-      // Fetch fresh folder data using the show endpoint
       const response = await fetch(`/isilon_folders/${folderId}.json`, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -1259,13 +1039,10 @@ _handleInputChange(e) {
       if (response.ok) {
         const folderData = await response.json();
         
-        // Update the node's data with fresh values
         Object.assign(node.data, folderData);
         
-        // Update the node's title (which is just the full_path from serializer)
         node.setTitle(folderData.title);
         
-        // Try different methods to trigger re-render (same as for assets)
         try {
           if (node.update) {
             node.update();
@@ -1291,7 +1068,6 @@ _handleInputChange(e) {
   async refreshFolderAssets(parentFolderId, updatedAssetIds) {
     try {
       
-      // Fetch fresh asset data for this folder
       const response = await fetch(`/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentFolderId}`, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -1300,20 +1076,16 @@ _handleInputChange(e) {
       if (response.ok) {
         const assetsData = await response.json();
         
-        // Update each modified asset node with fresh data
         assetsData.forEach(assetData => {
           const nodeKey = assetData.key; // Should be "a-{id}"
           const assetId = parseInt(nodeKey.replace('a-', ''), 10);
           
-          // Only update if this asset was in our updated list
           if (updatedAssetIds.includes(assetId)) {
             const node = this.tree.findKey(nodeKey);
             if (node) {
               
-              // Update the node's data with fresh values
               Object.assign(node.data, assetData);
               
-              // Try different methods to trigger re-render
               try {
                 if (node.update) {
                   node.update();
