@@ -5,8 +5,8 @@ export default class extends Controller {
   static values = { url: String, volumeId: Number };
 
   columnFilters = new Map();
+  columnValueCache = new Map();
   assetsLoadedFor = new Set();
-  expandedByFilter = new Set();
   expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
@@ -19,10 +19,6 @@ export default class extends Controller {
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
-
-  folderSelectColumns = new Set([
-    "assigned_to"
-  ]);
 
   async connect() {
     try {
@@ -173,36 +169,13 @@ export default class extends Controller {
             const colId = colInfo.id;
             const value = node.data[colId];
 
-            const select = colInfo.elem.querySelector("select");
-            if (select) {
-              const colId = colInfo.id;
-              const isFolder = node.data.folder === true;
-
-              if (isFolder && !this.folderSelectColumns.has(colId)) {
-                select.style.display = "none";
-                continue;
+            if (value != null && value !== "") {
+              let set = this.columnValueCache.get(colId);
+              if (!set) {
+                set = new Set();
+                this.columnValueCache.set(colId, set);
               }
-
-              select.style.display = "";
-
-              if (select.options.length === 0) {
-                const options = this._optionsForColumn(colId);
-                for (const opt of options) {
-                  const option = document.createElement("option");
-                  option.value = String(opt.value);
-                  option.textContent = opt.label;
-                  select.appendChild(option);
-                }
-              }
-
-              const rawValue = node.data[colId];
-              const value =
-                rawValue != null && rawValue !== ""
-                  ? String(rawValue)
-                  : this.defaultValueForColumn?.[colId] ?? "";
-
-              select.value = value;
-              continue;
+              set.add(String(value));
             }
 
             util.setValueToElem(colInfo.elem, value ?? "");
@@ -257,21 +230,6 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-
-      this.tree.visit((node) => {
-        const rowEl = node.elem;
-        if (!rowEl) return;
-
-        const select = rowEl.querySelector("select[name='assigned_to']");
-        if (!select || select.options.length > 0) return;
-
-        this.userOptions.forEach(opt => {
-          const option = document.createElement("option");
-          option.value = String(opt.value);
-          option.textContent = opt.label;
-          select.appendChild(option);
-        });
-      });
 
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);    }
@@ -336,6 +294,7 @@ export default class extends Controller {
       }
 
       this.tree.clearFilter();
+      this.columnValueCache.clear();
       this._setLoading(false);
       this._updateFilterModeButton();
     });
@@ -481,40 +440,6 @@ export default class extends Controller {
     icon.dataset.filterActive = isActive ? "true" : "false";
   }
 
-_handleInputChange(e) {
-  const target = e.target;
-  if (!(target instanceof HTMLSelectElement || target instanceof HTMLInputElement)) return;
-
-  const nodeKey = target.dataset.nodeKey || target.closest(".wb-node")?.dataset.key;
-  if (!nodeKey) {
-    console.warn("No nodeKey found for target:", target);
-    return;
-  }
-
-  const node = this._findNodeByKey(nodeKey);
-  if (!node) {
-    console.warn("No node found for nodeKey:", nodeKey);
-    return;
-  }
-
-  const colCell = target.closest(".wb-col");
-  const field = colCell?.dataset.colid || target.name;
-  if (!field) {
-    console.warn("No field resolved for target:", target);
-    return;
-  }
-
-  let value;
-  if (target.type === "checkbox") {
-    value = target.checked;
-  } else {
-    value = target.value;
-  }
-
-  node.data[field] = value;
-  this._saveCellChange(node, field, value);
-}
-
   async _hydrateSingleParentByKey(parentKey, mySeq) {
     if (mySeq !== this._filterSeq) return;
     const pid = String(parentKey);
@@ -577,77 +502,6 @@ _handleInputChange(e) {
     this.assetsLoadedFor.add(k);
   }
 
-  async _expandPathCancellable(pathIds, mySeq) {
-    const hops = pathIds.map(id => String(id));
-
-    for (let i = 0; i < hops.length; i++) {
-      if (mySeq !== this._filterSeq) return;
-
-      const hopKey = hops[i];
-      let node = this._findNodeByKey(hopKey);
-
-      if (!node) {
-        const parentKey = i > 0 ? hops[i - 1] : null;
-        if (parentKey != null) {
-          await this._hydrateSingleParentByKey(parentKey, mySeq);
-          node = this._findNodeByKey(hopKey);
-        }
-        if (!node) return;
-      }
-
-      if (!node.children || node.children.length === 0) {
-        await this._hydrateSingleParentByKey(hopKey, mySeq);
-      }
-
-      if (!node.expanded) {
-        node.setExpanded?.(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
-      }
-
-      await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), mySeq);
-    }
-  }
-
-  _buildMatchChains(folders = [], assets = []) {
-    const chains = [];
-
-    for (const folder of folders || []) {
-      const path = Array.isArray(folder.path) ? folder.path : [];
-      const ids = [...path, folder.id].filter((id) => id != null);
-      if (!ids.length) continue;
-      chains.push({ chain: ids.map(String), assetParentId: null });
-    }
-
-    for (const asset of assets || []) {
-      const path = Array.isArray(asset.path) ? asset.path : [];
-      const pid = asset.parent_folder_id ?? asset.folder_id ?? asset.parent_id;
-      const ids = pid != null ? [...path, pid] : path;
-      if (!ids.length) continue;
-      chains.push({ chain: ids.map(String), assetParentId: pid != null ? String(pid) : null });
-    }
-
-    return chains;
-  }
-
-  async _expandChainsImmediate(chains = [], seq) {
-    for (const item of chains) {
-      if (seq !== this._filterSeq) return;
-      await this._loadPath(item.chain, seq);
-      if (item.assetParentId) {
-        await this._ensureAssetsForFolderCancellable(item.assetParentId, seq);
-      }
-    }
-  }
-
-  _enqueueChains(chains = [], seq) {
-    for (const item of chains) {
-      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-      if (this._pendingChainKeys.has(key)) continue;
-      this._pendingChainKeys.add(key);
-      this._pendingChains.push({ ...item, seq });
-    }
-  }
-
   async _materializeSearchResults(folders, assets, seq) {
     const paths = new Set();
 
@@ -689,7 +543,6 @@ _handleInputChange(e) {
         this.expandingNodes.add(nodeKey);
         try {
           node.setExpanded(true);
-          this.expandedByFilter.add(nodeKey);
         } finally {
           Promise.resolve().then(() => {
             this.expandingNodes.delete(nodeKey);
@@ -697,14 +550,6 @@ _handleInputChange(e) {
         }
       }
     }
-  }
-
-  _collapseFilterExpansions() {
-    for (const key of this.expandedByFilter) {
-      const node = this._findNodeByKey(key);
-      if (node && node.expanded) node.setExpanded(false);
-    }
-    this.expandedByFilter.clear();
   }
 
   _optionsForColumn(colId) {
@@ -764,6 +609,7 @@ _handleInputChange(e) {
         <option value="">⨉ Clear Filter</option>
       `;
     } else {
+      const values = this.columnValueCache.get(colId) ?? new Set();
       const sorted = [...values].sort();
       select.innerHTML =
         sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
@@ -873,7 +719,7 @@ _handleInputChange(e) {
         obs.disconnect();
       }
     });
-    obs.observe(document.body, { childList: true });
+    obs.observe(document.body, { childList: true }); 
   }
 
   _beginFetchGroup() {
