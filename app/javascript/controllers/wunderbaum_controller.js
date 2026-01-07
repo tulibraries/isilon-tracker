@@ -10,6 +10,7 @@ export default class extends Controller {
   expandedByFilter = new Set();
   expandedNodes = new Set();
   expandingNodes = new Set();
+  selectTemplateCache = new Map();
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
@@ -18,28 +19,17 @@ export default class extends Controller {
   assetCache = new Map();
   loadedFolders = new Set();
   loadedAssets = new Set();
-  _pendingChains = [];
-  _pendingChainKeys = new Set();
-  _pendingChainHandle = null;
-  _expandingChains = false;
+  // _pendingChains = [];
+  // _pendingChainKeys = new Set();
+  // _pendingChainHandle = null;
+  // _expandingChains = false;
 
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
 
-  folderInputColumns = new Set([
-    "notes",
+  folderSelectColumns = new Set([
     "assigned_to"
-  ]);
-
-  assetInputColumns = new Set([
-    "migration_status",
-    "assigned_to",
-    "contentdm_collection_id",
-    "aspace_collection_id",
-    "preservica_reference_id",
-    "aspace_linking_status",
-    "notes",
   ]);
 
   async connect() {
@@ -83,7 +73,7 @@ export default class extends Controller {
             filterable: true,
             title: "Migration status",
             width: "150px",
-            html: `<select tabindex="-1"><option value="1" selected>Needs Review</option></select>`
+            html: `<select></select>`
           },
           {
             id: "assigned_to",
@@ -91,7 +81,7 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "150px",
-            html: `<select tabindex="-1"><option value="assigned_to" selected>unassigned</option></select>`
+            html: `<select></select>`
           },
           {
             id: "notes",
@@ -114,7 +104,7 @@ export default class extends Controller {
             filterable: true,
             title: "Contentdm Collection",
             width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            html: `<select></select>`
           },
           {
             id: "aspace_collection_id",
@@ -122,7 +112,7 @@ export default class extends Controller {
             filterable: true,
             title: "ASpace Collection",
             width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            html: `<select></select>`
           },
           {
             id: "preservica_reference_id",
@@ -185,147 +175,59 @@ export default class extends Controller {
 
         render: (e) => {
           const util = e.util;
+          const node = e.node;
           const isFolder = e.node.data.folder === true;
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
-            let value = e.node.data[colId];
+            const value = node.data[colId];
 
-            if (isFolder && !this.folderInputColumns.has(colId)) {
-              colInfo.elem.innerHTML = "";
+            const select = colInfo.elem.querySelector("select");
+            if (select) {
+              const colId = colInfo.id;
+              const isFolder = node.data.folder === true;
+
+              if (isFolder && !this.folderSelectColumns.has(colId)) {
+                select.style.display = "none";
+                continue;
+              }
+
+              select.style.display = "";
+
+              if (select.options.length === 0) {
+                const options = this._optionsForColumn(colId);
+                for (const opt of options) {
+                  const option = document.createElement("option");
+                  option.value = String(opt.value);
+                  option.textContent = opt.label;
+                  select.appendChild(option);
+                }
+              }
+
+              const rawValue = node.data[colId];
+              const value =
+                rawValue != null && rawValue !== ""
+                  ? String(rawValue)
+                  : this.defaultValueForColumn?.[colId] ?? "";
+
+              select.value = value;
               continue;
             }
 
-            if (!isFolder && !this.assetInputColumns.has(colId)) {
-              colInfo.elem.innerHTML = "";
-              continue;
-            }
-
-            if (value != null) {
-              let set = this.columnValueCache.get(colId);
-              if (!set) {
-                set = new Set();
-                this.columnValueCache.set(colId, set);
-              }
-              set.add(String(value));
-            }
-
-            switch (colId) {
-              case "migration_status": {
-                if (this.migrationStatusOptions) {
-                  const select = this._buildSelectList(
-                    this.migrationStatusOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }   
-
-              case "aspace_collection_id": {
-                if (this.aspaceCollectionOptions) {
-                  const select = this._buildSelectList(
-                    this.aspaceCollectionOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }
-
-              case "contentdm_collection_id": {
-                if (this.contentdmCollectionOptions) {
-                  const select = this._buildSelectList(
-                    this.contentdmCollectionOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }
-
-              case "assigned_to": {
-                if (this.userOptions) {
-                  let effectiveValue = value;
-                  if (
-                    effectiveValue == null ||
-                    effectiveValue === "" ||
-                    effectiveValue === "0"
-                  ) {
-                    effectiveValue = "unassigned";
-                    e.node.data.assigned_to = effectiveValue;
-                  }
-
-                  const select = this._buildSelectList(
-                    this.userOptions,
-                    effectiveValue,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "Unassigned");
-                }
-                break;
-              }
-
-              case "notes": {
-                const input = document.createElement("input");
-                input.type = "text";
-                input.name = colId;
-                input.value = value ?? "";
-                colInfo.elem.innerHTML = "";
-                colInfo.elem.appendChild(input);
-                break;
-              }
-
-              case "preservica_reference_id": {
-                const input = document.createElement("input");
-                input.type = "text";
-                input.name = colId;
-                input.value = value ?? "";
-                colInfo.elem.innerHTML = "";
-                colInfo.elem.appendChild(input);
-                break;
-              }
-
-              case "aspace_linking_status": {
-              const checkbox = document.createElement("input");
-              checkbox.type = "checkbox";
-              checkbox.name = colId;
-              checkbox.checked = Boolean(value);
-              colInfo.elem.innerHTML = "";
-              colInfo.elem.appendChild(checkbox);
-              break;
-            }
-
-              default:
-                util.setValueToElem(colInfo.elem, value ?? "");
-            }
+            util.setValueToElem(colInfo.elem, value ?? "");
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
-          if (titleElem) {
-            if (isFolder) {
-              titleElem.textContent = e.node.title || "";
-            } else {
-              titleElem.innerHTML = `<a href="${e.node.data.url}" class="asset-link" data-turbo="false">${e.node.title}</a>`;
-            }
+          if (!titleElem) return;
+
+          if (isFolder) {
+            titleElem.textContent = node.title || "";
+          } else {
+            titleElem.innerHTML =
+              `<a href="${node.data.url}" class="asset-link" data-turbo="false">${node.title}</a>`;
           }
         },
-
+        
         buttonClick: (e) => {
           console.log("ButtonClick triggered for:", e.command, e.info?.colDef?.id);
           if (e.command === "filter") {
@@ -356,6 +258,15 @@ export default class extends Controller {
         source
       });
 
+      // let scrolling = false;
+      // this.element.addEventListener("scroll", () => {
+      //   if (scrolling) return;
+      //   scrolling = true;
+      //   requestAnimationFrame(() => {
+      //     scrolling = false;
+      //   });
+      // }, { passive: true });
+
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
@@ -364,22 +275,37 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-      requestAnimationFrame(() => this._tagHeaderCells());
+      // requestAnimationFrame(() => this._tagHeaderCells());
+
+      this.tree.visit((node) => {
+        const rowEl = node.elem;
+        if (!rowEl) return;
+
+        const select = rowEl.querySelector("select[name='assigned_to']");
+        if (!select || select.options.length > 0) return;
+
+        this.userOptions.forEach(opt => {
+          const option = document.createElement("option");
+          option.value = String(opt.value);
+          option.textContent = opt.label;
+          select.appendChild(option);
+        });
+      });
 
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);
     }
 
-    this._onTreeScroll = this._onTreeScroll.bind(this);
-    this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
+    // this._onTreeScroll = this._onTreeScroll.bind(this);
+    // this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
   }
 
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
-    if (this._onTreeScroll) {
-      this.element.removeEventListener("scroll", this._onTreeScroll);
-    }
+    // if (this._onTreeScroll) {
+    //   this.element.removeEventListener("scroll", this._onTreeScroll);
+    // }
   }
 
   _setupInlineFilter() {
@@ -417,20 +343,20 @@ export default class extends Controller {
       this.filterMode = "dim";
       this.loadedFolders.clear();
       this.loadedAssets.clear();
-      this._pendingChains = [];
-      this._pendingChainKeys.clear();
-      if (this._pendingChainHandle != null) {
-        if (typeof cancelIdleCallback === "function") {
-          cancelIdleCallback(this._pendingChainHandle);
-        } else {
-          clearTimeout(this._pendingChainHandle);
-        }
-        this._pendingChainHandle = null;
-      }
-      this._expandingChains = false;
-      if (this.tree?.options?.filter) {
-        this.tree.options.filter.mode = this.filterMode;
-      }
+      // this._pendingChains = [];
+      // this._pendingChainKeys.clear();
+      // if (this._pendingChainHandle != null) {
+      //   if (typeof cancelIdleCallback === "function") {
+      //     cancelIdleCallback(this._pendingChainHandle);
+      //   } else {
+      //     clearTimeout(this._pendingChainHandle);
+      //   }
+      //   this._pendingChainHandle = null;
+      // }
+      // this._expandingChains = false;
+      // if (this.tree?.options?.filter) {
+      //   this.tree.options.filter.mode = this.filterMode;
+      // }
 
       if (this.tree?.columns) {
         this.tree.columns.forEach((col) => {
@@ -459,23 +385,22 @@ export default class extends Controller {
     });
   }
 
-
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
     this.loadedAssets.clear();
-    this._pendingChains = [];
-    this._pendingChainKeys = new Set();
-    if (this._pendingChainHandle != null) {
-      if (typeof cancelIdleCallback === "function") {
-        cancelIdleCallback(this._pendingChainHandle);
-      } else {
-        clearTimeout(this._pendingChainHandle);
-      }
-      this._pendingChainHandle = null;
-    }
-    this._expandingChains = false;
+    // this._pendingChains = [];
+    // this._pendingChainKeys = new Set();
+    // if (this._pendingChainHandle != null) {
+    //   if (typeof cancelIdleCallback === "function") {
+    //     cancelIdleCallback(this._pendingChainHandle);
+    //   } else {
+    //     clearTimeout(this._pendingChainHandle);
+    //   }
+    //   this._pendingChainHandle = null;
+    // }
+    // this._expandingChains = false;
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
@@ -511,17 +436,17 @@ export default class extends Controller {
     }
     if (mySeq !== this._filterSeq) return;
 
-    const chains = this._buildMatchChains(folders, assets);
-    const INITIAL_EXPAND = Math.min(5, chains.length);
-    const initialChains = chains.slice(0, INITIAL_EXPAND);
-    await this._expandChainsImmediate(initialChains, mySeq);
-    if (mySeq !== this._filterSeq) return;
+    // const chains = this._buildMatchChains(folders, assets);
+    // const INITIAL_EXPAND = Math.min(5, chains.length);
+    // const initialChains = chains.slice(0, INITIAL_EXPAND);
+    // await this._expandChainsImmediate(initialChains, mySeq);
+    // if (mySeq !== this._filterSeq) return;
 
-    const remainingChains = chains.slice(INITIAL_EXPAND);
-    if (remainingChains.length) {
-      this._enqueueChains(remainingChains, mySeq);
-      this._schedulePendingChainExpansion();
-    }
+    // const remainingChains = chains.slice(INITIAL_EXPAND);
+    // if (remainingChains.length) {
+    //   this._enqueueChains(remainingChains, mySeq);
+    //   this._schedulePendingChainExpansion();
+    // }
 
     this._applyPredicate(q);
     this._setLoading(false);
@@ -759,7 +684,7 @@ _handleInputChange(e) {
 
       await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), mySeq);
 
-      await new Promise(r => requestAnimationFrame(r));
+      // await new Promise(r => requestAnimationFrame(r));
     }
   }
 
@@ -791,58 +716,58 @@ _handleInputChange(e) {
       if (item.assetParentId) {
         await this._ensureAssetsForFolderCancellable(item.assetParentId, seq);
       }
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      // await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 
-  _enqueueChains(chains = [], seq) {
-    for (const item of chains) {
-      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-      if (this._pendingChainKeys.has(key)) continue;
-      this._pendingChainKeys.add(key);
-      this._pendingChains.push({ ...item, seq });
-    }
-  }
+  // _enqueueChains(chains = [], seq) {
+  //   for (const item of chains) {
+  //     const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
+  //     if (this._pendingChainKeys.has(key)) continue;
+  //     this._pendingChainKeys.add(key);
+  //     this._pendingChains.push({ ...item, seq });
+  //   }
+  // }
 
-  _schedulePendingChainExpansion() {
-    if (this._expandingChains || !this._pendingChains.length) return;
-    if (this._pendingChainHandle != null) return;
+  // _schedulePendingChainExpansion() {
+  //   if (this._expandingChains || !this._pendingChains.length) return;
+  //   if (this._pendingChainHandle != null) return;
 
-    const callback = () => {
-      this._pendingChainHandle = null;
-      this._expandPendingChains(this._filterSeq, 5);
-    };
+  //   const callback = () => {
+  //     this._pendingChainHandle = null;
+  //     this._expandPendingChains(this._filterSeq, 5);
+  //   };
 
-    if (typeof requestIdleCallback === "function") {
-      this._pendingChainHandle = requestIdleCallback(callback, { timeout: 200 });
-    } else {
-      this._pendingChainHandle = setTimeout(callback, 0);
-    }
-  }
+  //   if (typeof requestIdleCallback === "function") {
+  //     this._pendingChainHandle = requestIdleCallback(callback, { timeout: 200 });
+  //   } else {
+  //     this._pendingChainHandle = setTimeout(callback, 0);
+  //   }
+  // }
 
-  async _expandPendingChains(seq, limit) {
-    if (this._expandingChains) return;
-    this._expandingChains = true;
-    let processed = 0;
+  // async _expandPendingChains(seq, limit) {
+  //   if (this._expandingChains) return;
+  //   this._expandingChains = true;
+  //   let processed = 0;
 
-    while (processed < limit && this._pendingChains.length) {
-      if (seq !== this._filterSeq) break;
-      const item = this._pendingChains.shift();
-      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-      this._pendingChainKeys.delete(key);
-      if (item.seq !== this._filterSeq) continue;
-      await this._loadPath(item.chain, item.seq);
-      if (item.assetParentId) {
-        await this._ensureAssetsForFolderCancellable(item.assetParentId, item.seq);
-      }
-      processed += 1;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+  //   while (processed < limit && this._pendingChains.length) {
+  //     if (seq !== this._filterSeq) break;
+  //     const item = this._pendingChains.shift();
+  //     const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
+  //     this._pendingChainKeys.delete(key);
+  //     if (item.seq !== this._filterSeq) continue;
+  //     await this._loadPath(item.chain, item.seq);
+  //     if (item.assetParentId) {
+  //       await this._ensureAssetsForFolderCancellable(item.assetParentId, item.seq);
+  //     }
+  //     processed += 1;
+  //     await new Promise((resolve) => requestAnimationFrame(resolve));
+  //   }
 
-    this._expandingChains = false;
-    this._isScrollDrivenExpansion = false;
-    if (this._pendingChains.length) this._schedulePendingChainExpansion();
-  }
+  //   this._expandingChains = false;
+  //   this._isScrollDrivenExpansion = false;
+  //   if (this._pendingChains.length) this._schedulePendingChainExpansion();
+  // }
 
   async _loadPath(pathIds, seq) {
     for (const rawId of pathIds) {
@@ -868,52 +793,52 @@ _handleInputChange(e) {
     }
   }
 
-  _onTreeScroll() {
-    this._isScrollDrivenExpansion = true;
+  // _onTreeScroll() {
+  //   this._isScrollDrivenExpansion = true;
 
-    if (!this._pendingChains.length) return;
+  //   if (!this._pendingChains.length) return;
 
-    const el = this.element;
-    if (!el) return;
+  //   const el = this.element;
+  //   if (!el) return;
 
-    const nearTop = el.scrollTop <= 200;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
-    if (nearTop || nearBottom) this._schedulePendingChainExpansion();
-  }
+  //   const nearTop = el.scrollTop <= 200;
+  //   const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
+  //   if (nearTop || nearBottom) this._schedulePendingChainExpansion();
+  // }
 
-  async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
-    const chains = [];
+  // async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
+  //   const chains = [];
 
-    for (const f of folderHits) {
-      const path = Array.isArray(f.path) ? f.path : [];
-      chains.push([...path, f.id]);
-    }
-    for (const a of assetHits) {
-      const path = Array.isArray(a.path) ? a.path : [];
-      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
-      if (pid != null) chains.push([...path, pid]);
-    }
+  //   for (const f of folderHits) {
+  //     const path = Array.isArray(f.path) ? f.path : [];
+  //     chains.push([...path, f.id]);
+  //   }
+  //   for (const a of assetHits) {
+  //     const path = Array.isArray(a.path) ? a.path : [];
+  //     const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
+  //     if (pid != null) chains.push([...path, pid]);
+  //   }
 
-    const seen = new Set(), uniq = [];
-    for (const c of chains) {
-      const k = c.map(x => String(x)).join(">");
-      if (!seen.has(k)) { seen.add(k); uniq.push(c); }
-    }
+  //   const seen = new Set(), uniq = [];
+  //   for (const c of chains) {
+  //     const k = c.map(x => String(x)).join(">");
+  //     if (!seen.has(k)) { seen.add(k); uniq.push(c); }
+  //   }
 
-    for (let i = 0; i < uniq.length; i += chunkSize) {
-      if (mySeq !== this._filterSeq) return;
+  //   for (let i = 0; i < uniq.length; i += chunkSize) {
+  //     if (mySeq !== this._filterSeq) return;
 
-      const batch = uniq.slice(i, i + chunkSize);
-      await Promise.all(batch.map(chain => this._expandPathCancellable(chain, mySeq)));
+  //     const batch = uniq.slice(i, i + chunkSize);
+  //     await Promise.all(batch.map(chain => this._expandPathCancellable(chain, mySeq)));
 
-      this._reapplyFilterIfAny();
+  //     this._reapplyFilterIfAny();
 
-      const done = Math.min(i + chunkSize, uniq.length);
-      this._setLoading(true, `Loading results… (${done}/${uniq.length})`);
+  //     const done = Math.min(i + chunkSize, uniq.length);
+  //     this._setLoading(true, `Loading results… (${done}/${uniq.length})`);
 
-      await new Promise(r => requestAnimationFrame(r));
-    }
-  }
+  //     // await new Promise(r => requestAnimationFrame(r));
+  //   }
+  // }
 
   _autoExpandSomeMatchingFolders(cap = 20) {
     if (!this.currentFilterPredicate || !this.tree) return;
@@ -949,24 +874,58 @@ _handleInputChange(e) {
     this.expandedByFilter.clear();
   }
 
-  _buildSelectList(options, currentValue, selectName) {
-  const select = document.createElement("select");
-  select.name = selectName;
-
-  const normalized = String(currentValue ?? "");
-
-  options.forEach(opt => {
-    const option = document.createElement("option");
-    option.value = String(opt.value);
-    option.textContent = opt.label;
-    if (String(opt.value) === normalized) {
-      option.selected = true;
-    }
-    select.appendChild(option);
-  });
-
-  return select;
+  _optionsForColumn(colId) {
+  switch (colId) {
+    case "assigned_to":
+      return this.userOptions ?? [];
+    case "migration_status":
+      return this.migrationStatusOptions ?? [];
+    case "contentdm_collection_id":
+      return this.contentdmCollectionOptions ?? [];
+    case "aspace_collection_id":
+      return this.aspaceCollectionOptions ?? [];
+    default:
+      return [];
+  }
 }
+
+  _buildSelectList(options, currentValue, selectName) {
+    const select = document.createElement("select");
+    select.name = selectName;
+
+    const normalized = String(currentValue ?? "");
+
+    options.forEach(opt => {
+      const option = document.createElement("option");
+      option.value = String(opt.value);
+      option.textContent = opt.label;
+      if (String(opt.value) === normalized) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    });
+
+    return select;
+  }
+
+  _getSelectTemplate(options, colId) {
+    let template = this.selectTemplateCache.get(colId);
+    if (template) return template;
+
+    const select = document.createElement("select");
+    select.name = colId;
+
+    options.forEach(opt => {
+      const option = document.createElement("option");
+      option.value = String(opt.value);
+      option.textContent = opt.label;
+      select.appendChild(option);
+    });
+
+    template = select;
+    this.selectTemplateCache.set(colId, template);
+    return template;
+  }
   
   showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
@@ -1026,13 +985,13 @@ _handleInputChange(e) {
       const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
       select.size = visibleCount;
       select.classList.remove("popup-select--collapsed");
-      requestAnimationFrame(() => updatePos());
+      // requestAnimationFrame(() => updatePos());
     };
 
     const collapseSelect = () => {
       select.removeAttribute("size");
       select.classList.add("popup-select--collapsed");
-      requestAnimationFrame(() => updatePos());
+      // requestAnimationFrame(() => updatePos());
     };
 
     expandSelect();
