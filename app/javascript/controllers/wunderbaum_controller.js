@@ -20,7 +20,21 @@ export default class extends Controller {
   _filterTimer = null;
   _filterSeq = 0;
 
+  selectLikeColumns = new Set([
+    "migration_status",
+    "assigned_to",
+    "contentdm_collection_id",
+    "aspace_collection_id"
+  ]);
+
   async connect() {
+    await Promise.all([
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions"),
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions"),
+      this._fetchOptions("/users.json", "userOptions")
+    ]);
+
     try {
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
@@ -60,16 +74,14 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "Migration status",
-            width: "150px",
-            html: `<select></select>`
+            width: "175px",
           },
           {
             id: "assigned_to",
             classes: "wb-helper-center",
             filterable: true,
             title: "Assigned To",
-            width: "150px",
-            html: `<select></select>`
+            width: "175px",
           },
           {
             id: "notes",
@@ -91,22 +103,20 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "Contentdm Collection",
-            width: "150px",
-            html: `<select></select>`
+            width: "250px",
           },
           {
             id: "aspace_collection_id",
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace Collection",
-            width: "150px",
-            html: `<select></select>`
+            width: "250px",
           },
           {
             id: "preservica_reference_id",
             classes: "wb-helper-center",
             title: "Preservica Reference",
-            width: "150px",
+            width: "200px",
             html: `<input type="text" tabindex="-1">`
           },
           {
@@ -114,7 +124,7 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace linking status",
-            width: "150px",
+            width: "200px",
             html: `<input type="checkbox" tabindex="-1">`
           },
         ],
@@ -163,22 +173,50 @@ export default class extends Controller {
         render: (e) => {
           const util = e.util;
           const node = e.node;
-          const isFolder = e.node.data.folder === true;
+          const isFolder = node.data.folder === true;
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
-            const value = node.data[colId];
+            const rawValue = this._normalizeValue(colId, node.data[colId]);
 
-            if (value != null && value !== "") {
+            if (colId === "aspace_linking_status") {
+              if (isFolder) {
+                colInfo.elem.replaceChildren();
+                continue;
+              }
+
+              if (!colInfo.elem.querySelector("input")) {
+                const input = document.createElement("input");
+                input.type = "checkbox";
+                input.tabIndex = -1;
+                colInfo.elem.replaceChildren(input);
+              }
+            }
+
+            if (rawValue != null && rawValue !== "") {
               let set = this.columnValueCache.get(colId);
               if (!set) {
                 set = new Set();
                 this.columnValueCache.set(colId, set);
               }
-              set.add(String(value));
+              set.add(String(rawValue));
             }
 
-            util.setValueToElem(colInfo.elem, value ?? "");
+            let displayValue = rawValue ?? "";
+
+            if (this.selectLikeColumns?.has(colId)) {
+              displayValue = this._optionLabelFor(colId, rawValue);
+            }
+
+            colInfo.elem.dataset.colid = colId;
+
+            if (this.selectLikeColumns?.has(colId) && displayValue !== "") {
+              colInfo.elem.classList.add("wb-select-like");
+            } else {
+              colInfo.elem.classList.remove("wb-select-like");
+            }
+
+            util.setValueToElem(colInfo.elem, displayValue);
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
@@ -230,6 +268,22 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
+
+      this.element.addEventListener("mousedown", (e) => {
+        const valueEl = e.target.closest(".wb-select-like");
+        if (!valueEl) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const colId = valueEl.dataset.colid;
+        if (!this.selectLikeColumns?.has(colId)) return;
+
+        const node = Wunderbaum.getNode(valueEl);
+        if (!node) return;
+
+        this._enterSelectEdit(valueEl, node, colId);
+      });
 
     } catch (err) {
       console.error("Wunderbaum failed to load:", err);    }
@@ -552,20 +606,37 @@ export default class extends Controller {
     }
   }
 
-  _optionsForColumn(colId) {
-  switch (colId) {
-    case "assigned_to":
-      return this.userOptions ?? [];
-    case "migration_status":
-      return this.migrationStatusOptions ?? [];
-    case "contentdm_collection_id":
-      return this.contentdmCollectionOptions ?? [];
-    case "aspace_collection_id":
-      return this.aspaceCollectionOptions ?? [];
-    default:
-      return [];
+  _normalizeValue(colId, value) {
+    if (colId === "assigned_to" && (value == null || value === "")) {
+      return "unassigned";
+    }
+    return value;
   }
-}
+
+  _optionsForColumn(colId) {
+    switch (colId) {
+      case "assigned_to":
+        return this.userOptions ?? [];
+      case "migration_status":
+        return this.migrationStatusOptions ?? [];
+      case "contentdm_collection_id":
+        return this.contentdmCollectionOptions ?? [];
+      case "aspace_collection_id":
+        return this.aspaceCollectionOptions ?? [];
+      default:
+        return [];
+    }
+  }
+
+  _optionLabelFor(colId, value) {
+    if (value == null || value === "") return "";
+
+    const opts = this._optionsForColumn(colId);
+    if (!opts || !opts.length) return String(value);
+
+    const found = opts.find(o => String(o.value) === String(value));
+    return found ? found.label : String(value);
+  }
   
   _showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
@@ -772,24 +843,20 @@ export default class extends Controller {
   }
   
   async _fetchOptions(url, targetProp) {
-    try {
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      const data = await res.json();
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    const data = await res.json();
 
-      let opts = Object.entries(data).map(([id, name]) => ({
-        value: String(id),
-        label: name
-      }));
+    let opts = Object.entries(data).map(([id, name]) => ({
+      value: String(id),
+      label: name
+    }));
 
-      if (targetProp === "userOptions") {
-        opts.unshift({ value: "unassigned", label: "Unassigned" });
-      }
-
-      this[targetProp] = opts;
-    } catch (err) {
-      console.error("Failed to fetch options for", url, err);
+    if (targetProp === "userOptions") {
+      opts.unshift({ value: "unassigned", label: "Unassigned" });
     }
+
+    this[targetProp] = opts;
   }
 
   async _saveCellChange(node, field, value) {
@@ -953,4 +1020,55 @@ export default class extends Controller {
       console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
     }
   }
+
+  _enterSelectEdit(cell, node, colId) {
+    if (cell.querySelector("select")) return;
+
+    const currentValue = String(this._normalizeValue(colId, node.data[colId]));
+    const select = document.createElement("select");
+
+    const opts = this._optionsForColumn(colId);
+    for (const o of opts) {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      if (String(o.value) === currentValue) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    cell.classList.remove("wb-select-like");
+    cell.replaceChildren(select);
+
+    select.focus();
+
+    select.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      })
+    );
+
+    select.addEventListener("change", () => {
+      this._commitSelectEdit(cell, node, colId, select.value);
+    });
+
+    select.addEventListener("blur", () => {
+      this._exitSelectEdit(cell, node, colId);
+    });
+  }
+
+ _commitSelectEdit(cell, node, colId, value) {
+    const normalized = this._normalizeValue(colId, value);
+    node.data[colId] = normalized;
+    this._saveCellChange(node, colId, normalized);
+    this._exitSelectEdit(cell, node, colId);
+  }
+
+  _exitSelectEdit(cell, node, colId) {
+    const label = this._optionLabelFor(colId, node.data[colId]);
+    cell.classList.add("wb-select-like");
+    cell.textContent = label || "—";
+  }
+
 }

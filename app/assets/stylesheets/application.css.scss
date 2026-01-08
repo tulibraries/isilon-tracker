@@ -160,6 +160,25 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   padding: 5px 8px;
 }
 
+.wb-select-like {
+  position: relative;
+  padding-right: 14px;
+}
+
+.wb-select-like::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #6c757d;
+  border-bottom: 1.5px solid #6c757d;
+  transform: translateY(-50%) rotate(45deg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .wunderbaum .wb-tree .wb-row:hover {
   background-color: #f1f3f5;
 }
