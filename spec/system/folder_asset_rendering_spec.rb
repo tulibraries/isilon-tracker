@@ -41,7 +41,7 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
     expect(folder_row).to have_css("input[name='notes']")
     expect(folder_row).to have_css("[data-colid='assigned_to']")
     expect(folder_row).to have_css(".wb-select-like[data-colid='assigned_to']")
-    
+
     expect(folder_row).to have_css("[data-colid='migration_status']")
     expect(folder_row).not_to have_css(".wb-select-like[data-colid='migration_status']")
 
