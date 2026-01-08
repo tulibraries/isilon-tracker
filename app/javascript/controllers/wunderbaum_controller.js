@@ -88,7 +88,7 @@ export default class extends Controller {
             classes: "wb-helper-center",
             title: "Notes",
             width: "500px",
-            html: `<input type="text" tabindex="-1">`
+            html: `<input type="text" name="notes" tabindex="-1">`
           },
           {
             id: "file_type",
@@ -117,7 +117,7 @@ export default class extends Controller {
             classes: "wb-helper-center",
             title: "Preservica Reference",
             width: "200px",
-            html: `<input type="text" tabindex="-1">`
+            html: `<input type="text" name="preservica_reference_id" tabindex="-1">`
           },
           {
             id: "aspace_linking_status",
