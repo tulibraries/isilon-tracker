@@ -7,8 +7,6 @@ export default class extends Controller {
   columnFilters = new Map();
   columnValueCache = new Map();
   assetsLoadedFor = new Set();
-  expandedByFilter = new Set();
-  expandedNodes = new Set();
   expandingNodes = new Set();
   currentFilterPredicate = null;
   currentFilterOpts = null;
@@ -17,32 +15,38 @@ export default class extends Controller {
   folderCache = new Map();
   assetCache = new Map();
   loadedFolders = new Set();
-  loadedAssets = new Set();
-  _pendingChains = [];
-  _pendingChainKeys = new Set();
-  _pendingChainHandle = null;
-  _expandingChains = false;
 
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
 
-  folderInputColumns = new Set([
-    "notes",
-    "assigned_to"
-  ]);
-
-  assetInputColumns = new Set([
+  selectLikeColumns = new Set([
     "migration_status",
     "assigned_to",
     "contentdm_collection_id",
-    "aspace_collection_id",
-    "preservica_reference_id",
-    "aspace_linking_status",
-    "notes",
+    "aspace_collection_id"
   ]);
 
+  folderSelectLikeColumns = new Set([
+    "assigned_to"
+  ]);
+
+  assetOnlySelectColumns = new Set([
+    "migration_status",
+    "contentdm_collection_id",
+    "aspace_collection_id"
+  ]);
+
+  // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
+    const controller = this;
+    await Promise.all([
+      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
+      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions"),
+      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions"),
+      this._fetchOptions("/users.json", "userOptions")
+    ]);
+
     try {
       const res = await fetch(this.urlValue, {
         headers: { Accept: "application/json" },
@@ -81,23 +85,21 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "Migration status",
-            width: "150px",
-            html: `<select tabindex="-1"><option value="1" selected>Needs Review</option></select>`
+            width: "175px",
           },
           {
             id: "assigned_to",
             classes: "wb-helper-center",
             filterable: true,
             title: "Assigned To",
-            width: "150px",
-            html: `<select tabindex="-1"><option value="assigned_to" selected>unassigned</option></select>`
+            width: "175px",
           },
           {
             id: "notes",
             classes: "wb-helper-center",
             title: "Notes",
             width: "500px",
-            html: `<input type="text" tabindex="-1">`
+            html: `<input type="text" name="notes" tabindex="-1">`
           },
           {
             id: "file_type",
@@ -112,30 +114,28 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "Contentdm Collection",
-            width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            width: "250px",
           },
           {
             id: "aspace_collection_id",
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace Collection",
-            width: "150px",
-            html: `<select tabindex="-1"><option value="" selected></option></select>`
+            width: "250px",
           },
           {
             id: "preservica_reference_id",
             classes: "wb-helper-center",
             title: "Preservica Reference",
-            width: "150px",
-            html: `<input type="text" tabindex="-1">`
+            width: "200px",
+            html: `<input type="text" name="preservica_reference_id" tabindex="-1">`
           },
           {
             id: "aspace_linking_status",
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace linking status",
-            width: "150px",
+            width: "200px",
             html: `<input type="checkbox" tabindex="-1">`
           },
         ],
@@ -158,7 +158,6 @@ export default class extends Controller {
           if (!node?.data?.folder) return;
 
           const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
-          this.expandedNodes.add(nodeKey);
 
           if (this.expandingNodes.has(nodeKey)) {
             return;
@@ -182,149 +181,58 @@ export default class extends Controller {
 
         render: (e) => {
           const util = e.util;
-          const isFolder = e.node.data.folder === true;
+          const node = e.node;
+          const isFolder = node.data.folder === true;
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
-            let value = e.node.data[colId];
+            let rawValue = this._normalizeValue(colId, node.data[colId]);
 
-            if (isFolder && !this.folderInputColumns.has(colId)) {
-              colInfo.elem.innerHTML = "";
+            if (isFolder && colId !== "assigned_to" && this.selectLikeColumns.has(colId)) {
+              colInfo.elem.replaceChildren();
+              colInfo.elem.classList.remove("wb-select-like");
               continue;
             }
 
-            if (!isFolder && !this.assetInputColumns.has(colId)) {
-              colInfo.elem.innerHTML = "";
+            if (colId === "aspace_linking_status" && isFolder) {
+              colInfo.elem.replaceChildren();
+              colInfo.elem.classList.remove("wb-select-like");
               continue;
             }
 
-            if (value != null) {
-              let set = this.columnValueCache.get(colId);
-              if (!set) {
-                set = new Set();
-                this.columnValueCache.set(colId, set);
-              }
-              set.add(String(value));
+            let displayValue = rawValue ?? "";
+
+            if (this.selectLikeColumns.has(colId)) {
+              displayValue = this._optionLabelFor(colId, rawValue);
             }
 
-            switch (colId) {
-              case "migration_status": {
-                if (this.migrationStatusOptions) {
-                  const select = this._buildSelectList(
-                    this.migrationStatusOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }   
+            colInfo.elem.dataset.colid = colId;
 
-              case "aspace_collection_id": {
-                if (this.aspaceCollectionOptions) {
-                  const select = this._buildSelectList(
-                    this.aspaceCollectionOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }
+            const isSelectLike =
+              this.selectLikeColumns.has(colId) &&
+              (!isFolder || colId === "assigned_to");
 
-              case "contentdm_collection_id": {
-                if (this.contentdmCollectionOptions) {
-                  const select = this._buildSelectList(
-                    this.contentdmCollectionOptions,
-                    value,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "");
-                }
-                break;
-              }
-
-              case "assigned_to": {
-                if (this.userOptions) {
-                  let effectiveValue = value;
-                  if (
-                    effectiveValue == null ||
-                    effectiveValue === "" ||
-                    effectiveValue === "0"
-                  ) {
-                    effectiveValue = "unassigned";
-                    e.node.data.assigned_to = effectiveValue;
-                  }
-
-                  const select = this._buildSelectList(
-                    this.userOptions,
-                    effectiveValue,
-                    colId
-                  );
-                  colInfo.elem.innerHTML = "";
-                  colInfo.elem.appendChild(select);
-                } else {
-                  util.setValueToElem(colInfo.elem, value ?? "Unassigned");
-                }
-                break;
-              }
-
-              case "notes": {
-                const input = document.createElement("input");
-                input.type = "text";
-                input.name = colId;
-                input.value = value ?? "";
-                colInfo.elem.innerHTML = "";
-                colInfo.elem.appendChild(input);
-                break;
-              }
-
-              case "preservica_reference_id": {
-                const input = document.createElement("input");
-                input.type = "text";
-                input.name = colId;
-                input.value = value ?? "";
-                colInfo.elem.innerHTML = "";
-                colInfo.elem.appendChild(input);
-                break;
-              }
-
-              case "aspace_linking_status": {
-              const checkbox = document.createElement("input");
-              checkbox.type = "checkbox";
-              checkbox.name = colId;
-              checkbox.checked = Boolean(value);
-              colInfo.elem.innerHTML = "";
-              colInfo.elem.appendChild(checkbox);
-              break;
+            if (isSelectLike && displayValue !== "") {
+              colInfo.elem.classList.add("wb-select-like");
+            } else {
+              colInfo.elem.classList.remove("wb-select-like");
             }
 
-              default:
-                util.setValueToElem(colInfo.elem, value ?? "");
-            }
+            util.setValueToElem(colInfo.elem, displayValue);
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
-          if (titleElem) {
-            if (isFolder) {
-              titleElem.textContent = e.node.title || "";
-            } else {
-              titleElem.innerHTML = `<a href="${e.node.data.url}" class="asset-link" data-turbo="false">${e.node.title}</a>`;
-            }
+          if (!titleElem) return;
+
+          if (isFolder) {
+            titleElem.textContent = node.title || "";
+          } else {
+            titleElem.innerHTML =
+              `<a href="${node.data.url}" class="asset-link" data-turbo="false">${node.title}</a>`;
           }
         },
-
+        
         buttonClick: (e) => {
-          console.log("ButtonClick triggered for:", e.command, e.info?.colDef?.id);
           if (e.command === "filter") {
             const colId = e.info.colDef.id;
             const colIdx = e.info.colIdx;
@@ -333,7 +241,7 @@ export default class extends Controller {
             if (!colCell) return;
             const icon = colCell.querySelector("[data-command='filter']");
             if (!icon) return;
-            this.showDropdownFilter(icon, colId, colIdx);
+            this._showDropdownFilter(icon, colId, colIdx);
           }
         },
 
@@ -352,33 +260,38 @@ export default class extends Controller {
 
         source
       });
-
-      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
-      this._fetchOptions("/users.json", "userOptions", "assigned_to");
-
+    
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-      requestAnimationFrame(() => this._tagHeaderCells());
+
+      this.element.addEventListener("pointerdown", (e) => {
+        const cell = e.target.closest(".wb-select-like");
+        if (!cell) return;
+
+        const colId = cell.dataset.colid;
+        if (!this.selectLikeColumns.has(colId)) return;
+
+        const node = Wunderbaum.getNode(cell);
+        if (!node) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        this._showInlineEditor(cell, node, colId);
+      });
 
     } catch (err) {
-      console.error("Wunderbaum failed to load:", err);
-    }
-
-    this._onTreeScroll = this._onTreeScroll.bind(this);
-    this.element.addEventListener("scroll", this._onTreeScroll, { passive: true });
+      console.error("Wunderbaum failed to load:", err);    }
   }
 
+  // Cancels pending async work and timers when the controller is removed.
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
-    if (this._onTreeScroll) {
-      this.element.removeEventListener("scroll", this._onTreeScroll);
-    }
   }
 
+  // Wires the text filter input and Escape key behavior.
   _setupInlineFilter() {
     const input = document.getElementById("tree-filter");
     if (!input) return;
@@ -397,6 +310,7 @@ export default class extends Controller {
     });
   }
 
+  // Wires the “Clear Filters” button to fully reset tree state.
   _setupClearFiltersButton() {
     const btn = document.getElementById("clear-filters");
     if (!btn) return;
@@ -405,30 +319,12 @@ export default class extends Controller {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
 
-      this.columnValueCache.clear();
       this.columnFilters.clear();
-      this.expandedNodes.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
       this.filterMode = "dim";
       this.loadedFolders.clear();
-      this.loadedAssets.clear();
-      this._pendingChains = [];
-      this._pendingChainKeys.clear();
-      if (this._pendingChainHandle != null) {
-        if (typeof cancelIdleCallback === "function") {
-          cancelIdleCallback(this._pendingChainHandle);
-        } else {
-          clearTimeout(this._pendingChainHandle);
-        }
-        this._pendingChainHandle = null;
-      }
-      this._expandingChains = false;
-      if (this.tree?.options?.filter) {
-        this.tree.options.filter.mode = this.filterMode;
-      }
-
       if (this.tree?.columns) {
         this.tree.columns.forEach((col) => {
           col.filterActive = false;
@@ -442,30 +338,26 @@ export default class extends Controller {
         if (select.options.length > 0) select.selectedIndex = 0;
       });
 
+      if (this.tree?.root) {
+        this.tree.root.visit((node) => {
+          if (node.expanded) {
+            node.setExpanded(false);
+          }
+        });
+      }
+
       this.tree.clearFilter();
-      this._collapseFilterExpansions();
+      this.columnValueCache.clear();
       this._setLoading(false);
       this._updateFilterModeButton();
     });
   }
 
-
+  // Executes backend-backed filtering and materializes matching paths.
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
-    this.loadedAssets.clear();
-    this._pendingChains = [];
-    this._pendingChainKeys = new Set();
-    if (this._pendingChainHandle != null) {
-      if (typeof cancelIdleCallback === "function") {
-        cancelIdleCallback(this._pendingChainHandle);
-      } else {
-        clearTimeout(this._pendingChainHandle);
-      }
-      this._pendingChainHandle = null;
-    }
-    this._expandingChains = false;
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
@@ -475,7 +367,6 @@ export default class extends Controller {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.tree.clearFilter();
-      this._collapseFilterExpansions();
       this._setLoading(false);
       this._updateFilterModeButton();
       return;
@@ -501,22 +392,13 @@ export default class extends Controller {
     }
     if (mySeq !== this._filterSeq) return;
 
-    const chains = this._buildMatchChains(folders, assets);
-    const INITIAL_EXPAND = Math.min(5, chains.length);
-    const initialChains = chains.slice(0, INITIAL_EXPAND);
-    await this._expandChainsImmediate(initialChains, mySeq);
-    if (mySeq !== this._filterSeq) return;
-
-    const remainingChains = chains.slice(INITIAL_EXPAND);
-    if (remainingChains.length) {
-      this._enqueueChains(remainingChains, mySeq);
-      this._schedulePendingChainExpansion();
-    }
+    await this._materializeSearchResults(folders, assets, mySeq);
 
     this._applyPredicate(q);
     this._setLoading(false);
   }
 
+  // Applies the current filter predicate to the tree.
   _applyPredicate(q) {
     const predicate = (node) => {
       if (q) {
@@ -544,6 +426,7 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Reapplies the active filter after node expansion.
   _reapplyFilterIfAny() {
     if (this.currentFilterPredicate) {
       const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
@@ -553,11 +436,13 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Finds a tree node by its key.
   _findNodeByKey(key) {
     const skey = String(key);
     return this.tree?.findKey?.(skey) ?? null;
   }
 
+  // Toggles between hide and dim filter modes.
   _setupFilterModeToggle() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
@@ -577,6 +462,7 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Updates the filter mode toggle UI state.
   _updateFilterModeButton() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
@@ -592,6 +478,7 @@ export default class extends Controller {
     }
   }
 
+  // Updates column filter icon state in the header.
   _setFilterIconState(colId, active) {
     if (!colId) return;
     const icon = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}'] [data-command='filter']`);
@@ -612,51 +499,7 @@ export default class extends Controller {
     icon.dataset.filterActive = isActive ? "true" : "false";
   }
 
-  _tagHeaderCells() {
-    const cells = this.element?.querySelectorAll(".wb-header .wb-col");
-    if (!cells || !this.tree?.columns) return;
-    cells.forEach((cell, idx) => {
-      const colDef = this.tree.columns[idx];
-      if (!colDef) return;
-      if (!cell.dataset.colid) cell.dataset.colid = colDef.id;
-      this._setFilterIconState(colDef.id, colDef.filterActive);
-    });
-  }
-
-_handleInputChange(e) {
-  const target = e.target;
-  if (!(target instanceof HTMLSelectElement || target instanceof HTMLInputElement)) return;
-
-  const nodeKey = target.dataset.nodeKey || target.closest(".wb-node")?.dataset.key;
-  if (!nodeKey) {
-    console.warn("No nodeKey found for target:", target);
-    return;
-  }
-
-  const node = this._findNodeByKey(nodeKey);
-  if (!node) {
-    console.warn("No node found for nodeKey:", nodeKey);
-    return;
-  }
-
-  const colCell = target.closest(".wb-col");
-  const field = colCell?.dataset.colid || target.name;
-  if (!field) {
-    console.warn("No field resolved for target:", target);
-    return;
-  }
-
-  let value;
-  if (target.type === "checkbox") {
-    value = target.checked;
-  } else {
-    value = target.value;
-  }
-
-  node.data[field] = value;
-  this._saveCellChange(node, field, value);
-}
-
+  // Ensures a folder’s immediate child folders are loaded.
   async _hydrateSingleParentByKey(parentKey, mySeq) {
     if (mySeq !== this._filterSeq) return;
     const pid = String(parentKey);
@@ -688,6 +531,7 @@ _handleInputChange(e) {
     this.loadedFolders.add(pid);
   }
 
+  // Loads assets for a folder with cancellation support.
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
     const k = String(folderKey);
     if (this.assetsLoadedFor.has(k)) return;
@@ -717,122 +561,34 @@ _handleInputChange(e) {
     }
 
     this.assetsLoadedFor.add(k);
-    this.loadedAssets.add(k);
   }
 
-  async _expandPathCancellable(pathIds, mySeq) {
-    const hops = pathIds.map(id => String(id));
+  // Ensures all folder paths needed for search results exist.
+  async _materializeSearchResults(folders, assets, seq) {
+    const paths = new Set();
 
-    for (let i = 0; i < hops.length; i++) {
-      if (mySeq !== this._filterSeq) return;
+    for (const folder of folders) {
+      if (Array.isArray(folder.path)) {
+        paths.add([...folder.path, folder.id].map(String).join(">"));
+      }
+    }
 
-      const hopKey = hops[i];
-      let node = this._findNodeByKey(hopKey);
-
-      if (!node) {
-        const parentKey = i > 0 ? hops[i - 1] : null;
-        if (parentKey != null) {
-          await this._hydrateSingleParentByKey(parentKey, mySeq);
-          node = this._findNodeByKey(hopKey);
+    for (const asset of assets) {
+      if (Array.isArray(asset.path)) {
+        const pid = asset.parent_folder_id ?? asset.folder_id;
+        if (pid != null) {
+          paths.add([...asset.path, pid].map(String).join(">"));
         }
-        if (!node) return;
       }
-
-      if (!node.children || node.children.length === 0) {
-        await this._hydrateSingleParentByKey(hopKey, mySeq);
-      }
-
-      if (!node.expanded) {
-        node.setExpanded?.(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
-      }
-
-      await this._ensureAssetsForFolderCancellable(String(node.key ?? node.data?.key ?? node.data?.id), mySeq);
-
-      await new Promise(r => requestAnimationFrame(r));
-    }
-  }
-
-  _buildMatchChains(folders = [], assets = []) {
-    const chains = [];
-
-    for (const folder of folders || []) {
-      const path = Array.isArray(folder.path) ? folder.path : [];
-      const ids = [...path, folder.id].filter((id) => id != null);
-      if (!ids.length) continue;
-      chains.push({ chain: ids.map(String), assetParentId: null });
     }
 
-    for (const asset of assets || []) {
-      const path = Array.isArray(asset.path) ? asset.path : [];
-      const pid = asset.parent_folder_id ?? asset.folder_id ?? asset.parent_id;
-      const ids = pid != null ? [...path, pid] : path;
-      if (!ids.length) continue;
-      chains.push({ chain: ids.map(String), assetParentId: pid != null ? String(pid) : null });
-    }
-
-    return chains;
-  }
-
-  async _expandChainsImmediate(chains = [], seq) {
-    for (const item of chains) {
+    for (const path of paths) {
       if (seq !== this._filterSeq) return;
-      await this._loadPath(item.chain, seq);
-      if (item.assetParentId) {
-        await this._ensureAssetsForFolderCancellable(item.assetParentId, seq);
-      }
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await this._loadPath(path.split(">"), seq);
     }
   }
 
-  _enqueueChains(chains = [], seq) {
-    for (const item of chains) {
-      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-      if (this._pendingChainKeys.has(key)) continue;
-      this._pendingChainKeys.add(key);
-      this._pendingChains.push({ ...item, seq });
-    }
-  }
-
-  _schedulePendingChainExpansion() {
-    if (this._expandingChains || !this._pendingChains.length) return;
-    if (this._pendingChainHandle != null) return;
-
-    const callback = () => {
-      this._pendingChainHandle = null;
-      this._expandPendingChains(this._filterSeq, 5);
-    };
-
-    if (typeof requestIdleCallback === "function") {
-      this._pendingChainHandle = requestIdleCallback(callback, { timeout: 200 });
-    } else {
-      this._pendingChainHandle = setTimeout(callback, 0);
-    }
-  }
-
-  async _expandPendingChains(seq, limit) {
-    if (this._expandingChains) return;
-    this._expandingChains = true;
-    let processed = 0;
-
-    while (processed < limit && this._pendingChains.length) {
-      if (seq !== this._filterSeq) break;
-      const item = this._pendingChains.shift();
-      const key = `${item.chain.join(">")}|${item.assetParentId ?? ""}`;
-      this._pendingChainKeys.delete(key);
-      if (item.seq !== this._filterSeq) continue;
-      await this._loadPath(item.chain, item.seq);
-      if (item.assetParentId) {
-        await this._ensureAssetsForFolderCancellable(item.assetParentId, item.seq);
-      }
-      processed += 1;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
-    this._expandingChains = false;
-    if (this._pendingChains.length) this._schedulePendingChainExpansion();
-  }
-
+  // Expands and loads each folder along a given path.
   async _loadPath(pathIds, seq) {
     for (const rawId of pathIds) {
       if (seq !== this._filterSeq) return;
@@ -840,15 +596,17 @@ _handleInputChange(e) {
       if (!id) continue;
       await this._hydrateSingleParentByKey(id, seq);
       const node = this._findNodeByKey(id);
+      if (!node) {
+        return;
+      }
+
       const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
 
       if (node && !node.expanded && !this.expandingNodes.has(nodeKey)) {
         this.expandingNodes.add(nodeKey);
         try {
           node.setExpanded(true);
-          this.expandedByFilter.add(nodeKey);
         } finally {
-          // clear on next microtask so Wunderbaum can flip its internal loading flag
           Promise.resolve().then(() => {
             this.expandingNodes.delete(nodeKey);
           });
@@ -857,104 +615,47 @@ _handleInputChange(e) {
     }
   }
 
-  _onTreeScroll() {
-    if (!this._pendingChains.length) return;
-    const el = this.element;
-    if (!el) return;
-
-    const nearTop = el.scrollTop <= 200;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 400;
-    if (nearTop || nearBottom) this._schedulePendingChainExpansion();
+  // Normalizes stored values for display and editing.
+  _normalizeValue(colId, value) {
+    if (colId === "assigned_to" && (value == null || value === "")) {
+      return "unassigned";
+    }
+    return value;
   }
 
-  async _expandAllMatchChainsCancellable(folderHits, assetHits, mySeq, chunkSize = 10) {
-    const chains = [];
-
-    for (const f of folderHits) {
-      const path = Array.isArray(f.path) ? f.path : [];
-      chains.push([...path, f.id]);
-    }
-    for (const a of assetHits) {
-      const path = Array.isArray(a.path) ? a.path : [];
-      const pid = a.parent_folder_id ?? a.folder_id ?? a.parent_id;
-      if (pid != null) chains.push([...path, pid]);
-    }
-
-    const seen = new Set(), uniq = [];
-    for (const c of chains) {
-      const k = c.map(x => String(x)).join(">");
-      if (!seen.has(k)) { seen.add(k); uniq.push(c); }
-    }
-
-    for (let i = 0; i < uniq.length; i += chunkSize) {
-      if (mySeq !== this._filterSeq) return;
-
-      const batch = uniq.slice(i, i + chunkSize);
-      await Promise.all(batch.map(chain => this._expandPathCancellable(chain, mySeq)));
-
-      this._reapplyFilterIfAny();
-
-      const done = Math.min(i + chunkSize, uniq.length);
-      this._setLoading(true, `Loading results… (${done}/${uniq.length})`);
-
-      await new Promise(r => requestAnimationFrame(r));
-    }
+  // Returns the option list for a select-like column.
+  _optionsForColumn(colId) {
+    return this[{
+      assigned_to: "userOptions",
+      migration_status: "migrationStatusOptions",
+      contentdm_collection_id: "contentdmCollectionOptions",
+      aspace_collection_id: "aspaceCollectionOptions"
+    }[colId]] ?? [];
   }
 
-  _autoExpandSomeMatchingFolders(cap = 20) {
-    if (!this.currentFilterPredicate || !this.tree) return;
-
-    let expanded = 0;
-    let visited = 0;
-    const VISIT_LIMIT = 500;
-
-    this.tree.visit((node) => {
-      if (++visited > VISIT_LIMIT) return false;
-      if (expanded >= cap) return false;
-
-      const isFolder = node.data?.folder === true;
-      if (!isFolder) return;
-
-      let matched = false;
-      try { matched = this.currentFilterPredicate(node); } catch {}
-      if (!matched) return;
-
-      if (!node.expanded) {
-        node.setExpanded(true);
-        this.expandedByFilter.add(String(node.key ?? node.data?.key ?? node.data?.id));
-        expanded += 1;
+  // Resolves a stored value to its human-readable label.
+  _optionLabelFor(colId, value) {
+    if (value == null || value === "") {
+      if (
+        colId === "contentdm_collection_id" ||
+        colId === "aspace_collection_id"
+      ) {
+        return "—";
       }
-    });
-  }
-
-  _collapseFilterExpansions() {
-    for (const key of this.expandedByFilter) {
-      const node = this._findNodeByKey(key);
-      if (node && node.expanded) node.setExpanded(false);
+      return "";
     }
-    this.expandedByFilter.clear();
+
+    const opts = this._optionsForColumn(colId);
+    if (!opts || !opts.length) return String(value);
+
+    const found = opts.find(o => String(o.value) === String(value));
+    return found ? found.label : String(value);
   }
-
-  _buildSelectList(options, currentValue, selectName) {
-  const select = document.createElement("select");
-  select.name = selectName;
-
-  const normalized = String(currentValue ?? "");
-
-  options.forEach(opt => {
-    const option = document.createElement("option");
-    option.value = String(opt.value);
-    option.textContent = opt.label;
-    if (String(opt.value) === normalized) {
-      option.selected = true;
-    }
-    select.appendChild(option);
-  });
-
-  return select;
-}
   
-  showDropdownFilter(anchorEl, colId, colIdx) {
+  // Displays and manages the column filter dropdown popup.
+  _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
+    const isInline = typeof opts.onSelect === "function";
+
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
       existing.remove();
@@ -964,81 +665,81 @@ _handleInputChange(e) {
     document.querySelectorAll(".wb-popup").forEach(p => p.remove());
 
     const popup = document.createElement("div");
-    popup.classList.add("wb-popup");
-    popup.setAttribute("data-popup-for", colId);
+    popup.className = "wb-popup";
+    popup.dataset.popupFor = colId;
 
     const select = document.createElement("select");
-    select.classList.add("popup-select");
+    select.className = "popup-select";
 
-    let opts = null;
-    switch (colId) {
-      case "migration_status":
-        opts = this.migrationStatusOptions;
-        break;
-      case "aspace_collection_id":
-        opts = this.aspaceCollectionOptions;
-        break;
-      case "contentdm_collection_id":
-        opts = this.contentdmCollectionOptions;
-        break;
-      case "assigned_to":
-        opts = this.userOptions;
-        break;
-    }
+    let options = [];
 
-    if (opts) {
-      const optionsMarkup = opts.map(o => `<option value="${String(o.value)}">${o.label}</option>`).join("");
-      select.innerHTML = `${optionsMarkup}<option value="">⨉ Clear Filter</option>`;
+    if (colId === "assigned_to") {
+      options = this.userOptions || [];
+    } else if (colId === "migration_status") {
+      options = this.migrationStatusOptions || [];
+    } else if (colId === "contentdm_collection_id") {
+      options = this.contentdmCollectionOptions || [];
+    } else if (colId === "aspace_collection_id") {
+      options = this.aspaceCollectionOptions || [];
     } else if (colId === "aspace_linking_status") {
-      select.innerHTML = `
-        <option value="true">True</option>
-        <option value="false">False</option>
-        <option value="">⨉ Clear Filter</option>
-      `;
+      options = [
+        { value: "true", label: "True" },
+        { value: "false", label: "False" }
+      ];
     } else {
-      const values = this.columnValueCache.get(colId) ?? new Set();
-      const sorted = [...values].sort();
-      select.innerHTML =
-        sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
-        `<option value="">⨉ Clear Filter</option>`;
+      const values = this.columnValueCache.get(colId) || new Set();
+      options = [...values].sort().map(v => ({ value: v, label: v }));
     }
 
-    const currentFilter = this.columnFilters.has(colId)
-      ? String(this.columnFilters.get(colId))
-      : "";
-    select.value = currentFilter;
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = String(o.value);
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
 
-    const expandSelect = () => {
-      const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
-      select.size = visibleCount;
-      select.classList.remove("popup-select--collapsed");
-      requestAnimationFrame(() => updatePos());
-    };
+    if (!isInline) {
+      const clearOpt = document.createElement("option");
+      clearOpt.value = "";
+      clearOpt.textContent = "⨉ Clear Filter";
+      select.appendChild(clearOpt);
+    }
 
-    const collapseSelect = () => {
-      select.removeAttribute("size");
-      select.classList.add("popup-select--collapsed");
-      requestAnimationFrame(() => updatePos());
-    };
+    if (isInline) {
+      select.size = Math.max(1, Math.min(select.options.length, 8));
+    } else {
+      select.size = Math.max(Math.min(select.options.length, 8), 4);
+    }
 
-    expandSelect();
+    if (isInline) {
+      select.value = "";
+    } else {
+      select.value = this.columnFilters.has(colId)
+        ? String(this.columnFilters.get(colId))
+        : "";
+    }
 
     select.addEventListener("change", (e) => {
-      const selectedValue = e.target.value;
-      if (selectedValue === "") {
+      const value = e.target.value;
+
+      if (isInline) {
+        opts.onSelect(value);
+        popup.remove();
+        return;
+      }
+
+      if (value === "") {
         this.columnFilters.delete(colId);
-        const popupEl = document.querySelector(`[data-popup-for='${colId}']`);
-        if (popupEl) popupEl.remove();
+        popup.remove();
       } else {
-        this.columnFilters.set(colId, selectedValue);
-        collapseSelect();
+        this.columnFilters.set(colId, value);
       }
 
       const isActive = this.columnFilters.has(colId);
       const colDef = this.tree.columns.find(c => c.id === colId);
       if (colDef) colDef.filterActive = isActive;
-      this._setFilterIconState(colId, isActive);
 
+      this._setFilterIconState(colId, isActive);
       this._runDeepFilter(this.currentQuery);
     });
 
@@ -1047,81 +748,130 @@ _handleInputChange(e) {
     select.focus();
 
     const resolveColumnCell = () => {
-      let cell = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}']`);
-      if (!cell && Number.isInteger(colIdx)) {
-        const cols = this.element?.querySelectorAll(".wb-header .wb-col");
-        cell = cols?.[colIdx];
+      if (anchorEl.closest(".wb-col")) return anchorEl.closest(".wb-col");
+      if (Number.isInteger(colIdx)) {
+        const cols = this.element.querySelectorAll(".wb-header .wb-col");
+        return cols[colIdx] || anchorEl;
       }
-      return cell ?? anchorEl.closest(".wb-col") ?? anchorEl;
+      return anchorEl;
     };
 
     let rafId = null;
-    const updatePos = () => {
-      const columnCell = resolveColumnCell();
-      if (!columnCell?.isConnected) {
-        rafId = requestAnimationFrame(updatePos);
+
+    const updatePosition = () => {
+      const cell = resolveColumnCell();
+      if (!cell || !cell.isConnected) {
+        rafId = requestAnimationFrame(updatePosition);
         return;
       }
-      const r = columnCell.getBoundingClientRect();
+
+      const r = cell.getBoundingClientRect();
       popup.style.position = "absolute";
       popup.style.left = `${window.scrollX + r.left}px`;
       popup.style.minWidth = `${r.width}px`;
+
       let top = window.scrollY + r.top - popup.offsetHeight - 4;
       if (top < window.scrollY) {
         top = window.scrollY + r.bottom + 4;
       }
+
       popup.style.top = `${top}px`;
       popup.style.zIndex = "1000";
-      rafId = requestAnimationFrame(updatePos);
-    };
-    rafId = requestAnimationFrame(updatePos);
 
-    const reposition = () => {
-      if (rafId != null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(updatePos);
+      rafId = requestAnimationFrame(updatePosition);
     };
-    window.addEventListener("scroll", reposition, true);
-    window.addEventListener("resize", reposition);
+
+    rafId = requestAnimationFrame(updatePosition);
 
     const cleanup = () => {
-      if (rafId != null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      window.removeEventListener("scroll", reposition, true);
-      window.removeEventListener("resize", reposition);
-      document.removeEventListener("mousedown", outsideClickHandler);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener("mousedown", outsideClick);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
       popup.remove();
     };
 
-    const outsideClickHandler = (e) => {
+    const outsideClick = (e) => {
       if (!popup.contains(e.target) && !anchorEl.contains(e.target)) {
         cleanup();
       }
     };
 
-    document.addEventListener("mousedown", outsideClickHandler);
-
-    const obs = new MutationObserver(() => {
-      if (!document.body.contains(popup)) {
-        cleanup();
-        obs.disconnect();
-      }
-    });
-    obs.observe(document.body, { childList: true });
+    document.addEventListener("mousedown", outsideClick);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
   }
 
+  // Opens the shared dropdown popup to edit a cell value inline instead of applying a column filter
+  _showInlineEditor(cell, node, colId) {
+    this._showDropdownFilter(cell, colId, null, {
+      onSelect: (value) => {
+        const normalized = this._normalizeValue(colId, value);
+        node.data[colId] = normalized;
+        this._saveCellChange(node, colId, normalized);
+
+        const label = this._optionLabelFor(colId, normalized);
+        cell.textContent = label || "Unassigned";
+        cell.classList.add("wb-select-like");
+      }
+    });
+  }
+
+  // Displays the dropdown popup anchored to a cell and commits the selected value back to the node
+  _showInlineDropdown(cell, node, colId) {
+    document.querySelectorAll(".wb-popup").forEach(p => p.remove());
+
+    const popup = document.createElement("div");
+    popup.className = "wb-popup";
+
+    const list = document.createElement("div");
+    list.className = "popup-select popup-select--expanded";
+
+    const opts = this._optionsForColumn(colId);
+    const current = String(this._normalizeValue(colId, node.data[colId]));
+
+    for (const o of opts) {
+      const item = document.createElement("div");
+      item.className = "wb-popup-item";
+      item.textContent = o.label;
+      item.dataset.value = o.value;
+
+      if (String(o.value) === current) {
+        item.classList.add("active");
+      }
+
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        popup.remove();
+      });
+
+      list.appendChild(item);
+    }
+
+    popup.appendChild(list);
+    document.body.appendChild(popup);
+
+    this._positionPopup(popup, cell);
+
+    document.addEventListener("mousedown", (e) => {
+      if (!popup.contains(e.target)) popup.remove();
+    }, { once: true });
+  }
+
+  // Creates and tracks an AbortController for grouped requests.
   _beginFetchGroup() {
     const ctrl = new AbortController();
     this.inflightControllers.add(ctrl);
     return ctrl;
   }
 
+  // Cancels all in-flight network requests.
   _cancelInflight() {
     for (const c of this.inflightControllers) { try { c.abort(); } catch {} }
     this.inflightControllers.clear();
   }
 
+  // Fetches JSON with abort support.
   async _fetchJson(url, ctrl) {
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -1132,14 +882,13 @@ _handleInputChange(e) {
     return res.json();
   }
 
+  // Shows or hides the loading indicator during async work.
   _setLoading(isLoading, text = "Loading…") {
     const input = document.getElementById("tree-filter");
     if (!input) return;
 
-    // Try to find or create a stable container just below the toolbar row
     let container = document.querySelector(".wb-loading-container");
     if (!container) {
-      // Create a new container right *after* the toolbar row (not inside it)
       const toolbar = input.closest(".wb-toolbar") || input.parentElement;
       container = document.createElement("div");
       container.className = "wb-loading-container";
@@ -1162,27 +911,25 @@ _handleInputChange(e) {
     statusEl.textContent = text;
   }
   
+  // Loads vocabulary options for select-like columns.
   async _fetchOptions(url, targetProp) {
-    try {
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      const data = await res.json();
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    const data = await res.json();
 
-      let opts = Object.entries(data).map(([id, name]) => ({
-        value: String(id),
-        label: name
-      }));
+    let opts = Object.entries(data).map(([id, name]) => ({
+      value: String(id),
+      label: name
+    }));
 
-      if (targetProp === "userOptions") {
-        opts.unshift({ value: "unassigned", label: "Unassigned" });
-      }
-
-      this[targetProp] = opts;
-    } catch (err) {
-      console.error("Failed to fetch options for", url, err);
+    if (targetProp === "userOptions") {
+      opts.unshift({ value: "unassigned", label: "Unassigned" });
     }
+
+    this[targetProp] = opts;
   }
 
+  // Persists inline edits to the backend.
   async _saveCellChange(node, field, value) {
     const nodeId = node.key;
     const nodeType = node.data.folder ? "folder" : "asset";
@@ -1207,37 +954,34 @@ _handleInputChange(e) {
     }
   }
 
+  // Dispatches selected folder and asset IDs to the app.
   _emitSelectionChange() {
-    // Get selected asset IDs (excluding folders)
     const selectedAssetIds = this.tree.getSelectedNodes()
       .filter(node => !node.data.folder && node.key && node.key.startsWith('a-'))
       .map(node => parseInt(node.key.replace('a-', ''), 10))
       .filter(id => !isNaN(id));
 
-    // Get selected folder IDs
     const selectedFolderIds = this.tree.getSelectedNodes()
       .filter(node => node.data.folder && node.key && !node.key.startsWith('a-'))
       .map(node => parseInt(node.key, 10))
       .filter(id => !isNaN(id));
 
-    // Emit custom event for batch actions controller
     const event = new CustomEvent("wunderbaum:selectionChanged", {
       detail: { selectedAssetIds, selectedFolderIds }
     });
     document.dispatchEvent(event);
   }
 
-  // Public method to clear selection (called by batch actions after successful update)
+  // Clears all selected nodes in the tree. (called by batch actions after successful update)
   clearSelection() {
     if (this.tree) {
       this.tree.setSelection(false);
     }
   }
 
-  // Public method to refresh tree display after batch updates
+  // Refreshes tree nodes after batch updates.
   async refreshTreeDisplay(updatedAssetIds = [], updatedFolderIds = []) {
     
-    // Handle updated folders first
     if (this.tree && updatedFolderIds.length > 0) {
       
       for (const folderId of updatedFolderIds) {
@@ -1245,16 +989,12 @@ _handleInputChange(e) {
         const node = this.tree.findKey(nodeKey);
         
         if (node) {
-          // Refresh the folder node by re-fetching its data
           await this.refreshFolderNode(node, folderId);
         }
       }
     }
     
-    // Handle updated assets
     if (this.tree && updatedAssetIds.length > 0) {
-      
-      // Get unique parent folder IDs for the updated assets
       const parentFolderIds = new Set();
       
       updatedAssetIds.forEach(assetId => {
@@ -1265,7 +1005,6 @@ _handleInputChange(e) {
         }
       });
       
-      // Refresh assets for each affected parent folder
       for (const folderId of parentFolderIds) {
         await this.refreshFolderAssets(folderId, updatedAssetIds);
       }
@@ -1274,10 +1013,10 @@ _handleInputChange(e) {
     }
   }
 
+  // Reloads and re-renders a single folder node.
   async refreshFolderNode(node, folderId) {
     try {
       
-      // Fetch fresh folder data using the show endpoint
       const response = await fetch(`/isilon_folders/${folderId}.json`, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -1286,13 +1025,10 @@ _handleInputChange(e) {
       if (response.ok) {
         const folderData = await response.json();
         
-        // Update the node's data with fresh values
         Object.assign(node.data, folderData);
         
-        // Update the node's title (which is just the full_path from serializer)
         node.setTitle(folderData.title);
         
-        // Try different methods to trigger re-render (same as for assets)
         try {
           if (node.update) {
             node.update();
@@ -1315,10 +1051,10 @@ _handleInputChange(e) {
     }
   }
 
+  // Reloads and updates asset nodes under a folder.
   async refreshFolderAssets(parentFolderId, updatedAssetIds) {
     try {
       
-      // Fetch fresh asset data for this folder
       const response = await fetch(`/volumes/${this.volumeIdValue}/file_tree_assets.json?parent_folder_id=${parentFolderId}`, {
         headers: { Accept: "application/json" },
         credentials: "same-origin"
@@ -1327,20 +1063,16 @@ _handleInputChange(e) {
       if (response.ok) {
         const assetsData = await response.json();
         
-        // Update each modified asset node with fresh data
         assetsData.forEach(assetData => {
           const nodeKey = assetData.key; // Should be "a-{id}"
           const assetId = parseInt(nodeKey.replace('a-', ''), 10);
           
-          // Only update if this asset was in our updated list
           if (updatedAssetIds.includes(assetId)) {
             const node = this.tree.findKey(nodeKey);
             if (node) {
               
-              // Update the node's data with fresh values
               Object.assign(node.data, assetData);
               
-              // Try different methods to trigger re-render
               try {
                 if (node.update) {
                   node.update();

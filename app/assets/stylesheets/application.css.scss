@@ -4,25 +4,21 @@
 
 :root {
   --wb-font-family: system-ui, sans-serif;
-  --wb-font-size: 0.95rem;
-
+  --wb-font-size: 16px;
   --wb-header-border-color: #dee2e6;
   --wb-header-line-height: 1.5;
   --wb-header-height: 40px;
-
-  --wb-cell-padding: 10px 14px;
   --wb-cell-line-height: 1.6;
   --wb-row-height: auto;
-
   --wb-row-hover-bg: #f1f3f5;
   --wb-border-color: transparent;
   --wb-border-radius: 0;
 
   --wb-input-padding: 5px 8px;
-  --wb-input-font-size: 0.9rem;
 }
 
 .wunderbaum {
+  --wb-cell-padding: 8px 14px;
   --wb-header-color: #dbeafe;              
   --wb-header-text-color: #212529;        
   --wb-header-font-weight: 600;
@@ -33,8 +29,8 @@
   --wb-border-color: #dee2e6;
 }
 
-div.wunderbaum div.wb-node-list {
-  font-size: 16px !important;    
+.wunderbaum {
+  font-size: 16px !important;
 }
 
 .volume-name {
@@ -122,7 +118,6 @@ a {
 .wunderbaum .wb-tree .wb-header .wb-col {
   background-color: var(--wb-header-bg) !important;
   color: var(--wb-header-color) !important;
-  font-size: 1rem !important;
   font-weight: 600 !important;
   border-bottom: 1px solid var(--wb-border-color)!important;
   border-top: none !important;
@@ -163,7 +158,25 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 .wunderbaum .wb-tree select {
   appearance: auto !important;
   padding: 5px 8px;
-  font-size: 0.9rem;
+}
+
+.wb-select-like {
+  position: relative;
+  padding-right: 14px;
+}
+
+.wb-select-like::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #6c757d;
+  border-bottom: 1.5px solid #6c757d;
+  transform: translateY(-50%) rotate(45deg);
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .wunderbaum .wb-tree .wb-row:hover {
@@ -183,11 +196,6 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   box-shadow: none !important;
   font-family: system-ui, sans-serif !important;
   margin-top: 40px !important;
-}
-
-.wunderbaum .wb-tree .wb-row {
-  min-height: 40px !important;
-  border-bottom: 1px solid #e0e0e0;
 }
 
 .wunderbaum .wb-row.wb-match > span.wb-col .wb-title {
@@ -235,6 +243,11 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 20px;
+}
+
+.popup-select--expanded {
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .wb-loading {

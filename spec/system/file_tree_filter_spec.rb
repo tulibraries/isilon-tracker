@@ -85,18 +85,16 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 
-  it "collapses auto-expanded folders when the query is cleared" do
+  it "collapses all folders when filters are cleared" do
     visit_volume_tree
 
     fill_in "tree-filter", with: "beta"
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
-    # Clear query (your controller collapses expansions it opened)
-    find("#tree-filter").send_keys(:escape)
+    find("#clear-filters").click
 
     expect(page).to have_no_css(".wb-loading", wait: 6)
-    expect(page).to have_no_content("scan_beta_001.tif", wait: 6)
-    expect(page).to have_no_content("Scans", wait: 6)
+    expect(page).to have_no_css(".wb-row.wb-expanded", wait: 6)
   end
 
   it "cancels an in-flight search when the query changes quickly" do
