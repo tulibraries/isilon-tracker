@@ -27,8 +27,13 @@ export default class extends Controller {
     "aspace_collection_id"
   ]);
 
+  folderSelectLikeColumns = new Set([
+    "assigned_to"
+  ]);
+
   // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
+    const controller = this;
     await Promise.all([
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions"),
@@ -175,29 +180,12 @@ export default class extends Controller {
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
-            const rawValue = this._normalizeValue(colId, node.data[colId]);
+            let rawValue = this._normalizeValue(colId, node.data[colId]);
 
-            if (colId === "aspace_linking_status") {
-              if (isFolder) {
-                colInfo.elem.replaceChildren();
-                continue;
-              }
-
-              if (!colInfo.elem.querySelector("input")) {
-                const input = document.createElement("input");
-                input.type = "checkbox";
-                input.tabIndex = -1;
-                colInfo.elem.replaceChildren(input);
-              }
-            }
-
-            if (rawValue != null && rawValue !== "") {
-              let set = this.columnValueCache.get(colId);
-              if (!set) {
-                set = new Set();
-                this.columnValueCache.set(colId, set);
-              }
-              set.add(String(rawValue));
+            if (colId === "aspace_linking_status" && isFolder) {
+              colInfo.elem.replaceChildren();
+              colInfo.elem.classList.remove("wb-select-like");
+              continue;
             }
 
             let displayValue = rawValue ?? "";
@@ -261,20 +249,20 @@ export default class extends Controller {
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
 
-      this.element.addEventListener("mousedown", (e) => {
-        const valueEl = e.target.closest(".wb-select-like");
-        if (!valueEl) return;
+      this.element.addEventListener("pointerdown", (e) => {
+        const cell = e.target.closest(".wb-select-like");
+        if (!cell) return;
+
+        const colId = cell.dataset.colid;
+        if (!this.selectLikeColumns.has(colId)) return;
+
+        const node = Wunderbaum.getNode(cell);
+        if (!node) return;
 
         e.preventDefault();
         e.stopPropagation();
 
-        const colId = valueEl.dataset.colid;
-        if (!this.selectLikeColumns.has(colId)) return;
-
-        const node = Wunderbaum.getNode(valueEl);
-        if (!node) return;
-
-        this._enterSelectEdit(valueEl, node, colId);
+        this._showInlineEditor(cell, node, colId);
       });
 
     } catch (err) {
@@ -641,7 +629,9 @@ export default class extends Controller {
   }
   
   // Displays and manages the column filter dropdown popup.
-  _showDropdownFilter(anchorEl, colId, colIdx) {
+  _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
+    const isInline = typeof opts.onSelect === "function";
+
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
       existing.remove();
@@ -651,79 +641,81 @@ export default class extends Controller {
     document.querySelectorAll(".wb-popup").forEach(p => p.remove());
 
     const popup = document.createElement("div");
-    popup.classList.add("wb-popup");
-    popup.setAttribute("data-popup-for", colId);
+    popup.className = "wb-popup";
+    popup.dataset.popupFor = colId;
 
     const select = document.createElement("select");
-    select.classList.add("popup-select");
+    select.className = "popup-select";
 
-    let opts = null;
-    switch (colId) {
-      case "migration_status":
-        opts = this.migrationStatusOptions;
-        break;
-      case "aspace_collection_id":
-        opts = this.aspaceCollectionOptions;
-        break;
-      case "contentdm_collection_id":
-        opts = this.contentdmCollectionOptions;
-        break;
-      case "assigned_to":
-        opts = this.userOptions;
-        break;
-    }
+    let options = [];
 
-    if (opts) {
-      const optionsMarkup = opts.map(o => `<option value="${String(o.value)}">${o.label}</option>`).join("");
-      select.innerHTML = `${optionsMarkup}<option value="">⨉ Clear Filter</option>`;
+    if (colId === "assigned_to") {
+      options = this.userOptions || [];
+    } else if (colId === "migration_status") {
+      options = this.migrationStatusOptions || [];
+    } else if (colId === "contentdm_collection_id") {
+      options = this.contentdmCollectionOptions || [];
+    } else if (colId === "aspace_collection_id") {
+      options = this.aspaceCollectionOptions || [];
     } else if (colId === "aspace_linking_status") {
-      select.innerHTML = `
-        <option value="true">True</option>
-        <option value="false">False</option>
-        <option value="">⨉ Clear Filter</option>
-      `;
+      options = [
+        { value: "true", label: "True" },
+        { value: "false", label: "False" }
+      ];
     } else {
-      const values = this.columnValueCache.get(colId) ?? new Set();
-      const sorted = [...values].sort();
-      select.innerHTML =
-        sorted.map((v) => `<option value="${v}">${v}</option>`).join("") +
-        `<option value="">⨉ Clear Filter</option>`;
+      const values = this.columnValueCache.get(colId) || new Set();
+      options = [...values].sort().map(v => ({ value: v, label: v }));
     }
 
-    const currentFilter = this.columnFilters.has(colId)
-      ? String(this.columnFilters.get(colId))
-      : "";
-    select.value = currentFilter;
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = String(o.value);
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
 
-    const expandSelect = () => {
-      const visibleCount = Math.max(Math.min(select.options.length, 8), 4);
-      select.size = visibleCount;
-      select.classList.remove("popup-select--collapsed");
-    };
+    if (!isInline) {
+      const clearOpt = document.createElement("option");
+      clearOpt.value = "";
+      clearOpt.textContent = "⨉ Clear Filter";
+      select.appendChild(clearOpt);
+    }
 
-    const collapseSelect = () => {
-      select.removeAttribute("size");
-      select.classList.add("popup-select--collapsed");
-    };
-
-    expandSelect();
+    if (isInline) {
+      select.size = Math.min(select.options.length, 8);
+    } else {
+      select.size = Math.max(Math.min(select.options.length, 8), 4);
+    }
+    
+    if (isInline) {
+      select.value = "";
+    } else {
+      select.value = this.columnFilters.has(colId)
+        ? String(this.columnFilters.get(colId))
+        : "";
+    }
 
     select.addEventListener("change", (e) => {
-      const selectedValue = e.target.value;
-      if (selectedValue === "") {
+      const value = e.target.value;
+
+      if (isInline) {
+        opts.onSelect(value);
+        popup.remove();
+        return;
+      }
+
+      if (value === "") {
         this.columnFilters.delete(colId);
-        const popupEl = document.querySelector(`[data-popup-for='${colId}']`);
-        if (popupEl) popupEl.remove();
+        popup.remove();
       } else {
-        this.columnFilters.set(colId, selectedValue);
-        collapseSelect();
+        this.columnFilters.set(colId, value);
       }
 
       const isActive = this.columnFilters.has(colId);
       const colDef = this.tree.columns.find(c => c.id === colId);
       if (colDef) colDef.filterActive = isActive;
-      this._setFilterIconState(colId, isActive);
 
+      this._setFilterIconState(colId, isActive);
       this._runDeepFilter(this.currentQuery);
     });
 
@@ -732,68 +724,112 @@ export default class extends Controller {
     select.focus();
 
     const resolveColumnCell = () => {
-      let cell = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}']`);
-      if (!cell && Number.isInteger(colIdx)) {
-        const cols = this.element?.querySelectorAll(".wb-header .wb-col");
-        cell = cols?.[colIdx];
+      if (anchorEl.closest(".wb-col")) return anchorEl.closest(".wb-col");
+      if (Number.isInteger(colIdx)) {
+        const cols = this.element.querySelectorAll(".wb-header .wb-col");
+        return cols[colIdx] || anchorEl;
       }
-      return cell ?? anchorEl.closest(".wb-col") ?? anchorEl;
+      return anchorEl;
     };
 
     let rafId = null;
-    const updatePos = () => {
-      const columnCell = resolveColumnCell();
-      if (!columnCell?.isConnected) {
-        rafId = requestAnimationFrame(updatePos);
+
+    const updatePosition = () => {
+      const cell = resolveColumnCell();
+      if (!cell || !cell.isConnected) {
+        rafId = requestAnimationFrame(updatePosition);
         return;
       }
-      const r = columnCell.getBoundingClientRect();
+
+      const r = cell.getBoundingClientRect();
       popup.style.position = "absolute";
       popup.style.left = `${window.scrollX + r.left}px`;
       popup.style.minWidth = `${r.width}px`;
+
       let top = window.scrollY + r.top - popup.offsetHeight - 4;
       if (top < window.scrollY) {
         top = window.scrollY + r.bottom + 4;
       }
+
       popup.style.top = `${top}px`;
       popup.style.zIndex = "1000";
-      rafId = requestAnimationFrame(updatePos);
-    };
-    rafId = requestAnimationFrame(updatePos);
 
-    const reposition = () => {
-      if (rafId != null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(updatePos);
+      rafId = requestAnimationFrame(updatePosition);
     };
-    window.addEventListener("scroll", reposition, true);
-    window.addEventListener("resize", reposition);
+
+    rafId = requestAnimationFrame(updatePosition);
 
     const cleanup = () => {
-      if (rafId != null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      window.removeEventListener("scroll", reposition, true);
-      window.removeEventListener("resize", reposition);
-      document.removeEventListener("mousedown", outsideClickHandler);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener("mousedown", outsideClick);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
       popup.remove();
     };
 
-    const outsideClickHandler = (e) => {
+    const outsideClick = (e) => {
       if (!popup.contains(e.target) && !anchorEl.contains(e.target)) {
         cleanup();
       }
     };
 
-    document.addEventListener("mousedown", outsideClickHandler);
+    document.addEventListener("mousedown", outsideClick);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+  }
 
-    const obs = new MutationObserver(() => {
-      if (!document.body.contains(popup)) {
-        cleanup();
-        obs.disconnect();
+  _showInlineEditor(cell, node, colId) {
+    this._showDropdownFilter(cell, colId, null, {
+      onSelect: (value) => {
+        const normalized = this._normalizeValue(colId, value);
+        node.data[colId] = normalized;
+        this._saveCellChange(node, colId, normalized);
+
+        const label = this._optionLabelFor(colId, normalized);
+        cell.textContent = label || "Unassigned";
+        cell.classList.add("wb-select-like");
       }
     });
-    obs.observe(document.body, { childList: true }); 
+  }
+
+  _showInlineDropdown(cell, node, colId) {
+    document.querySelectorAll(".wb-popup").forEach(p => p.remove());
+
+    const popup = document.createElement("div");
+    popup.className = "wb-popup";
+
+    const list = document.createElement("div");
+    list.className = "popup-select popup-select--expanded";
+
+    const opts = this._optionsForColumn(colId);
+    const current = String(this._normalizeValue(colId, node.data[colId]));
+
+    for (const o of opts) {
+      const item = document.createElement("div");
+      item.className = "wb-popup-item";
+      item.textContent = o.label;
+      item.dataset.value = o.value;
+
+      if (String(o.value) === current) {
+        item.classList.add("active");
+      }
+
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        popup.remove();
+      });
+
+      list.appendChild(item);
+    }
+
+    popup.appendChild(list);
+    document.body.appendChild(popup);
+
+    this._positionPopup(popup, cell);
+
+    document.addEventListener("mousedown", (e) => {
+      if (!popup.contains(e.target)) popup.remove();
+    }, { once: true });
   }
 
   // Creates and tracks an AbortController for grouped requests.
@@ -1032,58 +1068,4 @@ export default class extends Controller {
       console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
     }
   }
-
-  // Replaces a select-like cell with a real <select> for editing.
-  _enterSelectEdit(cell, node, colId) {
-    if (cell.querySelector("select")) return;
-
-    const currentValue = String(this._normalizeValue(colId, node.data[colId]));
-    const select = document.createElement("select");
-
-    const opts = this._optionsForColumn(colId);
-    for (const o of opts) {
-      const opt = document.createElement("option");
-      opt.value = o.value;
-      opt.textContent = o.label;
-      if (String(o.value) === currentValue) opt.selected = true;
-      select.appendChild(opt);
-    }
-
-    cell.classList.remove("wb-select-like");
-    cell.replaceChildren(select);
-
-    select.focus();
-
-    select.dispatchEvent(
-      new MouseEvent("mousedown", {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      })
-    );
-
-    select.addEventListener("change", () => {
-      this._commitSelectEdit(cell, node, colId, select.value);
-    });
-
-    select.addEventListener("blur", () => {
-      this._exitSelectEdit(cell, node, colId);
-    });
-  }
-
-// Saves a selected value and exits edit mode.
- _commitSelectEdit(cell, node, colId, value) {
-    const normalized = this._normalizeValue(colId, value);
-    node.data[colId] = normalized;
-    this._saveCellChange(node, colId, normalized);
-    this._exitSelectEdit(cell, node, colId);
-  }
-
-  // Restores select-like display after editing.
-  _exitSelectEdit(cell, node, colId) {
-    const label = this._optionLabelFor(colId, node.data[colId]);
-    cell.classList.add("wb-select-like");
-    cell.textContent = label || "—";
-  }
-
 }

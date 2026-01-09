@@ -245,6 +245,11 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   background-size: 20px;
 }
 
+.popup-select--expanded {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 .wb-loading {
   display: block;
   margin: 5px;
