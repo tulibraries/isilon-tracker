@@ -31,6 +31,12 @@ export default class extends Controller {
     "assigned_to"
   ]);
 
+  assetOnlySelectColumns = new Set([
+    "migration_status",
+    "contentdm_collection_id",
+    "aspace_collection_id"
+  ]);
+
   // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
     const controller = this;
@@ -182,6 +188,12 @@ export default class extends Controller {
             const colId = colInfo.id;
             let rawValue = this._normalizeValue(colId, node.data[colId]);
 
+            if (isFolder && colId !== "assigned_to" && this.selectLikeColumns.has(colId)) {
+              colInfo.elem.replaceChildren();
+              colInfo.elem.classList.remove("wb-select-like");
+              continue;
+            }
+
             if (colId === "aspace_linking_status" && isFolder) {
               colInfo.elem.replaceChildren();
               colInfo.elem.classList.remove("wb-select-like");
@@ -196,7 +208,11 @@ export default class extends Controller {
 
             colInfo.elem.dataset.colid = colId;
 
-            if (this.selectLikeColumns.has(colId) && displayValue !== "") {
+            const isSelectLike =
+              this.selectLikeColumns.has(colId) &&
+              (!isFolder || colId === "assigned_to");
+
+            if (isSelectLike && displayValue !== "") {
               colInfo.elem.classList.add("wb-select-like");
             } else {
               colInfo.elem.classList.remove("wb-select-like");
@@ -619,7 +635,15 @@ export default class extends Controller {
 
   // Resolves a stored value to its human-readable label.
   _optionLabelFor(colId, value) {
-    if (value == null || value === "") return "";
+    if (value == null || value === "") {
+      if (
+        colId === "contentdm_collection_id" ||
+        colId === "aspace_collection_id"
+      ) {
+        return "—";
+      }
+      return "";
+    }
 
     const opts = this._optionsForColumn(colId);
     if (!opts || !opts.length) return String(value);
@@ -682,11 +706,11 @@ export default class extends Controller {
     }
 
     if (isInline) {
-      select.size = Math.min(select.options.length, 8);
+      select.size = Math.max(1, Math.min(select.options.length, 8));
     } else {
       select.size = Math.max(Math.min(select.options.length, 8), 4);
     }
-    
+
     if (isInline) {
       select.value = "";
     } else {
