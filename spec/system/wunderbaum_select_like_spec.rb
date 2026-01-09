@@ -41,7 +41,7 @@ RSpec.describe "Wunderbaum select-like columns", type: :system do
     cell = find(".wb-select-like", text: "Unassigned", match: :first)
     cell.click
 
-    expect(cell).to have_css("select")
+    expect(page).to have_css(".wb-popup select")
   end
 
   it "updates the displayed label after selecting a new value" do

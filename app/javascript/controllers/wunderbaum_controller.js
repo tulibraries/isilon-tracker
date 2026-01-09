@@ -802,6 +802,7 @@ export default class extends Controller {
     window.addEventListener("resize", updatePosition);
   }
 
+  // Opens the shared dropdown popup to edit a cell value inline instead of applying a column filter
   _showInlineEditor(cell, node, colId) {
     this._showDropdownFilter(cell, colId, null, {
       onSelect: (value) => {
@@ -816,6 +817,7 @@ export default class extends Controller {
     });
   }
 
+  // Displays the dropdown popup anchored to a cell and commits the selected value back to the node
   _showInlineDropdown(cell, node, colId) {
     document.querySelectorAll(".wb-popup").forEach(p => p.remove());
 

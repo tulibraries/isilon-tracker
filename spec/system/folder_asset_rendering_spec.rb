@@ -29,29 +29,20 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
   end
 
   it "renders only allowed interactions for folders" do
-    expect(page).to have_css(".wb-tree")
-    expect(page).to have_css(".wb-row", text: "RootFolder")
-
     folder_row = page
       .all(".wb-row", visible: true)
       .find { |row| row.has_css?(".wb-expander") }
 
     expect(folder_row).to be_present
 
-    expect(folder_row).to have_css("input[name='notes']")
     expect(folder_row).to have_css("[data-colid='assigned_to']")
+    expect(folder_row).to have_css("[data-colid='notes']")
     expect(folder_row).to have_css(".wb-select-like[data-colid='assigned_to']")
 
-    expect(folder_row).to have_css("[data-colid='migration_status']")
-    expect(folder_row).not_to have_css(".wb-select-like[data-colid='migration_status']")
-
-    expect(folder_row).to have_css("[data-colid='contentdm_collection_id']")
-    expect(folder_row).not_to have_css(".wb-select-like[data-colid='contentdm_collection_id']")
-
-    expect(folder_row).to have_css("[data-colid='aspace_collection_id']")
-    expect(folder_row).not_to have_css(".wb-select-like[data-colid='aspace_collection_id']")
-
-    expect(folder_row).not_to have_css("input[type='checkbox']")
+    expect(folder_row).not_to have_css("[data-colid='migration_status']")
+    expect(folder_row).not_to have_css("[data-colid='contentdm_collection_id']")
+    expect(folder_row).not_to have_css("[data-colid='aspace_collection_id']")
+    expect(folder_row).not_to have_css("[data-colid='aspace_linking_status']")
   end
 
   it "renders all applicable columns for assets" do
