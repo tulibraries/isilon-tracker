@@ -27,6 +27,7 @@ export default class extends Controller {
     "aspace_collection_id"
   ]);
 
+  // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
     await Promise.all([
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
@@ -41,7 +42,6 @@ export default class extends Controller {
         credentials: "same-origin"
       });
       const source = await res.json();
-      this._isScrollDrivenExpansion = false;
 
       this.tree = new Wunderbaum({
         element: this.element,
@@ -157,9 +157,7 @@ export default class extends Controller {
             this._filterSeq
           );
 
-          if (!this._isScrollDrivenExpansion) {
-            this._reapplyFilterIfAny();
-          }
+          this._reapplyFilterIfAny();
         },
 
         postProcess: (e) => { e.result = e.response; },
@@ -204,13 +202,13 @@ export default class extends Controller {
 
             let displayValue = rawValue ?? "";
 
-            if (this.selectLikeColumns?.has(colId)) {
+            if (this.selectLikeColumns.has(colId)) {
               displayValue = this._optionLabelFor(colId, rawValue);
             }
 
             colInfo.elem.dataset.colid = colId;
 
-            if (this.selectLikeColumns?.has(colId) && displayValue !== "") {
+            if (this.selectLikeColumns.has(colId) && displayValue !== "") {
               colInfo.elem.classList.add("wb-select-like");
             } else {
               colInfo.elem.classList.remove("wb-select-like");
@@ -259,12 +257,6 @@ export default class extends Controller {
         source
       });
     
-
-      this._fetchOptions("/migration_statuses.json", "migrationStatusOptions", "migration_status");
-      this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions", "aspace_collection_id");
-      this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions", "contentdm_collection_id");
-      this._fetchOptions("/users.json", "userOptions", "assigned_to");
-
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
@@ -277,7 +269,7 @@ export default class extends Controller {
         e.stopPropagation();
 
         const colId = valueEl.dataset.colid;
-        if (!this.selectLikeColumns?.has(colId)) return;
+        if (!this.selectLikeColumns.has(colId)) return;
 
         const node = Wunderbaum.getNode(valueEl);
         if (!node) return;
@@ -289,11 +281,13 @@ export default class extends Controller {
       console.error("Wunderbaum failed to load:", err);    }
   }
 
+  // Cancels pending async work and timers when the controller is removed.
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
   }
 
+  // Wires the text filter input and Escape key behavior.
   _setupInlineFilter() {
     const input = document.getElementById("tree-filter");
     if (!input) return;
@@ -312,6 +306,7 @@ export default class extends Controller {
     });
   }
 
+  // Wires the “Clear Filters” button to fully reset tree state.
   _setupClearFiltersButton() {
     const btn = document.getElementById("clear-filters");
     if (!btn) return;
@@ -354,6 +349,7 @@ export default class extends Controller {
     });
   }
 
+  // Executes backend-backed filtering and materializes matching paths.
   async _runDeepFilter(raw) {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
@@ -367,7 +363,6 @@ export default class extends Controller {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.tree.clearFilter();
-      this._collapseFilterExpansions();
       this._setLoading(false);
       this._updateFilterModeButton();
       return;
@@ -399,6 +394,7 @@ export default class extends Controller {
     this._setLoading(false);
   }
 
+  // Applies the current filter predicate to the tree.
   _applyPredicate(q) {
     const predicate = (node) => {
       if (q) {
@@ -426,6 +422,7 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Reapplies the active filter after node expansion.
   _reapplyFilterIfAny() {
     if (this.currentFilterPredicate) {
       const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
@@ -435,11 +432,13 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Finds a tree node by its key.
   _findNodeByKey(key) {
     const skey = String(key);
     return this.tree?.findKey?.(skey) ?? null;
   }
 
+  // Toggles between hide and dim filter modes.
   _setupFilterModeToggle() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
@@ -459,6 +458,7 @@ export default class extends Controller {
     this._updateFilterModeButton();
   }
 
+  // Updates the filter mode toggle UI state.
   _updateFilterModeButton() {
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
@@ -474,6 +474,7 @@ export default class extends Controller {
     }
   }
 
+  // Updates column filter icon state in the header.
   _setFilterIconState(colId, active) {
     if (!colId) return;
     const icon = this.element?.querySelector(`.wb-header .wb-col[data-colid='${colId}'] [data-command='filter']`);
@@ -494,6 +495,7 @@ export default class extends Controller {
     icon.dataset.filterActive = isActive ? "true" : "false";
   }
 
+  // Ensures a folder’s immediate child folders are loaded.
   async _hydrateSingleParentByKey(parentKey, mySeq) {
     if (mySeq !== this._filterSeq) return;
     const pid = String(parentKey);
@@ -525,6 +527,7 @@ export default class extends Controller {
     this.loadedFolders.add(pid);
   }
 
+  // Loads assets for a folder with cancellation support.
   async _ensureAssetsForFolderCancellable(folderKey, mySeq) {
     const k = String(folderKey);
     if (this.assetsLoadedFor.has(k)) return;
@@ -556,6 +559,7 @@ export default class extends Controller {
     this.assetsLoadedFor.add(k);
   }
 
+  // Ensures all folder paths needed for search results exist.
   async _materializeSearchResults(folders, assets, seq) {
     const paths = new Set();
 
@@ -580,6 +584,7 @@ export default class extends Controller {
     }
   }
 
+  // Expands and loads each folder along a given path.
   async _loadPath(pathIds, seq) {
     for (const rawId of pathIds) {
       if (seq !== this._filterSeq) return;
@@ -606,6 +611,7 @@ export default class extends Controller {
     }
   }
 
+  // Normalizes stored values for display and editing.
   _normalizeValue(colId, value) {
     if (colId === "assigned_to" && (value == null || value === "")) {
       return "unassigned";
@@ -613,21 +619,17 @@ export default class extends Controller {
     return value;
   }
 
+  // Returns the option list for a select-like column.
   _optionsForColumn(colId) {
-    switch (colId) {
-      case "assigned_to":
-        return this.userOptions ?? [];
-      case "migration_status":
-        return this.migrationStatusOptions ?? [];
-      case "contentdm_collection_id":
-        return this.contentdmCollectionOptions ?? [];
-      case "aspace_collection_id":
-        return this.aspaceCollectionOptions ?? [];
-      default:
-        return [];
-    }
+    return this[{
+      assigned_to: "userOptions",
+      migration_status: "migrationStatusOptions",
+      contentdm_collection_id: "contentdmCollectionOptions",
+      aspace_collection_id: "aspaceCollectionOptions"
+    }[colId]] ?? [];
   }
 
+  // Resolves a stored value to its human-readable label.
   _optionLabelFor(colId, value) {
     if (value == null || value === "") return "";
 
@@ -638,6 +640,7 @@ export default class extends Controller {
     return found ? found.label : String(value);
   }
   
+  // Displays and manages the column filter dropdown popup.
   _showDropdownFilter(anchorEl, colId, colIdx) {
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
@@ -793,17 +796,20 @@ export default class extends Controller {
     obs.observe(document.body, { childList: true }); 
   }
 
+  // Creates and tracks an AbortController for grouped requests.
   _beginFetchGroup() {
     const ctrl = new AbortController();
     this.inflightControllers.add(ctrl);
     return ctrl;
   }
 
+  // Cancels all in-flight network requests.
   _cancelInflight() {
     for (const c of this.inflightControllers) { try { c.abort(); } catch {} }
     this.inflightControllers.clear();
   }
 
+  // Fetches JSON with abort support.
   async _fetchJson(url, ctrl) {
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -814,6 +820,7 @@ export default class extends Controller {
     return res.json();
   }
 
+  // Shows or hides the loading indicator during async work.
   _setLoading(isLoading, text = "Loading…") {
     const input = document.getElementById("tree-filter");
     if (!input) return;
@@ -842,6 +849,7 @@ export default class extends Controller {
     statusEl.textContent = text;
   }
   
+  // Loads vocabulary options for select-like columns.
   async _fetchOptions(url, targetProp) {
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
@@ -859,6 +867,7 @@ export default class extends Controller {
     this[targetProp] = opts;
   }
 
+  // Persists inline edits to the backend.
   async _saveCellChange(node, field, value) {
     const nodeId = node.key;
     const nodeType = node.data.folder ? "folder" : "asset";
@@ -883,6 +892,7 @@ export default class extends Controller {
     }
   }
 
+  // Dispatches selected folder and asset IDs to the app.
   _emitSelectionChange() {
     const selectedAssetIds = this.tree.getSelectedNodes()
       .filter(node => !node.data.folder && node.key && node.key.startsWith('a-'))
@@ -900,14 +910,14 @@ export default class extends Controller {
     document.dispatchEvent(event);
   }
 
-  // Public method to clear selection (called by batch actions after successful update)
+  // Clears all selected nodes in the tree. (called by batch actions after successful update)
   clearSelection() {
     if (this.tree) {
       this.tree.setSelection(false);
     }
   }
 
-  // Public method to refresh tree display after batch updates
+  // Refreshes tree nodes after batch updates.
   async refreshTreeDisplay(updatedAssetIds = [], updatedFolderIds = []) {
     
     if (this.tree && updatedFolderIds.length > 0) {
@@ -941,6 +951,7 @@ export default class extends Controller {
     }
   }
 
+  // Reloads and re-renders a single folder node.
   async refreshFolderNode(node, folderId) {
     try {
       
@@ -978,6 +989,7 @@ export default class extends Controller {
     }
   }
 
+  // Reloads and updates asset nodes under a folder.
   async refreshFolderAssets(parentFolderId, updatedAssetIds) {
     try {
       
@@ -1021,6 +1033,7 @@ export default class extends Controller {
     }
   }
 
+  // Replaces a select-like cell with a real <select> for editing.
   _enterSelectEdit(cell, node, colId) {
     if (cell.querySelector("select")) return;
 
@@ -1058,6 +1071,7 @@ export default class extends Controller {
     });
   }
 
+// Saves a selected value and exits edit mode.
  _commitSelectEdit(cell, node, colId, value) {
     const normalized = this._normalizeValue(colId, value);
     node.data[colId] = normalized;
@@ -1065,6 +1079,7 @@ export default class extends Controller {
     this._exitSelectEdit(cell, node, colId);
   }
 
+  // Restores select-like display after editing.
   _exitSelectEdit(cell, node, colId) {
     const label = this._optionLabelFor(colId, node.data[colId]);
     cell.classList.add("wb-select-like");
