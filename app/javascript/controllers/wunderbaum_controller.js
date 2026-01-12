@@ -39,13 +39,16 @@ export default class extends Controller {
 
   // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
-    const controller = this;
     await Promise.all([
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions"),
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions"),
       this._fetchOptions("/users.json", "userOptions")
     ]);
+
+    const selectAllButton = document.getElementById("select-all");
+    new bootstrap.Tooltip(document.getElementById("select-all"));
+    selectAllButton.title = "Select all items";
 
     try {
       const res = await fetch(this.urlValue, {
@@ -256,6 +259,15 @@ export default class extends Controller {
 
         select: (e) => {
           this._emitSelectionChange();
+          const selected = e.tree.getSelectedNodes();
+          const btn = document.getElementById("select-all");
+
+          btn.title =
+            selected.length > 0
+              ? "Clear selection"
+              : "Select all items";
+
+          btn.classList.toggle("is-checked", selected.length > 0);
         },
 
         source
@@ -264,6 +276,15 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
+
+      selectAllButton.addEventListener("click", () => {
+        const selected = this.tree.getSelectedNodes();
+        const selectAll = selected.length === 0;
+
+        this.tree.root.visit((node) => {
+          node.setSelected(selectAll);
+        });
+      });
 
       this.element.addEventListener("pointerdown", (e) => {
         const cell = e.target.closest(".wb-select-like");
