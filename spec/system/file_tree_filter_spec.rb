@@ -57,11 +57,8 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     )
   end
 
-  # Helper: visit the page that renders the Wunderbaum tree
   def visit_volume_tree
-    # Adjust the path helper if your route differs
     visit volume_path(volume)
-    # Wait until the root label is visible (tree mounted)
     expect(page).to have_content("/LibraryBeta")
   end
 
@@ -70,18 +67,14 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    # Loading indicator appears during hydration
     expect(page).to have_css(".wb-loading", text: /Loading|Searching/i)
 
-    # The deep asset appears once its ancestor chain is expanded & assets loaded
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
-    # Ancestor folders now visible (expanded)
     expect(page).to have_content("LibDigital")
     expect(page).to have_content("TUL_OHIST")
     expect(page).to have_content("Scans")
 
-    # Loading clears when finished
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 
@@ -102,10 +95,8 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    # Immediately change/clear to trigger cancellation
     fill_in "tree-filter", with: ""
 
-    # Badge disappears quickly and deep asset never shows
     expect(page).to have_no_css(".wb-loading", wait: 6)
     expect(page).to have_no_content("scan_beta_001.tif", wait: 6)
   end
