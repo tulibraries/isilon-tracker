@@ -66,6 +66,7 @@ export default class extends Controller {
         lazy: true,
         selectMode: "hier",
         columnsResizable: true,
+        columnsSortable: true, 
         fixedCol: true,
 
         filter: {
@@ -111,7 +112,7 @@ export default class extends Controller {
             width: "150px"
           },
           { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
-          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "150px" },
+          { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "175px" },
           {
             id: "contentdm_collection_id",
             classes: "wb-helper-center",
@@ -138,7 +139,7 @@ export default class extends Controller {
             classes: "wb-helper-center",
             filterable: true,
             title: "ASpace linking status",
-            width: "200px",
+            width: "210px",
             html: `<input type="checkbox" tabindex="-1">`
           },
         ],
@@ -236,6 +237,10 @@ export default class extends Controller {
         },
         
         buttonClick: (e) => {
+          if (e.command === "sort") {
+            e.tree.sortByProperty({ colId: e.info.colId, updateColInfo: true });
+          }
+
           if (e.command === "filter") {
             const colId = e.info.colDef.id;
             const colIdx = e.info.colIdx;
