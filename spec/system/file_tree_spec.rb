@@ -53,6 +53,16 @@ RSpec.describe "Volume File Tree", type: :system, js: true do
     end
   end
 
+  it "opens asset links in a new tab" do
+    expander = find("i.wb-expander", match: :first)
+    expander.click
+
+    link = find("a", text: asset.isilon_name)
+
+    expect(link[:target]).to eq("_blank")
+    expect(link[:rel]).to include("noopener")
+  end
+
   it "allows checking the asset checkbox" do
     within "div#tree" do
       expect(page).to have_selector("div.wb-row", minimum: 1)
