@@ -232,7 +232,7 @@ export default class extends Controller {
             titleElem.textContent = node.title || "";
           } else {
             titleElem.innerHTML =
-              `<a href="${node.data.url}" class="asset-link" data-turbo="false">${node.title}</a>`;
+              `<a href="${node.data.url}" class="asset-link" target="_blank" rel="noopener" data-turbo="false">${node.title}</a>`;
           }
         },
         
