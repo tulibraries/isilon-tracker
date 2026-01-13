@@ -48,7 +48,7 @@ export default class extends Controller {
 
     const selectAllButton = document.getElementById("select-all");
     new bootstrap.Tooltip(document.getElementById("select-all"));
-    selectAllButton.title = "Select all items";
+    this._updateSelectAllButtonState();
 
     try {
       const res = await fetch(this.urlValue, {
@@ -264,15 +264,7 @@ export default class extends Controller {
 
         select: (e) => {
           this._emitSelectionChange();
-          const selected = e.tree.getSelectedNodes();
-          const btn = document.getElementById("select-all");
-
-          btn.title =
-            selected.length > 0
-              ? "Clear selection"
-              : "Select all items";
-
-          btn.classList.toggle("is-checked", selected.length > 0);
+          this._updateSelectAllButtonState(e.tree.getSelectedNodes().length);
         },
 
         source
@@ -284,12 +276,32 @@ export default class extends Controller {
 
       selectAllButton.addEventListener("click", () => {
         const selected = this.tree.getSelectedNodes();
-        const selectAll = selected.length === 0;
-
-        this.tree.root.visit((node) => {
-          node.setSelected(selectAll);
+ 
+        if (selected.length > 0) {
+          selected.forEach((node) => node.setSelected(false, { force: true }));
+          this._emitSelectionChange();
+          this._updateSelectAllButtonState(0);
+          return;
+        }
+ 
+        if (!this._hasActiveFilter()) {
+          this._updateSelectAllButtonState(selected.length);
+          return;
+        }
+ 
+        const matchedNodes = [];
+        const predicate = this.currentFilterPredicate;
+        this.tree.visit((node) => {
+          if (!predicate || node.statusNodeType) return;
+          if (predicate(node)) matchedNodes.push(node);
         });
+
+        matchedNodes.forEach((node) => node._changeSelectStatusProps(true));
+        this._emitSelectionChange();
+        this._updateSelectAllButtonState(matchedNodes.length);
       });
+
+
 
       this.element.addEventListener("pointerdown", (e) => {
         const cell = e.target.closest(".wb-select-like");
@@ -315,6 +327,30 @@ export default class extends Controller {
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
+  }
+
+  _hasActiveFilter() {
+    return !!(this.currentFilterPredicate || this.currentQuery || this.columnFilters.size > 0);
+  }
+
+  _updateSelectAllButtonState(selectedCount = null) {
+    const btn = document.getElementById("select-all");
+    if (!btn) return;
+
+    const selected = selectedCount ?? (this.tree ? this.tree.getSelectedNodes().length : 0);
+    const hasActiveFilter = this._hasActiveFilter();
+    const isChecked = selected > 0;
+    const isInactive = !hasActiveFilter && !isChecked;
+
+    btn.classList.toggle("is-checked", isChecked);
+    btn.classList.toggle("is-inactive", isInactive);
+    btn.setAttribute("aria-disabled", String(isInactive));
+
+    btn.title = isChecked
+      ? "Clear selection"
+      : hasActiveFilter
+        ? "Select filtered items"
+        : "Select all filtered results";
   }
 
   // Wires the text filter input and Escape key behavior.
@@ -351,6 +387,8 @@ export default class extends Controller {
       this.currentQuery = "";
       this.filterMode = "dim";
       this.loadedFolders.clear();
+      this.assetsLoadedFor.clear();
+      this.assetCache.clear();
       if (this.tree?.columns) {
         this.tree.columns.forEach((col) => {
           col.filterActive = false;
@@ -372,10 +410,16 @@ export default class extends Controller {
         });
       }
 
+      if (this.tree) {
+        this.tree.selectAll(false);
+      }
+
+      this._emitSelectionChange();
       this.tree.clearFilter();
       this.columnValueCache.clear();
       this._setLoading(false);
       this._updateFilterModeButton();
+      this._updateSelectAllButtonState(0);
     });
   }
 
@@ -384,6 +428,8 @@ export default class extends Controller {
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
+    this.assetsLoadedFor.clear();
+    this.assetCache.clear();
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
@@ -395,6 +441,7 @@ export default class extends Controller {
       this.tree.clearFilter();
       this._setLoading(false);
       this._updateFilterModeButton();
+      this._updateSelectAllButtonState();
       return;
     }
 
@@ -413,35 +460,38 @@ export default class extends Controller {
         this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`, searchCtrl).catch(() => []),
         this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`, searchCtrl).catch(() => []),
       ]);
+
+      if (mySeq !== this._filterSeq) return;
+
+      await this._materializeSearchResults(folders, assets, mySeq);
+
+      this._applyPredicate(q);
     } finally {
       this.inflightControllers.delete(searchCtrl);
+      this._setLoading(false);
     }
-    if (mySeq !== this._filterSeq) return;
-
-    await this._materializeSearchResults(folders, assets, mySeq);
-
-    this._applyPredicate(q);
-    this._setLoading(false);
   }
 
   // Applies the current filter predicate to the tree.
   _applyPredicate(q) {
     const predicate = (node) => {
       if (q) {
-      const text =
-          String(
-            node.data.title ??
-            node.data.name ??
-            node.title ??
-            ""
-          ).toLowerCase();
+        const text = String(
+          node.data.title ??
+          node.data.name ??
+          node.title ??
+          ""
+        ).toLowerCase();
 
         if (!text.includes(q)) return false;
       }
 
       for (const [colId, val] of this.columnFilters.entries()) {
-        const nv = node.data[colId];
-        if (nv == null || String(nv).toLowerCase() !== String(val).toLowerCase()) return false;
+        const normalizedValue = this._normalizeValue(colId, node.data[colId]);
+        const normalizedStr = normalizedValue == null ? "" : String(normalizedValue).toLowerCase();
+        const filterStr = String(val ?? "").toLowerCase();
+
+        if (normalizedStr !== filterStr) return false;
       }
       return true;
     };
@@ -450,6 +500,7 @@ export default class extends Controller {
     this.currentFilterOpts = opts;
     this.tree.filterNodes(predicate, opts);
     this._updateFilterModeButton();
+    this._updateSelectAllButtonState();
   }
 
   // Reapplies the active filter after node expansion.
@@ -460,6 +511,7 @@ export default class extends Controller {
       this.tree.filterNodes(this.currentFilterPredicate, opts);
     }
     this._updateFilterModeButton();
+    this._updateSelectAllButtonState();
   }
 
   // Finds a tree node by its key.
@@ -592,6 +644,7 @@ export default class extends Controller {
   // Ensures all folder paths needed for search results exist.
   async _materializeSearchResults(folders, assets, seq) {
     const paths = new Set();
+    const assetParentIds = new Set();
 
     for (const folder of folders) {
       if (Array.isArray(folder.path)) {
@@ -604,6 +657,7 @@ export default class extends Controller {
         const pid = asset.parent_folder_id ?? asset.folder_id;
         if (pid != null) {
           paths.add([...asset.path, pid].map(String).join(">"));
+          assetParentIds.add(String(pid));
         }
       }
     }
@@ -611,6 +665,11 @@ export default class extends Controller {
     for (const path of paths) {
       if (seq !== this._filterSeq) return;
       await this._loadPath(path.split(">"), seq);
+    }
+
+    for (const pid of assetParentIds) {
+      if (seq !== this._filterSeq) return;
+      await this._ensureAssetsForFolderCancellable(pid, seq);
     }
   }
 
@@ -918,6 +977,7 @@ export default class extends Controller {
       const toolbar = input.closest(".wb-toolbar") || input.parentElement;
       container = document.createElement("div");
       container.className = "wb-loading-container";
+      container.style.display = "none";
       toolbar.insertAdjacentElement("afterend", container);
     }
 
@@ -934,7 +994,9 @@ export default class extends Controller {
       return;
     }
 
+    container.style.display = "";
     statusEl.textContent = text;
+
   }
   
   // Loads vocabulary options for select-like columns.
