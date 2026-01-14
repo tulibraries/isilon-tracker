@@ -62,6 +62,37 @@ RSpec.describe "Volume file tree select all", type: :system do
     expect(page).to have_no_css(".wb-row.wb-selected", wait: 5)
   end
 
+  it "selects lazy-loaded descendants when a folder is selected" do
+    root_checkbox = find(:css, "#tree i.wb-checkbox", match: :first, wait: 10)
+    folder_row = root_checkbox.find(:xpath, "ancestor::div[contains(@class,'wb-row')]")
+
+    root_checkbox.click
+
+    expect(folder_row[:class]).to include("wb-selected")
+
+    folder_row.find("i.wb-expander", wait: 10).click
+
+    if page.has_no_css?(".wb-row", text: "scan_beta_001.tif", wait: 5)
+      second_expander = all("i.wb-expander", minimum: 1, wait: 10)[1]
+      second_expander&.click
+    end
+
+    expect(page).to have_css(".wb-row", text: "scan_beta_001.tif", wait: 20)
+    expect(page).to have_css(".wb-row", text: "scan_gamma_001.tif", wait: 20)
+
+    expect(page).to have_css(".wb-row.wb-selected", text: "scan_beta_001.tif", wait: 20)
+    expect(page).to have_css(".wb-row.wb-selected", text: "scan_gamma_001.tif", wait: 20)
+  end
+
+  it "shows and hides the loading banner during selection" do
+    fill_in "tree-filter", with: "beta"
+    button = find("#select-all")
+    expect(page).to have_no_css(".wb-loading-container", visible: true)
+    button.click
+    expect(page).to have_css(".wb-loading-container", wait: 10)
+    expect(page).to have_no_css(".wb-loading-container", wait: 20)
+  end
+
   it "updates tooltip text based on selection state" do
     fill_in "tree-filter", with: "beta"
     expect(page).to have_css(".wb-row.wb-match", text: "scan_beta_001.tif", wait: 10)

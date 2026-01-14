@@ -251,13 +251,12 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 }
 
 .wb-loading {
-  display: block;
+  display: inline-block;
   margin: 5px;
   padding: 2px 6px;
   border-radius: 4px;
   background: #d4edda;
   font: 12px/1.6 system-ui, sans-serif;
-  width: 12%;
 }
 
 .wb-no-results {
