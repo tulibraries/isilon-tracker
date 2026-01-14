@@ -79,9 +79,9 @@ module ReportingMetrics
 
       per_volume_counts
         .map do |volume_name, counts|
-          [volume_name, percentage(counts[:decision_made], counts[:total])]
+          [ volume_name, percentage(counts[:decision_made], counts[:total]) ]
         end
-        .sort_by { |(volume_name, pct)| [-pct, volume_name] }
+        .sort_by { |(volume_name, pct)| [ -pct, volume_name ] }
     end
   end
 

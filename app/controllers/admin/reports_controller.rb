@@ -11,9 +11,9 @@ module Admin
 
     def volume_migration_status_csv
       csv_data = CSV.generate(headers: true) do |csv|
-        csv << ["Volume", "Migration Status", "Asset Count"]
+        csv << [ "Volume", "Migration Status", "Asset Count" ]
         ReportingMetrics.asset_counts_by_volume_and_migration_status.each do |row|
-          csv << [row[:volume], row[:migration_status], row[:count]]
+          csv << [ row[:volume], row[:migration_status], row[:count] ]
         end
       end
 
@@ -22,9 +22,9 @@ module Admin
 
     def assigned_user_migration_status_csv
       csv_data = CSV.generate(headers: true) do |csv|
-        csv << ["Assigned User", "Migration Status", "Asset Count"]
+        csv << [ "Assigned User", "Migration Status", "Asset Count" ]
         ReportingMetrics.asset_counts_by_assigned_user_and_migration_status.each do |row|
-          csv << [row[:assigned_user], row[:migration_status], row[:count]]
+          csv << [ row[:assigned_user], row[:migration_status], row[:count] ]
         end
       end
 

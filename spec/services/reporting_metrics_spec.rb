@@ -68,13 +68,13 @@ RSpec.describe ReportingMetrics do
       result = described_class.migration_status_overview
 
       expect(result).to eq([
-        ["OK to Migrate", 3],
-        ["Don't Migrate", 1],
-        ["Save Elsewhere", 0],
-        ["Migrated", 2],
-        ["Migration in Progress", 1],
-        ["Needs Review", 2],
-        ["Needs Further Investigation", 1]
+        [ "OK to Migrate", 3 ],
+        [ "Don't Migrate", 1 ],
+        [ "Save Elsewhere", 0 ],
+        [ "Migrated", 2 ],
+        [ "Migration in Progress", 1 ],
+        [ "Needs Review", 2 ],
+        [ "Needs Further Investigation", 1 ]
       ])
     end
   end
@@ -101,8 +101,8 @@ RSpec.describe ReportingMetrics do
       result = described_class.decision_progress_by_volume
 
       expect(result).to eq([
-        ["Volume A", 75.0],
-        ["Volume B", 25.0]
+        [ "Volume A", 75.0 ],
+        [ "Volume B", 25.0 ]
       ])
     end
   end
