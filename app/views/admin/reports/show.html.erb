@@ -77,6 +77,53 @@
       </ul>
     </div>
 
+    <div class="chart-card migration-status-card">
+      <div class="migration-status-header">
+        <div>
+          <h2>Migration Status Overview</h2>
+          <p class="chart-description">
+            Number of assets assigned to each migration status.
+          </p>
+        </div>
+      </div>
+
+      <%= bar_chart @migration_status_overview,
+        height: "260px",
+        colors: ["#9fb4ec"],
+        library: {
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: "y",
+            elements: {
+              bar: {
+                borderColor: "#7c8fcf",
+                borderWidth: 1,
+                borderRadius: 6
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                grid: {
+                  color: "rgba(0, 0, 0, 0.05)"
+                }
+              },
+              y: {
+                grid: {
+                  display: false
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                display: false
+              }
+            }
+          }
+        } %>
+    </div>
+
   </div>
 </section>
 
@@ -101,10 +148,16 @@
     margin-bottom: 1rem;
   }
 
-  .decision-progress-card .chart-description {
+  .chart-card .chart-description {
     color: #4b5563;
     font-size: 0.95rem;
     margin-bottom: 0;
+  }
+
+  .migration-status-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
   .decision-progress-header {

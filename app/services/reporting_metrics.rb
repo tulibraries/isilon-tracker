@@ -10,6 +10,16 @@ module ReportingMetrics
     "migration in progress"
   ].freeze
 
+  MIGRATION_STATUS_DISPLAY_ORDER = [
+    { key: "ok to migrate", label: "OK to Migrate" },
+    { key: "don't migrate", label: "Don't Migrate" },
+    { key: "save elsewhere", label: "Save Elsewhere" },
+    { key: "migrated", label: "Migrated" },
+    { key: "migration in progress", label: "Migration in Progress" },
+    { key: "needs review", label: "Needs Review" },
+    { key: "needs further investigation", label: "Needs Further Investigation" }
+  ].freeze
+
   def decision_progress_at_a_glance
     Rails.cache.fetch("reporting/decision_progress", expires_in: CACHE_TTL) do
       counts_by_status = IsilonAsset
@@ -28,6 +38,26 @@ module ReportingMetrics
         decision_pending: decision_segment_payload("Decision Pending", decision_pending, total_assets),
         total: total_assets
       }
+    end
+  end
+
+  def migration_status_overview
+    Rails.cache.fetch("reporting/migration_status_overview", expires_in: CACHE_TTL) do
+      raw_counts = IsilonAsset
+        .left_outer_joins(:migration_status)
+        .group("LOWER(migration_statuses.name)")
+        .count
+
+      normalized_counts = raw_counts.each_with_object(Hash.new(0)) do |(status_name, count), hash|
+        key = normalize_status_name(status_name)
+        next if key.blank?
+
+        hash[key] += count.to_i
+      end
+
+      MIGRATION_STATUS_DISPLAY_ORDER.map do |status|
+        [ status[:label], normalized_counts[status[:key]] ]
+      end
     end
   end
 
