@@ -22,6 +22,7 @@ gem "sqlite3", ">= 2.1"
 gem "stimulus-rails"
 gem "turbo-rails"
 gem "tzinfo-data", platforms: %i[ windows jruby ]
+gem "chartkick", "~> 5.0"
 gem "uri", ">= 1.0.4"
 
 group :development, :test do

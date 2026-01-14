@@ -1,0 +1,189 @@
+module ReportingMetrics
+  module_function
+
+  CACHE_TTL = 15.minutes
+  DECISION_MADE_STATUSES = [
+    "ok to migrate",
+    "don't migrate",
+    "save elsewhere",
+    "migrated",
+    "migration in progress"
+  ].freeze
+
+  MIGRATION_STATUS_DISPLAY_ORDER = [
+    { key: "ok to migrate", label: "OK to Migrate" },
+    { key: "don't migrate", label: "Don't Migrate" },
+    { key: "save elsewhere", label: "Save Elsewhere" },
+    { key: "migrated", label: "Migrated" },
+    { key: "migration in progress", label: "Migration in Progress" },
+    { key: "needs review", label: "Needs Review" },
+    { key: "needs further investigation", label: "Needs Further Investigation" }
+  ].freeze
+
+  def decision_progress_at_a_glance
+    Rails.cache.fetch("reporting/decision_progress", expires_in: CACHE_TTL) do
+      counts_by_status = IsilonAsset
+        .left_outer_joins(:migration_status)
+        .group("LOWER(migration_statuses.name)")
+        .count
+
+      total_assets = counts_by_status.values.sum
+      decision_made = counts_by_status.sum do |status_name, count|
+        decision_made_status?(status_name) ? count.to_i : 0
+      end
+      decision_pending = total_assets - decision_made
+
+      {
+        decision_made: decision_segment_payload("Decision Made", decision_made, total_assets),
+        decision_pending: decision_segment_payload("Decision Pending", decision_pending, total_assets),
+        total: total_assets
+      }
+    end
+  end
+
+  def migration_status_overview
+    Rails.cache.fetch("reporting/migration_status_overview", expires_in: CACHE_TTL) do
+      raw_counts = IsilonAsset
+        .left_outer_joins(:migration_status)
+        .group("LOWER(migration_statuses.name)")
+        .count
+
+      normalized_counts = raw_counts.each_with_object(Hash.new(0)) do |(status_name, count), hash|
+        key = normalize_status_name(status_name)
+        next if key.blank?
+
+        hash[key] += count.to_i
+      end
+
+      MIGRATION_STATUS_DISPLAY_ORDER.map do |status|
+        [ status[:label], normalized_counts[status[:key]] ]
+      end
+    end
+  end
+
+  def decision_progress_by_volume
+    Rails.cache.fetch("reporting/decision_progress_by_volume", expires_in: CACHE_TTL) do
+      per_volume_counts = Hash.new { |hash, key| hash[key] = { total: 0, decision_made: 0 } }
+
+      IsilonAsset
+        .joins(parent_folder: :volume)
+        .left_outer_joins(:migration_status)
+        .group("volumes.name", "LOWER(migration_statuses.name)")
+        .count
+        .each do |(volume_name, status_name), count|
+          per_volume_counts[volume_name][:total] += count.to_i
+          if decision_made_status?(status_name)
+            per_volume_counts[volume_name][:decision_made] += count.to_i
+          end
+        end
+
+      per_volume_counts
+        .map do |volume_name, counts|
+          [ volume_name, percentage(counts[:decision_made], counts[:total]) ]
+        end
+        .sort_by { |(volume_name, pct)| [ -pct, volume_name ] }
+    end
+  end
+
+  def decision_progress_by_assigned_user
+    Rails.cache.fetch("reporting/decision_progress_by_assigned_user", expires_in: CACHE_TTL) do
+      per_user_counts = Hash.new { |hash, key| hash[key] = { total: 0, decision_made: 0 } }
+
+      IsilonAsset
+        .left_outer_joins(:assigned_to)
+        .left_outer_joins(:migration_status)
+        .group("COALESCE(users.name, 'Unassigned')", "LOWER(migration_statuses.name)")
+        .count
+        .each do |(user_name, status_name), count|
+          key = user_name.presence || "Unassigned"
+
+          per_user_counts[key][:total] += count.to_i
+          if decision_made_status?(status_name)
+            per_user_counts[key][:decision_made] += count.to_i
+          end
+        end
+
+      ordered_users = per_user_counts
+        .sort_by { |(_user, counts)| -counts[:total] }
+        .map(&:first)
+
+      decision_made_data = {}
+      decision_pending_data = {}
+
+      ordered_users.each do |user_name|
+        counts = per_user_counts[user_name]
+        pending = counts[:total] - counts[:decision_made]
+
+        decision_made_data[user_name] = counts[:decision_made]
+        decision_pending_data[user_name] = pending
+      end
+
+      [
+        { name: "Decision Made", data: decision_made_data },
+        { name: "Decision Pending", data: decision_pending_data }
+      ]
+    end
+  end
+
+  def asset_counts_by_volume_and_migration_status
+    Rails.cache.fetch("reporting/asset_counts_volume_status", expires_in: CACHE_TTL) do
+      IsilonAsset
+        .joins(parent_folder: :volume)
+        .left_outer_joins(:migration_status)
+        .group("volumes.name", "COALESCE(migration_statuses.name, 'Unassigned')")
+        .order(Arel.sql("volumes.name ASC"), Arel.sql("COALESCE(migration_statuses.name, 'Unassigned') ASC"))
+        .count
+        .map do |(volume_name, status_name), count|
+          {
+            volume: volume_name,
+            migration_status: status_name,
+            count: count.to_i
+          }
+        end
+    end
+  end
+
+  def asset_counts_by_assigned_user_and_migration_status
+    Rails.cache.fetch("reporting/asset_counts_user_status", expires_in: CACHE_TTL) do
+      IsilonAsset
+        .left_outer_joins(:assigned_to)
+        .left_outer_joins(:migration_status)
+        .group("COALESCE(users.name, 'Unassigned')", "COALESCE(migration_statuses.name, 'Unassigned')")
+        .order(Arel.sql("COALESCE(users.name, 'Unassigned') ASC"), Arel.sql("COALESCE(migration_statuses.name, 'Unassigned') ASC"))
+        .count
+        .map do |(user_name, status_name), count|
+          {
+            assigned_user: user_name,
+            migration_status: status_name,
+            count: count.to_i
+          }
+        end
+    end
+  end
+
+  def decision_segment_payload(label, count, total)
+    {
+      label: label,
+      count: count,
+      percentage: percentage(count, total)
+    }
+  end
+  private_class_method :decision_segment_payload
+
+  def decision_made_status?(status_name)
+    DECISION_MADE_STATUSES.include?(normalize_status_name(status_name))
+  end
+  private_class_method :decision_made_status?
+
+  def normalize_status_name(status_name)
+    status_name.to_s.downcase.gsub(/\u2019/, "'")
+  end
+  private_class_method :normalize_status_name
+
+  def percentage(part, total)
+    return 0 if total.to_i.zero?
+
+    ((part.to_f / total.to_f) * 100).round(1)
+  end
+  private_class_method :percentage
+end
