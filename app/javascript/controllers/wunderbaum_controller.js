@@ -263,6 +263,15 @@ export default class extends Controller {
         },
 
         select: (e) => {
+          const node = e.node;
+          const shouldSelect = !!node?.isSelected?.();
+
+          if (node?.data?.folder) {
+            setTimeout(() => {
+              void this._loadAndSelectDescendants(node, shouldSelect);
+            }, 0);
+          }
+
           this._emitSelectionChange();
           this._updateSelectAllButtonState(e.tree.getSelectedNodes().length);
         },
@@ -291,14 +300,25 @@ export default class extends Controller {
  
         const matchedNodes = [];
         const predicate = this.currentFilterPredicate;
-        this.tree.visit((node) => {
-          if (!predicate || node.statusNodeType) return;
-          if (predicate(node)) matchedNodes.push(node);
-        });
 
-        matchedNodes.forEach((node) => node._changeSelectStatusProps(true));
-        this._emitSelectionChange();
-        this._updateSelectAllButtonState(matchedNodes.length);
+        this.tree.getSelectedNodes().forEach((node) => node.setSelected(false, { force: true }));
+
+    this._setLoading(true, "Selecting…");
+
+        Promise.resolve()
+          .then(() => {
+            this.tree.visit((node) => {
+              if (!predicate || node.statusNodeType) return;
+              if (predicate(node)) matchedNodes.push(node);
+            });
+
+            matchedNodes.forEach((node) => node.setSelected(true, { force: true }));
+            this._emitSelectionChange();
+            this._updateSelectAllButtonState(matchedNodes.length);
+          })
+          .finally(() => {
+            this._setLoading(false);
+          });
       });
 
 
@@ -317,6 +337,15 @@ export default class extends Controller {
         e.stopPropagation();
 
         this._showInlineEditor(cell, node, colId);
+      });
+
+      this.element.addEventListener("click", (e) => {
+        const checkbox = e.target.closest?.(".wb-checkbox");
+        if (!checkbox) return;
+        const node = Wunderbaum.getNode(checkbox);
+        if (!node?.data?.folder) return;
+        const shouldSelect = !!node.isSelected?.();
+        void this._loadAndSelectDescendants(node, shouldSelect);
       });
 
     } catch (err) {
@@ -351,6 +380,16 @@ export default class extends Controller {
       : hasActiveFilter
         ? "Select filtered items"
         : "Select all filtered results";
+  }
+
+  // Reapply the current filter with stored options.
+  _reapplyFilterIfAny() {
+    if (!this.currentFilterPredicate) return;
+    const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
+    this.currentFilterOpts = opts;
+    this.tree.filterNodes(this.currentFilterPredicate, opts);
+    this._updateFilterModeButton();
+    this._updateSelectAllButtonState();
   }
 
   // Wires the text filter input and Escape key behavior.
@@ -503,15 +542,52 @@ export default class extends Controller {
     this._updateSelectAllButtonState();
   }
 
-  // Reapplies the active filter after node expansion.
-  _reapplyFilterIfAny() {
-    if (this.currentFilterPredicate) {
-      const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
-      this.currentFilterOpts = opts;
-      this.tree.filterNodes(this.currentFilterPredicate, opts);
+  // Load and select all descendants for a folder node without blocking UI.
+  async _loadAndSelectDescendants(node, flag) {
+    if (!node?.data?.folder) return;
+
+    const seq = this._filterSeq;
+    const queue = [node];
+    let processed = 0;
+
+        this._setLoading(true, "Selecting…");
+
+
+    try {
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const key = String(current.key ?? current.data?.key ?? current.data?.id ?? "");
+        if (!key) continue;
+        if (seq !== this._filterSeq) break;
+
+        await this._hydrateSingleParentByKey(key, seq);
+        await this._ensureAssetsForFolderCancellable(key, seq);
+
+        const children = current.children || [];
+        for (const child of children) {
+          if (child.statusNodeType) continue;
+          child.setSelected(flag, { force: true });
+          if (child.data?.folder) queue.push(child);
+        }
+
+        // Select any newly added children after asset load
+        const refreshedChildren = current.children || [];
+        for (const child of refreshedChildren) {
+          if (child.statusNodeType) continue;
+          child.setSelected(flag, { force: true });
+          if (child.data?.folder && !queue.includes(child)) queue.push(child);
+        }
+
+        processed += 1;
+        if (processed % 200 === 0) {
+          await Promise.resolve();
+        }
+      }
+    } finally {
+      this._setLoading(false);
+      this._emitSelectionChange();
+      this._updateSelectAllButtonState();
     }
-    this._updateFilterModeButton();
-    this._updateSelectAllButtonState();
   }
 
   // Finds a tree node by its key.
@@ -522,6 +598,7 @@ export default class extends Controller {
 
   // Toggles between hide and dim filter modes.
   _setupFilterModeToggle() {
+
     const btn = document.getElementById("filter-mode-toggle");
     if (!btn) return;
 
@@ -971,14 +1048,22 @@ export default class extends Controller {
   _setLoading(isLoading, text = "Loading…") {
     const input = document.getElementById("tree-filter");
     if (!input) return;
+    if (this._loadingCount == null) this._loadingCount = 0;
 
     let container = document.querySelector(".wb-loading-container");
+    const toolbar = input.closest(".wb-toolbar") || input.parentElement;
     if (!container) {
-      const toolbar = input.closest(".wb-toolbar") || input.parentElement;
       container = document.createElement("div");
       container.className = "wb-loading-container";
       container.style.display = "none";
-      toolbar.insertAdjacentElement("afterend", container);
+      container.style.position = "absolute";
+      container.style.left = "0";
+      container.style.pointerEvents = "none";
+      (toolbar || document.body).appendChild(container);
+    }
+
+    if (toolbar && getComputedStyle(toolbar).position === "static") {
+      toolbar.style.position = "relative";
     }
 
     let statusEl = container.querySelector(".wb-loading");
@@ -988,15 +1073,21 @@ export default class extends Controller {
       container.appendChild(statusEl);
     }
 
-    if (!isLoading) {
-      statusEl.textContent = "";
-      container.style.display = "none";
-      return;
+    if (isLoading) {
+      this._loadingCount += 1;
+      statusEl.textContent = text;
+      if (toolbar) {
+        const topOffset = (toolbar.offsetHeight || 0) + 8;
+        container.style.top = `${topOffset}px`;
+      }
+      container.style.display = "block";
+    } else {
+      this._loadingCount = Math.max(0, this._loadingCount - 1);
+      if (this._loadingCount === 0) {
+        statusEl.textContent = "";
+        container.style.display = "none";
+      }
     }
-
-    container.style.display = "";
-    statusEl.textContent = text;
-
   }
   
   // Loads vocabulary options for select-like columns.
