@@ -2,110 +2,58 @@ module ReportingMetrics
   module_function
 
   CACHE_TTL = 15.minutes
+  DECISION_MADE_STATUSES = [
+    "ok to migrate",
+    "don't migrate",
+    "save elsewhere",
+    "migrated",
+    "migration in progress"
+  ].freeze
 
-  def volume_progress_leaderboard
-    Rails.cache.fetch("reporting/volume_progress_leaderboard", expires_in: CACHE_TTL) do
-      assets_relation
-        .group(Arel.sql(volume_label_expression))
-        .pluck(
-          Arel.sql(volume_label_expression),
-          Arel.sql("COUNT(isilon_assets.id)"),
-          Arel.sql("SUM(CASE WHEN migration_statuses.name = 'Migrated' THEN 1 ELSE 0 END)")
-        )
-        .each_with_object({}) do |(label, total, migrated), hash|
-          percentage = total.to_i.positive? ? ((migrated.to_f / total) * 100).round(2) : 0
-          hash[label] = percentage
-        end
-    end
-  end
-
-  def asset_backlog_by_volume
-    Rails.cache.fetch("reporting/asset_backlog_by_volume", expires_in: CACHE_TTL) do
-      assets_relation
-        .group(Arel.sql(volume_label_expression))
-        .pluck(
-          Arel.sql(volume_label_expression),
-          Arel.sql("COUNT(isilon_assets.id)"),
-          Arel.sql("SUM(CASE WHEN migration_statuses.name = 'Migrated' THEN 1 ELSE 0 END)")
-        )
-        .each_with_object({}) do |(label, total, migrated), hash|
-          hash[label] = total.to_i - migrated.to_i
-        end
-    end
-  end
-
-  def user_workload_across_volumes
-    Rails.cache.fetch("reporting/user_workload", expires_in: CACHE_TTL) do
-      IsilonAsset
-        .left_outer_joins(:assigned_to)
-        .group("COALESCE(users.name, users.email, 'Unassigned')")
-        .order(Arel.sql("COUNT(*) DESC"))
+  def decision_progress_at_a_glance
+    Rails.cache.fetch("reporting/decision_progress", expires_in: CACHE_TTL) do
+      counts_by_status = IsilonAsset
+        .left_outer_joins(:migration_status)
+        .group("LOWER(migration_statuses.name)")
         .count
-    end
-  end
 
-  def assignment_aging_by_user
-    Rails.cache.fetch("reporting/assignment_aging", expires_in: CACHE_TTL) do
-      age_expression = case ActiveRecord::Base.connection.adapter_name.downcase
-      when "postgresql"
-                         "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(isilon_assets.updated_at, isilon_assets.created_at))) / 86400.0"
-      when "sqlite"
-                         "(julianday('now') - julianday(COALESCE(isilon_assets.updated_at, isilon_assets.created_at)))"
-      else
-                         "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(isilon_assets.updated_at, isilon_assets.created_at))) / 86400.0"
+      total_assets = counts_by_status.values.sum
+      decision_made = counts_by_status.sum do |status_name, count|
+        decision_made_status?(status_name) ? count.to_i : 0
       end
-
-      IsilonAsset
-        .left_outer_joins(:assigned_to, :migration_status)
-        .where.not(migration_statuses: { name: "Migrated" })
-        .group("COALESCE(users.name, users.email, 'Unassigned')")
-        .pluck(
-          Arel.sql("COALESCE(users.name, users.email, 'Unassigned')"),
-          Arel.sql("AVG(#{age_expression})")
-        )
-        .each_with_object({}) do |(name, avg_days), hash|
-          hash[name] = avg_days.to_f.round(1)
-        end
-    end
-  end
-
-  def top_file_types_migrated(limit: 10)
-    Rails.cache.fetch([ "reporting/top_file_types", limit ], expires_in: CACHE_TTL) do
-      IsilonAsset
-        .joins(:migration_status)
-        .where(migration_statuses: { name: "Migrated" })
-        .where.not(file_type: [ nil, "" ])
-        .group("LOWER(isilon_assets.file_type)")
-        .order(Arel.sql("COUNT(*) DESC"))
-        .limit(limit)
-        .count
-    end
-  end
-
-  def duplicate_and_raw_content
-    Rails.cache.fetch("reporting/duplicate_vs_raw", expires_in: CACHE_TTL) do
-      duplicates = IsilonAsset.where.not(duplicate_of_id: nil).count
-      raw_matches = IsilonAsset.where("LOWER(isilon_path) LIKE ?", "%/raw/%").count
+      decision_pending = total_assets - decision_made
 
       {
-        "Duplicate" => duplicates,
-        "Raw" => raw_matches
+        decision_made: decision_segment_payload("Decision Made", decision_made, total_assets),
+        decision_pending: decision_segment_payload("Decision Pending", decision_pending, total_assets),
+        total: total_assets
       }
     end
   end
 
-  def assets_relation
-    IsilonAsset.joins(parent_folder: :volume).left_outer_joins(:migration_status)
+  def decision_segment_payload(label, count, total)
+    {
+      label: label,
+      count: count,
+      percentage: percentage(count, total)
+    }
   end
-  private_class_method :assets_relation
+  private_class_method :decision_segment_payload
 
-  def volume_label_expression
-    adapter = ActiveRecord::Base.connection.adapter_name.downcase
-    if adapter == "postgresql"
-      "COALESCE(volumes.name, 'Volume ' || volumes.id::text)"
-    else
-      "COALESCE(volumes.name, 'Volume ' || volumes.id)"
-    end
+  def decision_made_status?(status_name)
+    DECISION_MADE_STATUSES.include?(normalize_status_name(status_name))
   end
-  private_class_method :volume_label_expression
+  private_class_method :decision_made_status?
+
+  def normalize_status_name(status_name)
+    status_name.to_s.downcase.gsub(/\u2019/, "'")
+  end
+  private_class_method :normalize_status_name
+
+  def percentage(part, total)
+    return 0 if total.to_i.zero?
+
+    ((part.to_f / total.to_f) * 100).round(1)
+  end
+  private_class_method :percentage
 end
