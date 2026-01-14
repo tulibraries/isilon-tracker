@@ -61,6 +61,30 @@ module ReportingMetrics
     end
   end
 
+  def decision_progress_by_volume
+    Rails.cache.fetch("reporting/decision_progress_by_volume", expires_in: CACHE_TTL) do
+      per_volume_counts = Hash.new { |hash, key| hash[key] = { total: 0, decision_made: 0 } }
+
+      IsilonAsset
+        .joins(parent_folder: :volume)
+        .left_outer_joins(:migration_status)
+        .group("volumes.name", "LOWER(migration_statuses.name)")
+        .count
+        .each do |(volume_name, status_name), count|
+          per_volume_counts[volume_name][:total] += count.to_i
+          if decision_made_status?(status_name)
+            per_volume_counts[volume_name][:decision_made] += count.to_i
+          end
+        end
+
+      per_volume_counts
+        .map do |volume_name, counts|
+          [volume_name, percentage(counts[:decision_made], counts[:total])]
+        end
+        .sort_by { |(volume_name, pct)| [-pct, volume_name] }
+    end
+  end
+
   def decision_segment_payload(label, count, total)
     {
       label: label,

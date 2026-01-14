@@ -78,4 +78,32 @@ RSpec.describe ReportingMetrics do
       ])
     end
   end
+
+  describe ".decision_progress_by_volume" do
+    before { Rails.cache.clear }
+
+    it "returns percentage of decision made assets per volume sorted descending" do
+      decision_status = create(:migration_status, name: "OK to migrate")
+      pending_status = create(:migration_status, name: "Needs review")
+
+      volume_a = create(:volume, name: "Volume A")
+      volume_b = create(:volume, name: "Volume B")
+
+      folder_a = create(:isilon_folder, volume: volume_a)
+      folder_b = create(:isilon_folder, volume: volume_b)
+
+      create_list(:isilon_asset, 3, parent_folder: folder_a, migration_status: decision_status)
+      create(:isilon_asset, parent_folder: folder_a, migration_status: pending_status)
+
+      create(:isilon_asset, parent_folder: folder_b, migration_status: decision_status)
+      create_list(:isilon_asset, 3, parent_folder: folder_b, migration_status: pending_status)
+
+      result = described_class.decision_progress_by_volume
+
+      expect(result).to eq([
+        ["Volume A", 75.0],
+        ["Volume B", 25.0]
+      ])
+    end
+  end
 end
