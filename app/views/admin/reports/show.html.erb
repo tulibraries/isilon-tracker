@@ -7,7 +7,7 @@
 </header>
 
 <section class="main-content__body">
-  <div class="charts-grid">
+  <div class="charts-grid charts-grid--row">
     <div class="chart-card decision-progress-card">
       <div class="decision-progress-header">
         <div>
@@ -123,8 +123,10 @@
           }
         } %>
     </div>
+  </div>
 
-    <div class="chart-card decision-volume-card full-width">
+  <div class="charts-grid charts-grid--row">
+    <div class="chart-card decision-volume-card">
       <div>
         <h2>Decision Progress by Volume</h2>
         <p class="chart-description">
@@ -172,6 +174,48 @@
         } %>
     </div>
 
+    <div class="chart-card decision-user-card">
+      <div>
+        <h2>Decision Progress by Assigned User</h2>
+        <p class="chart-description">
+          Distribution of assets with and without a migration decision, grouped by assigned user.
+        </p>
+      </div>
+
+      <%= bar_chart @decision_progress_by_assigned_user,
+        stacked: true,
+        height: "300px",
+        colors: ["#2563eb", "#f59e0b"],
+        library: {
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: "y",
+            scales: {
+              x: {
+                beginAtZero: true,
+                stacked: true,
+                grid: {
+                  color: "rgba(0, 0, 0, 0.05)"
+                }
+              },
+              y: {
+                stacked: true,
+                grid: {
+                  display: false
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                position: "top",
+                align: "start"
+              }
+            }
+          }
+        } %>
+    </div>
+
   </div>
 </section>
 
@@ -180,6 +224,10 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 2rem;
+  }
+
+  .charts-grid + .charts-grid {
+    margin-top: 2rem;
   }
 
   .chart-card {
@@ -196,10 +244,6 @@
     margin-bottom: 1rem;
   }
 
-  .chart-card.full-width {
-    grid-column: 1 / -1;
-  }
-
   .chart-card .chart-description {
     color: #4b5563;
     font-size: 0.95rem;
@@ -213,6 +257,12 @@
   }
 
   .decision-volume-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .decision-user-card {
     display: flex;
     flex-direction: column;
     gap: 1rem;

@@ -85,6 +85,46 @@ module ReportingMetrics
     end
   end
 
+  def decision_progress_by_assigned_user
+    Rails.cache.fetch("reporting/decision_progress_by_assigned_user", expires_in: CACHE_TTL) do
+      per_user_counts = Hash.new { |hash, key| hash[key] = { total: 0, decision_made: 0 } }
+
+      IsilonAsset
+        .left_outer_joins(:assigned_to)
+        .left_outer_joins(:migration_status)
+        .group("COALESCE(users.name, 'Unassigned')", "LOWER(migration_statuses.name)")
+        .count
+        .each do |(user_name, status_name), count|
+          key = user_name.presence || "Unassigned"
+
+          per_user_counts[key][:total] += count.to_i
+          if decision_made_status?(status_name)
+            per_user_counts[key][:decision_made] += count.to_i
+          end
+        end
+
+      ordered_users = per_user_counts
+        .sort_by { |(_user, counts)| -counts[:total] }
+        .map(&:first)
+
+      decision_made_data = {}
+      decision_pending_data = {}
+
+      ordered_users.each do |user_name|
+        counts = per_user_counts[user_name]
+        pending = counts[:total] - counts[:decision_made]
+
+        decision_made_data[user_name] = counts[:decision_made]
+        decision_pending_data[user_name] = pending
+      end
+
+      [
+        { name: "Decision Made", data: decision_made_data },
+        { name: "Decision Pending", data: decision_pending_data }
+      ]
+    end
+  end
+
   def decision_segment_payload(label, count, total)
     {
       label: label,

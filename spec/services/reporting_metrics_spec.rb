@@ -106,4 +106,47 @@ RSpec.describe ReportingMetrics do
       ])
     end
   end
+
+  describe ".decision_progress_by_assigned_user" do
+    before { Rails.cache.clear }
+
+    it "returns stacked data sets of decision made vs pending counts per user ordered by workload" do
+      decision_status = create(:migration_status, name: "OK to migrate")
+      pending_status = create(:migration_status, name: "Needs review")
+
+      user_a = create(:user, name: "User A")
+      user_b = create(:user, name: "User B")
+
+      folder = create(:isilon_folder)
+
+      create_list(:isilon_asset, 2, parent_folder: folder, migration_status: decision_status, assigned_to: user_a)
+      create(:isilon_asset, parent_folder: folder, migration_status: pending_status, assigned_to: user_a)
+
+      create(:isilon_asset, parent_folder: folder, migration_status: decision_status, assigned_to: user_b)
+      create(:isilon_asset, parent_folder: folder, migration_status: pending_status, assigned_to: user_b)
+
+      create(:isilon_asset, parent_folder: folder, migration_status: pending_status, assigned_to: nil)
+
+      result = described_class.decision_progress_by_assigned_user
+
+      expect(result).to eq([
+        {
+          name: "Decision Made",
+          data: {
+            "User A" => 2,
+            "User B" => 1,
+            "Unassigned" => 0
+          }
+        },
+        {
+          name: "Decision Pending",
+          data: {
+            "User A" => 1,
+            "User B" => 1,
+            "Unassigned" => 1
+          }
+        }
+      ])
+    end
+  end
 end
