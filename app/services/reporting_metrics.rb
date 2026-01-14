@@ -125,6 +125,42 @@ module ReportingMetrics
     end
   end
 
+  def asset_counts_by_volume_and_migration_status
+    Rails.cache.fetch("reporting/asset_counts_volume_status", expires_in: CACHE_TTL) do
+      IsilonAsset
+        .joins(parent_folder: :volume)
+        .left_outer_joins(:migration_status)
+        .group("volumes.name", "COALESCE(migration_statuses.name, 'Unassigned')")
+        .order(Arel.sql("volumes.name ASC"), Arel.sql("COALESCE(migration_statuses.name, 'Unassigned') ASC"))
+        .count
+        .map do |(volume_name, status_name), count|
+          {
+            volume: volume_name,
+            migration_status: status_name,
+            count: count.to_i
+          }
+        end
+    end
+  end
+
+  def asset_counts_by_assigned_user_and_migration_status
+    Rails.cache.fetch("reporting/asset_counts_user_status", expires_in: CACHE_TTL) do
+      IsilonAsset
+        .left_outer_joins(:assigned_to)
+        .left_outer_joins(:migration_status)
+        .group("COALESCE(users.name, 'Unassigned')", "COALESCE(migration_statuses.name, 'Unassigned')")
+        .order(Arel.sql("COALESCE(users.name, 'Unassigned') ASC"), Arel.sql("COALESCE(migration_statuses.name, 'Unassigned') ASC"))
+        .count
+        .map do |(user_name, status_name), count|
+          {
+            assigned_user: user_name,
+            migration_status: status_name,
+            count: count.to_i
+          }
+        end
+    end
+  end
+
   def decision_segment_payload(label, count, total)
     {
       label: label,

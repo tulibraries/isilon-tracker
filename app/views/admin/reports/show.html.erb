@@ -7,6 +7,20 @@
 </header>
 
 <section class="main-content__body">
+  <div class="report-downloads">
+    <strong>Download Data (CSV)</strong>
+    <ul>
+      <li>
+        <%= link_to "Asset Counts by Volume and Migration Status",
+          volume_migration_status_csv_admin_reports_path(format: :csv) %>
+      </li>
+      <li>
+        <%= link_to "Asset Counts by Assigned User",
+          assigned_user_migration_status_csv_admin_reports_path(format: :csv) %>
+      </li>
+    </ul>
+  </div>
+
   <div class="charts-grid charts-grid--row">
     <div class="chart-card decision-progress-card">
       <div class="decision-progress-header">
@@ -220,6 +234,30 @@
 </section>
 
 <style>
+  .report-downloads {
+    margin-bottom: 1.5rem;
+  }
+
+  .report-downloads strong {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .report-downloads ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .report-downloads li + li {
+    margin-top: 0.25rem;
+  }
+
+  .report-downloads a {
+    color: #2563eb;
+    font-weight: 500;
+  }
+
   .charts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

@@ -149,4 +149,55 @@ RSpec.describe ReportingMetrics do
       ])
     end
   end
+
+  describe ".asset_counts_by_volume_and_migration_status" do
+    before { Rails.cache.clear }
+
+    it "returns counts grouped by volume and migration status" do
+      volume_a = create(:volume, name: "Volume A")
+      volume_b = create(:volume, name: "Volume B")
+      status_ok = create(:migration_status, name: "OK to migrate")
+      status_review = create(:migration_status, name: "Needs review")
+      folder_a = create(:isilon_folder, volume: volume_a)
+      folder_b = create(:isilon_folder, volume: volume_b)
+
+      create_list(:isilon_asset, 2, parent_folder: folder_a, migration_status: status_ok)
+      create(:isilon_asset, parent_folder: folder_a, migration_status: status_review)
+
+      create(:isilon_asset, parent_folder: folder_b, migration_status: nil)
+
+      result = described_class.asset_counts_by_volume_and_migration_status
+
+      expect(result).to include(
+        { volume: "Volume A", migration_status: "Needs review", count: 1 },
+        { volume: "Volume A", migration_status: "OK to migrate", count: 2 },
+        { volume: "Volume B", migration_status: "Unassigned", count: 1 }
+      )
+    end
+  end
+
+  describe ".asset_counts_by_assigned_user_and_migration_status" do
+    before { Rails.cache.clear }
+
+    it "returns counts grouped by assigned user and migration status" do
+      user_a = create(:user, name: "User A")
+      user_b = create(:user, name: "User B")
+      status_ok = create(:migration_status, name: "OK to migrate")
+      status_review = create(:migration_status, name: "Needs review")
+      folder = create(:isilon_folder)
+
+      create(:isilon_asset, parent_folder: folder, migration_status: status_ok, assigned_to: user_a)
+      create(:isilon_asset, parent_folder: folder, migration_status: status_review, assigned_to: user_a)
+
+      create(:isilon_asset, parent_folder: folder, migration_status: nil, assigned_to: user_b)
+
+      result = described_class.asset_counts_by_assigned_user_and_migration_status
+
+      expect(result).to include(
+        { assigned_user: "User A", migration_status: "Needs review", count: 1 },
+        { assigned_user: "User A", migration_status: "OK to migrate", count: 1 },
+        { assigned_user: "User B", migration_status: "Unassigned", count: 1 }
+      )
+    end
+  end
 end
