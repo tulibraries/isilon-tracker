@@ -1,9 +1,9 @@
 class AddReportingIndexes < ActiveRecord::Migration[7.1]
   def up
-    add_index :isilon_assets, [:parent_folder_id, :migration_status_id],
+    add_index :isilon_assets, [ :parent_folder_id, :migration_status_id ],
       name: "index_isilon_assets_on_parent_folder_and_migration_status"
 
-    add_index :isilon_assets, [:assigned_to, :migration_status_id],
+    add_index :isilon_assets, [ :assigned_to, :migration_status_id ],
       name: "index_isilon_assets_on_assigned_to_and_migration_status"
 
     execute <<~SQL
