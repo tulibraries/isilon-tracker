@@ -66,7 +66,7 @@ export default class extends Controller {
         lazy: true,
         selectMode: "hier",
         columnsResizable: true,
-        columnsSortable: true,
+        columnsSortable: true, 
         fixedCol: true,
 
         filter: {
@@ -90,7 +90,6 @@ export default class extends Controller {
             filterable: true,
             title: "Migration status",
             width: "175px",
-            sortValue: (node) => (node?.data?.migration_status || "").toString().toLowerCase()
           },
           {
             id: "assigned_to",
@@ -98,7 +97,6 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "175px",
-            sortValue: (node) => (node?.data?.assigned_to || "").toString().toLowerCase()
           },
           {
             id: "notes",
@@ -158,7 +156,6 @@ export default class extends Controller {
             options: { headers: { Accept: "application/json" }, credentials: "same-origin" }
           };
         },
-
 
         expand: async (e) => {
           const node = e.node;
@@ -241,16 +238,7 @@ export default class extends Controller {
         
         buttonClick: (e) => {
           if (e.command === "sort") {
-            const colDef = e.info.colDef;
-            const dir = colDef.sortDir ?? 1; // default to A→Z on first click
-            e.tree.sortByProperty({
-              colId: e.info.colId,
-              dir,
-              sort: colDef.sort,
-              sortValue: colDef.sortValue,
-              updateColInfo: true
-            });
-            colDef.sortDir = dir === 1 ? -1 : 1;
+            e.tree.sortByProperty({ colId: e.info.colId, updateColInfo: true });
           }
 
           if (e.command === "filter") {
@@ -290,12 +278,10 @@ export default class extends Controller {
 
         source
       });
-
+    
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-
-
 
       selectAllButton.addEventListener("click", () => {
         const selected = this.tree.getSelectedNodes();
@@ -335,6 +321,8 @@ export default class extends Controller {
           });
       });
 
+
+
       this.element.addEventListener("pointerdown", (e) => {
         const cell = e.target.closest(".wb-select-like");
         if (!cell) return;
@@ -361,8 +349,7 @@ export default class extends Controller {
       });
 
     } catch (err) {
-      console.error("Wunderbaum failed to load:", err);
-    }
+      console.error("Wunderbaum failed to load:", err);    }
   }
 
   // Cancels pending async work and timers when the controller is removed.
@@ -826,18 +813,9 @@ export default class extends Controller {
     const found = opts.find(o => String(o.value) === String(value));
     return found ? found.label : String(value);
   }
-
-  _labelSortKey(colId, node) {
-    const explicit = node?.data?.[`${colId}_sort`];
-    if (explicit) return explicit;
-
-    const labelField = node?.data?.[`${colId}_label`];
-    const label = labelField || this._optionLabelFor(colId, node?.data?.[colId] ?? "") || "";
-    return label.trim().toLowerCase() || "\uffff";
-  }
-
+  
+  // Displays and manages the column filter dropdown popup.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
-
     const isInline = typeof opts.onSelect === "function";
 
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
@@ -874,8 +852,6 @@ export default class extends Controller {
       const values = this.columnValueCache.get(colId) || new Set();
       options = [...values].sort().map(v => ({ value: v, label: v }));
     }
-
-    options = options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 
     for (const o of options) {
       const opt = document.createElement("option");
@@ -1131,7 +1107,6 @@ export default class extends Controller {
 
     this[targetProp] = opts;
   }
-
 
   // Persists inline edits to the backend.
   async _saveCellChange(node, field, value) {

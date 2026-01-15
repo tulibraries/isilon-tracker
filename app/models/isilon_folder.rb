@@ -39,8 +39,10 @@ class IsilonFolder < ApplicationRecord
   def all_descendant_assets
     asset_ids = []
 
+    # Assets directly in this folder
     asset_ids.concat(isilon_assets.pluck(:id))
 
+    # Assets in all descendant folders
     descendant_folders.each do |folder|
       asset_ids.concat(folder.isilon_assets.pluck(:id))
     end
