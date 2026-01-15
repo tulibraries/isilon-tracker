@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_12_121500) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -60,11 +60,13 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_12_121500) do
     t.integer "duplicate_of_id"
     t.integer "assigned_to"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
+    t.index ["assigned_to", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_and_migration_status"
     t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
+    t.index ["parent_folder_id", "migration_status_id"], name: "index_isilon_assets_on_parent_folder_and_migration_status"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
   end
 
@@ -88,6 +90,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_12_121500) do
     t.boolean "active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index "(LOWER(name))", name: "index_migration_statuses_on_lower_name"
     t.index ["name"], name: "index_migration_statuses_on_name"
   end
 
