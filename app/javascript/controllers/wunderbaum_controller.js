@@ -371,10 +371,12 @@ export default class extends Controller {
     this._cancelInflight();
   }
 
+  // Returns true when any text or column filter is active.
   _hasActiveFilter() {
     return !!(this.currentFilterPredicate || this.currentQuery || this.columnFilters.size > 0);
   }
 
+  // Updates the select-all button visual state and tooltip.
   _updateSelectAllButtonState(selectedCount = null) {
     const btn = document.getElementById("select-all");
     if (!btn) return;
@@ -538,7 +540,7 @@ export default class extends Controller {
       }
 
       for (const [colId, val] of this.columnFilters.entries()) {
-        const normalizedValue = this._normalizeValue(colId, node.data[colId]);
+        const normalizedValue = this._filterValueFor(colId, node.data);
         const normalizedStr = normalizedValue == null ? "" : String(normalizedValue).toLowerCase();
         const filterStr = String(val ?? "").toLowerCase();
 
@@ -563,7 +565,6 @@ export default class extends Controller {
     let processed = 0;
 
         this._setLoading(true, "Selecting…");
-
 
     try {
       while (queue.length > 0) {
@@ -797,6 +798,21 @@ export default class extends Controller {
     return value;
   }
 
+  // Normalizes column values for predicate comparisons.
+  _filterValueFor(colId, data = {}) {
+    if (colId === "assigned_to") {
+      const id = data.assigned_to_id;
+      return (id == null || id === "") ? "unassigned" : String(id);
+    }
+
+    if (colId === "migration_status") {
+      const id = data.migration_status_id;
+      return id == null ? "" : String(id);
+    }
+
+    return this._normalizeValue(colId, data[colId]);
+  }
+
   // Returns the option list for a select-like column.
   _optionsForColumn(colId) {
     return this[{
@@ -826,6 +842,7 @@ export default class extends Controller {
     return found ? found.label : String(value);
   }
 
+  // Builds a label-based sort key for select-like columns.
   _labelSortKey(colId, node) {
     const explicit = node?.data?.[`${colId}_sort`];
     if (explicit) return explicit;
@@ -835,6 +852,7 @@ export default class extends Controller {
     return label.trim().toLowerCase() || "\uffff";
   }
 
+  // Renders and positions the column filter dropdown.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
 
     const isInline = typeof opts.onSelect === "function";
