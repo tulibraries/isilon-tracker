@@ -27,6 +27,39 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     )
   end
 
+  let!(:assignee_a) { create(:user, name: "Alex Assign", email: "alex@example.com") }
+  let!(:assignee_b) { create(:user, name: "Briar Assign", email: "briar@example.com") }
+
+  let!(:assigned_asset) do
+    create(
+      :isilon_asset,
+      parent_folder: root_folder,
+      migration_status: default_migration_status,
+      assigned_to: assignee_a,
+      isilon_name: "assigned_a.txt"
+    )
+  end
+
+  let!(:other_assigned_asset) do
+    create(
+      :isilon_asset,
+      parent_folder: root_folder,
+      migration_status: migrated_status,
+      assigned_to: assignee_b,
+      isilon_name: "assigned_b.txt"
+    )
+  end
+
+  let!(:unassigned_asset) do
+    create(
+      :isilon_asset,
+      parent_folder: root_folder,
+      migration_status: migrated_status,
+      assigned_to: nil,
+      isilon_name: "unassigned.txt"
+    )
+  end
+
   before do
     driven_by :cuprite
     sign_in user
@@ -95,5 +128,58 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     expect(page).to have_no_selector(".wb-header [data-command='filter'].wb-helper-invalid", wait: 10)
     expect(page).to have_no_selector("#filter-mode-toggle[disabled]", wait: 10)
     expect(page).to have_no_selector("#tree.wb-ext-filter-dim", wait: 10)
+  end
+
+  it "filters assets by migration status label while matching by ID" do
+    find(".wb-row .wb-expander", match: :first).click
+    expect(page).to have_content(match_asset.isilon_name)
+    expect(page).to have_content(other_asset.isilon_name)
+
+    find(
+      :xpath,
+      "//span[contains(@class,'wb-col-title')][normalize-space()='Migration status']/parent::span[contains(@class,'wb-col')]/i[@data-command='filter']",
+      wait: 10
+    ).click
+
+    within(".wb-popup") do
+      find("option", text: migrated_status.name).select_option
+    end
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+
+    asset_rows = all(".wb-row a.asset-link", minimum: 1).map do |link|
+      link.find(:xpath, "ancestor::div[contains(@class,'wb-row')]")
+    end
+    values = asset_rows.map { |row| row.find("[data-colid='migration_status']").text }.reject(&:blank?)
+
+    expect(values).to all(eq(migrated_status.name))
+  end
+
+  it "filters assets by assigned_to label while matching by user id" do
+    find(".wb-row .wb-expander", match: :first).click
+    expect(page).to have_content(assigned_asset.isilon_name)
+    expect(page).to have_content(other_assigned_asset.isilon_name)
+    expect(page).to have_content(unassigned_asset.isilon_name)
+
+    find(
+      :xpath,
+      "//span[contains(@class,'wb-col-title')][normalize-space()='Assigned To']/parent::span[contains(@class,'wb-col')]/i[@data-command='filter']",
+      wait: 10
+    ).click
+
+    within(".wb-popup") do
+      find("option", text: assignee_a.name).select_option
+    end
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+
+    asset_rows = all(".wb-row a.asset-link", minimum: 1).map do |link|
+      link.find(:xpath, "ancestor::div[contains(@class,'wb-row')]")
+    end
+    values = asset_rows.map { |row| row.find("[data-colid='assigned_to']").text }.reject(&:blank?)
+
+    expect(values).to all(eq(assignee_a.name))
   end
 end
