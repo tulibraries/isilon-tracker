@@ -159,7 +159,6 @@ export default class extends Controller {
           };
         },
 
-
         expand: async (e) => {
           const node = e.node;
           if (!node?.data?.folder) return;
@@ -242,7 +241,7 @@ export default class extends Controller {
         buttonClick: (e) => {
           if (e.command === "sort") {
             const colDef = e.info.colDef;
-            const dir = colDef.sortDir ?? 1; // default to A→Z on first click
+            const dir = colDef.sortDir ?? 1;
             e.tree.sortByProperty({
               colId: e.info.colId,
               dir,
@@ -294,8 +293,6 @@ export default class extends Controller {
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
-
-
 
       selectAllButton.addEventListener("click", () => {
         const selected = this.tree.getSelectedNodes();
@@ -801,12 +798,12 @@ export default class extends Controller {
   // Normalizes column values for predicate comparisons.
   _filterValueFor(colId, data = {}) {
     if (colId === "assigned_to") {
-      const id = data.assigned_to_id;
+      const id = data.assigned_to_id ?? data.assigned_to;
       return (id == null || id === "") ? "unassigned" : String(id);
     }
 
     if (colId === "migration_status") {
-      const id = data.migration_status_id;
+      const id = data.migration_status_id ?? data.migration_status;
       return id == null ? "" : String(id);
     }
 
@@ -849,12 +846,11 @@ export default class extends Controller {
 
     const labelField = node?.data?.[`${colId}_label`];
     const label = labelField || this._optionLabelFor(colId, node?.data?.[colId] ?? "") || "";
-    return label.trim().toLowerCase() || "\uffff";
+    return label.trim().toLowerCase();
   }
 
   // Renders and positions the column filter dropdown.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
-
     const isInline = typeof opts.onSelect === "function";
 
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
@@ -1148,7 +1144,6 @@ export default class extends Controller {
 
     this[targetProp] = opts;
   }
-
 
   // Persists inline edits to the backend.
   async _saveCellChange(node, field, value) {

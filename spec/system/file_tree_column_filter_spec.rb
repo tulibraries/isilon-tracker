@@ -147,13 +147,9 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
     expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
-
-    asset_rows = all(".wb-row a.asset-link", minimum: 1).map do |link|
-      link.find(:xpath, "ancestor::div[contains(@class,'wb-row')]")
-    end
-    values = asset_rows.map { |row| row.find("[data-colid='migration_status']").text }.reject(&:blank?)
-
-    expect(values).to all(eq(migrated_status.name))
+    expect(page).to have_no_content("No data", wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: other_asset.isilon_name, wait: 15)
+    expect(page).to have_no_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
   end
 
   it "filters assets by assigned_to label while matching by user id" do
@@ -174,12 +170,9 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
     expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
-
-    asset_rows = all(".wb-row a.asset-link", minimum: 1).map do |link|
-      link.find(:xpath, "ancestor::div[contains(@class,'wb-row')]")
-    end
-    values = asset_rows.map { |row| row.find("[data-colid='assigned_to']").text }.reject(&:blank?)
-
-    expect(values).to all(eq(assignee_a.name))
+    expect(page).to have_no_content("No data", wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
+    expect(page).to have_no_selector(".wb-row .wb-title", text: other_assigned_asset.isilon_name, wait: 15)
+    expect(page).to have_no_selector(".wb-row .wb-title", text: unassigned_asset.isilon_name, wait: 15)
   end
 end
