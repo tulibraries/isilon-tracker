@@ -101,14 +101,23 @@ namespace :duplicates do
   desc "Clear all duplicate_of_id assignments"
   task clear: :environment do
     count = IsilonAsset.where.not(duplicate_of_id: nil).count
+    default_status = MigrationStatus.find_by(default: true)
 
     if count > 0
       print "Are you sure you want to clear #{count} duplicate assignments? (yes/no): "
       response = STDIN.gets.chomp
 
       if response.downcase == "yes"
-        IsilonAsset.where.not(duplicate_of_id: nil).update_all(duplicate_of_id: nil)
-        puts "✓ Cleared #{count} duplicate assignments"
+        if default_status.nil?
+          puts "ERROR: default migration_status not found. Please create one with default: true."
+          exit 1
+        end
+
+        IsilonAsset.where.not(duplicate_of_id: nil).update_all(
+          duplicate_of_id: nil,
+          migration_status_id: default_status.id
+        )
+        puts "✓ Cleared #{count} duplicate assignments and reset migration status to default"
       else
         puts "Cancelled"
       end

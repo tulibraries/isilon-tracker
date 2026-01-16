@@ -11,10 +11,12 @@ RSpec.describe "duplicates rake tasks", type: :task do
 
   before(:each) do
     Rake::Task["duplicates:detect"].reenable if Rake::Task.task_defined?("duplicates:detect")
+    Rake::Task["duplicates:clear"].reenable if Rake::Task.task_defined?("duplicates:clear")
   end
 
   describe "duplicates:detect" do
     let!(:dont_migrate_status) { create(:migration_status, :dont_migrate) }
+    let!(:default_status) { create(:migration_status, :default) }
     let!(:deposit_volume) { create(:volume, name: "Deposit") }
     let!(:media_volume) { create(:volume, name: "Media-Repository") }
     let!(:other_volume) { create(:volume, name: "Other") }
@@ -37,6 +39,32 @@ RSpec.describe "duplicates rake tasks", type: :task do
       expect(outside_no_match.reload.duplicate_of_id).to be_nil
       expect(outside_zero_size.reload.duplicate_of_id).to be_nil
       expect(main_asset.reload.duplicate_of_id).to be_nil
+    end
+  end
+
+  describe "duplicates:clear" do
+    let!(:default_status) { create(:migration_status, :default) }
+    let!(:dont_migrate_status) { create(:migration_status, :dont_migrate) }
+    let!(:deposit_volume) { create(:volume, name: "Deposit") }
+    let!(:deposit_folder) { create(:isilon_folder, volume: deposit_volume, full_path: "/Deposit/project") }
+
+    it "clears duplicate_of_id and resets migration_status_id to default" do
+      original = create(:isilon_asset, parent_folder: deposit_folder, file_checksum: "abc", file_size: "100")
+      duplicate = create(
+        :isilon_asset,
+        parent_folder: deposit_folder,
+        file_checksum: "abc",
+        file_size: "100",
+        duplicate_of: original,
+        migration_status: dont_migrate_status
+      )
+
+      allow(STDIN).to receive(:gets).and_return("yes\n")
+
+      Rake::Task["duplicates:clear"].invoke
+
+      expect(duplicate.reload.duplicate_of_id).to be_nil
+      expect(duplicate.migration_status_id).to eq(default_status.id)
     end
   end
 end
