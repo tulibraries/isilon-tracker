@@ -66,7 +66,7 @@ export default class extends Controller {
         lazy: true,
         selectMode: "hier",
         columnsResizable: true,
-        columnsSortable: true, 
+        columnsSortable: true,
         fixedCol: true,
 
         filter: {
@@ -90,6 +90,7 @@ export default class extends Controller {
             filterable: true,
             title: "Migration status",
             width: "175px",
+            sortValue: (node) => (node?.data?.migration_status || "").toString().toLowerCase()
           },
           {
             id: "assigned_to",
@@ -97,6 +98,7 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "175px",
+            sortValue: (node) => (node?.data?.assigned_to || "").toString().toLowerCase()
           },
           {
             id: "notes",
@@ -238,7 +240,16 @@ export default class extends Controller {
         
         buttonClick: (e) => {
           if (e.command === "sort") {
-            e.tree.sortByProperty({ colId: e.info.colId, updateColInfo: true });
+            const colDef = e.info.colDef;
+            const dir = colDef.sortDir ?? 1;
+            e.tree.sortByProperty({
+              colId: e.info.colId,
+              dir,
+              sort: colDef.sort,
+              sortValue: colDef.sortValue,
+              updateColInfo: true
+            });
+            colDef.sortDir = dir === 1 ? -1 : 1;
           }
 
           if (e.command === "filter") {
@@ -278,7 +289,7 @@ export default class extends Controller {
 
         source
       });
-    
+
       this._setupInlineFilter();
       this._setupClearFiltersButton();
       this._setupFilterModeToggle();
@@ -321,8 +332,6 @@ export default class extends Controller {
           });
       });
 
-
-
       this.element.addEventListener("pointerdown", (e) => {
         const cell = e.target.closest(".wb-select-like");
         if (!cell) return;
@@ -349,7 +358,8 @@ export default class extends Controller {
       });
 
     } catch (err) {
-      console.error("Wunderbaum failed to load:", err);    }
+      console.error("Wunderbaum failed to load:", err);
+    }
   }
 
   // Cancels pending async work and timers when the controller is removed.
@@ -358,10 +368,12 @@ export default class extends Controller {
     this._cancelInflight();
   }
 
+  // Returns true when any text or column filter is active.
   _hasActiveFilter() {
     return !!(this.currentFilterPredicate || this.currentQuery || this.columnFilters.size > 0);
   }
 
+  // Updates the select-all button visual state and tooltip.
   _updateSelectAllButtonState(selectedCount = null) {
     const btn = document.getElementById("select-all");
     if (!btn) return;
@@ -424,7 +436,6 @@ export default class extends Controller {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.currentQuery = "";
-      this.filterMode = "dim";
       this.loadedFolders.clear();
       this.assetsLoadedFor.clear();
       this.assetCache.clear();
@@ -526,7 +537,7 @@ export default class extends Controller {
       }
 
       for (const [colId, val] of this.columnFilters.entries()) {
-        const normalizedValue = this._normalizeValue(colId, node.data[colId]);
+        const normalizedValue = this._filterValueFor(colId, node.data);
         const normalizedStr = normalizedValue == null ? "" : String(normalizedValue).toLowerCase();
         const filterStr = String(val ?? "").toLowerCase();
 
@@ -551,7 +562,6 @@ export default class extends Controller {
     let processed = 0;
 
         this._setLoading(true, "Selecting…");
-
 
     try {
       while (queue.length > 0) {
@@ -785,6 +795,21 @@ export default class extends Controller {
     return value;
   }
 
+  // Normalizes column values for predicate comparisons.
+  _filterValueFor(colId, data = {}) {
+    if (colId === "assigned_to") {
+      const id = data.assigned_to_id ?? data.assigned_to;
+      return (id == null || id === "") ? "unassigned" : String(id);
+    }
+
+    if (colId === "migration_status") {
+      const id = data.migration_status_id ?? data.migration_status;
+      return id == null ? "" : String(id);
+    }
+
+    return this._normalizeValue(colId, data[colId]);
+  }
+
   // Returns the option list for a select-like column.
   _optionsForColumn(colId) {
     return this[{
@@ -813,8 +838,18 @@ export default class extends Controller {
     const found = opts.find(o => String(o.value) === String(value));
     return found ? found.label : String(value);
   }
-  
-  // Displays and manages the column filter dropdown popup.
+
+  // Builds a label-based sort key for select-like columns.
+  _labelSortKey(colId, node) {
+    const explicit = node?.data?.[`${colId}_sort`];
+    if (explicit) return explicit;
+
+    const labelField = node?.data?.[`${colId}_label`];
+    const label = labelField || this._optionLabelFor(colId, node?.data?.[colId] ?? "") || "";
+    return label.trim().toLowerCase();
+  }
+
+  // Renders and positions the column filter dropdown.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
     const isInline = typeof opts.onSelect === "function";
 
@@ -852,6 +887,8 @@ export default class extends Controller {
       const values = this.columnValueCache.get(colId) || new Set();
       options = [...values].sort().map(v => ({ value: v, label: v }));
     }
+
+    options = options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 
     for (const o of options) {
       const opt = document.createElement("option");
