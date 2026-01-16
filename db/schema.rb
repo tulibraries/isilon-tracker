@@ -64,6 +64,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
     t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
+    t.index ["file_checksum"], name: "index_isilon_assets_on_file_checksum"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id", "migration_status_id"], name: "index_isilon_assets_on_parent_folder_and_migration_status"
