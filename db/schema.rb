@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_12_121500) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_12_130000) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -63,6 +63,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_12_121500) do
     t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
+    t.index ["file_checksum"], name: "index_isilon_assets_on_file_checksum"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
