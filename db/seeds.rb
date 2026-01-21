@@ -12,7 +12,7 @@
 migration_statuses = [
   { name: "Needs review", default: true },
   { name: "OK to migrate" },
-  { name: "Don’t migrate" },
+  { name: "Don't migrate" },
   { name: "Migrated" },
   { name: "Migration in progress" },
   { name: "Needs further investigation" },
