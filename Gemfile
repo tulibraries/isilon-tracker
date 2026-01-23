@@ -6,7 +6,7 @@ gem "bootsnap", require: false
 gem "bootstrap"
 gem "cssbundling-rails"
 gem "csv"
-gem "devise", "~> 4.9"
+gem "devise", "~> 5.0"
 gem "dotenv-rails"
 gem "jbuilder"
 gem "jsbundling-rails"
