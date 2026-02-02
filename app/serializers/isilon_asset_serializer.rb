@@ -7,7 +7,8 @@ class IsilonAssetSerializer < ActiveModel::Serializer
              :file_type, :file_size, :notes,
              :contentdm_collection, :aspace_collection,
              :preservica_reference_id, :aspace_linking_status,
-             :url, :lazy, :parent_folder_id, :isilon_name, :path
+             :url, :lazy, :parent_folder_id, :isilon_name,
+             :full_isilon_path, :path
 
   def title
     object.isilon_name
@@ -39,6 +40,10 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def lazy
     false
+  end
+
+  def full_isilon_path
+    object.full_isilon_path
   end
 
   def migration_status_id

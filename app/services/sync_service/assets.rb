@@ -58,6 +58,7 @@ module SyncService
             assets_to_create << {
               isilon_path: isilon_path,
               isilon_name: get_name(row["Path"]),
+              full_isilon_path: full_path_with_volume(row["Path"]),
               file_size: row["Size"],
               file_type: row["Type"],
               file_checksum: row["Hash"],
@@ -144,6 +145,13 @@ module SyncService
       return "/" if segments.size <= 1
 
       "/" + segments[1..].join("/")
+    end
+
+    def full_path_with_volume(path)
+      segments = path.to_s.split("/").reject(&:blank?)
+      return "/" if segments.empty?
+
+      "/" + segments.join("/")
     end
 
     def check_volume(path)
