@@ -64,7 +64,7 @@ module SyncService
               last_modified_in_isilon: row["ModifiedAt"],
               date_created_in_isilon: row["CreatedAt"],
               parent_folder_id: parent_folder_id,
-              migration_status_id: apply_automation_rules(row) || @default_status&.id,
+              migration_status_id: @default_status&.id,
               created_at: Time.current,
               updated_at: Time.current
             }
@@ -213,62 +213,6 @@ module SyncService
     def get_name(path)
       path.split("/").last
     end
-
-    def apply_automation_rules(row)
-      # AUTOMATION RULES SUMMARY:
-      # Rule 1: Migrated directories in deposit (but not born-digital) -> "Migrated"
-      # Rule 2: DELETE directories in born-digital deposit areas -> "Don't migrate"
-      # Rule 3: Duplicate detection -> Handled by separate post-processing task
-      # Rule 4: Unprocessed/raw files when processed equivalents exist -> "Don't migrate" (post-processing)
-
-      asset_path = row["Path"]
-      return nil unless asset_path
-
-      # Rule 1: Migrated directories in deposit (but not born-digital)
-      if rule_1_migrated_directory?(asset_path)
-        stdout_and_log("Rule 1 applied: Migrated directory detected for #{asset_path}")
-        return MigrationStatus.find_by(name: "Migrated")&.id
-      end
-
-      # Rule 2: DELETE directories in born-digital deposit areas
-      if rule_2_delete_directory?(asset_path)
-        stdout_and_log("Rule 2 applied: DELETE directory detected for #{asset_path}")
-        return MigrationStatus.find_by(name: "Don't migrate")&.id
-      end
-
-      # Rule 3: Handled by separate duplicate detection task: https://tulibdev.atlassian.net/browse/IMT-142
-      # Rule 4: Handled entirely in post-processing for accurate TIFF count comparison
-
-      nil # No automation rule applies
-    end
-
-    private
-
-    def rule_1_migrated_directory?(asset_path)
-      # Directory is in deposit AND contains "- Migrated" AND NOT in born-digital area
-      return false unless asset_path.downcase.include?("/deposit/")
-      return false if asset_path.downcase.include?("/deposit/scrc accessions")
-
-      # Check if the path or any parent directory contains "- migrated"
-      path_segments = asset_path.split("/")
-      path_segments.any? { |segment| segment.downcase.include?("- migrated") }
-    end
-
-    def rule_2_delete_directory?(asset_path)
-      return false unless @parent_volume&.name&.casecmp?("deposit")
-
-      segments = asset_path.split("/").reject(&:blank?)
-      return false if segments.empty?
-
-      # Ignore the volume segment; CSVs always start with it.
-      segments.shift
-
-      return false unless segments.any? { |segment| segment.casecmp?("scrc accessions") }
-
-      segments.any? { |segment| segment.downcase.include?("delete") }
-    end
-
-
 
     def stdout_and_log(message, level: :info)
       # Toggle for batch processing visibility
