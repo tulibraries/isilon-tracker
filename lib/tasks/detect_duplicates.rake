@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require "csv"
+
 namespace :duplicates do
   desc "Detect and list duplicates according to Rule 3"
   task detect: :environment do
     puts "Starting Rule 3 duplicate detection..."
 
     # Find all assets outside main areas with non-empty checksums
+    output_path = "log/isilon-duplicate-paths.csv"
     processed = 0
     batch_size = 1000
     progress_interval = batch_size * 5
@@ -20,37 +23,63 @@ namespace :duplicates do
                                      .having("COUNT(*) > 1")
                                      .pluck(:file_checksum)
 
-    duplicate_checksums.each_slice(batch_size) do |checksum_batch|
-      checksum_batch.each do |checksum|
-        asset_ids = IsilonAsset.where(file_checksum: checksum).pluck(:id)
-        next if asset_ids.empty?
+    build_full_path = lambda do |asset|
+      parent = asset.parent_folder
+      return nil unless parent
 
-        group = DuplicateGroup.find_or_create_by!(checksum: checksum)
-        group.duplicate_group_memberships.delete_all
+      volume = parent.volume
+      return nil unless volume
 
-        now = Time.current
-        rows = asset_ids.map do |asset_id|
-          {
-            duplicate_group_id: group.id,
-            isilon_asset_id: asset_id,
-            created_at: now,
-            updated_at: now
-          }
+      path = asset.isilon_path.to_s
+      path = "/#{path}" unless path.start_with?("/")
+      "/#{volume.name}#{path}".gsub(%r{//+}, "/")
+    end
+
+    written = 0
+    CSV.open(output_path, "w", write_headers: true, headers: [ "FullPath" ]) do |csv|
+      duplicate_checksums.each_slice(batch_size) do |checksum_batch|
+        checksum_batch.each do |checksum|
+          asset_ids = IsilonAsset.where(file_checksum: checksum).pluck(:id)
+          next if asset_ids.empty?
+
+          group = DuplicateGroup.find_or_create_by!(checksum: checksum)
+          group.duplicate_group_memberships.delete_all
+
+          now = Time.current
+          rows = asset_ids.map do |asset_id|
+            {
+              duplicate_group_id: group.id,
+              isilon_asset_id: asset_id,
+              created_at: now,
+              updated_at: now
+            }
+          end
+          DuplicateGroupMembership.insert_all(rows) if rows.any?
+          IsilonAsset.where(id: asset_ids).update_all(has_duplicates: true)
+
+          IsilonAsset.where(id: asset_ids)
+                     .includes(parent_folder: :volume)
+                     .find_each do |asset|
+            full_path = build_full_path.call(asset)
+            next unless full_path
+
+            csv << [ full_path ]
+            written += 1
+          end
         end
-        DuplicateGroupMembership.insert_all(rows) if rows.any?
-        IsilonAsset.where(id: asset_ids).update_all(has_duplicates: true)
-      end
 
-      processed += checksum_batch.size
-      GC.start
+        processed += checksum_batch.size
+        GC.start
 
-      if processed % progress_interval == 0
-        puts "Processed #{processed} checksum groups..."
+        if processed % progress_interval == 0
+          puts "Processed #{processed} checksum groups..."
+        end
       end
     end
 
     puts "\n✓ Complete!"
     puts "Processed: #{processed} checksum groups"
+    puts "Duplicate paths exported to #{output_path} (#{written} rows)"
   end
 
   desc "Show duplicate statistics"
