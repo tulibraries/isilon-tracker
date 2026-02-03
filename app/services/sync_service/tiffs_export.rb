@@ -1,19 +1,23 @@
 # frozen_string_literal: true
 
+require "csv"
 require "logger"
 require "ostruct"
 
 module SyncService
-  class Tiffs
-    def self.call(volume_name: nil)
-      new(volume_name: volume_name).process
+  class TiffsExport
+    def self.call(volume_name: nil, output_path: nil)
+      new(volume_name:, output_path:).export
     end
 
     ALLOWED_VOLUME_NAMES = %w[Deposit Media-Repository].freeze
+    ROOT_CHILD_KEY = "__root__".freeze
 
-    def initialize(volume_name: nil)
+    def initialize(volume_name: nil, output_path: nil)
       @volume_name = volume_name
-      @log = Logger.new("log/isilon-post-processing.log")
+      @output_path = output_path.presence || default_output_path
+      @log = Logger.new("log/isilon-tiffs-export.log")
+      @missing_parent_log = Logger.new("log/isilon-tiffs-missing-parent.log")
       @stdout = Logger.new($stdout)
 
       if @volume_name
@@ -22,54 +26,38 @@ module SyncService
         raise ArgumentError, "Volume '#{@volume_name}' not found" unless @parent_volume
         @volume_name = @parent_volume.name
       else
-        @parent_volume = nil  # Will process all volumes
+        @parent_volume = nil
       end
     end
 
-    def process
-      begin
-        # Use ActiveRecord to find parent directories with matching TIFF counts
-        parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts_ar
+    def export
+      parent_dirs_with_counts = find_parent_dirs_with_matching_tiff_counts_ar
+      stdout_and_log("Found #{parent_dirs_with_counts.size} parent directories with matching TIFF counts")
 
-        stdout_and_log("Found #{parent_dirs_with_counts.size} parent directories with matching TIFF counts")
+      headers = [ "FullPath" ]
 
-        # Update unprocessed TIFFs in bulk
-        total_updated = 0
+      written = 0
+      CSV.open(@output_path, "w", write_headers: true, headers: headers) do |out|
         parent_dirs_with_counts.each do |parent_info|
-          updated = mark_unprocessed_tiffs_as_dont_migrate(
-            parent_info[:parent_dir],
-            parent_info[:child_folder],
-            parent_info[:child_key],
-            parent_info[:parent_key],
-            parent_info[:processed_count]
-          )
-          total_updated += updated
+          assets_for_match(parent_info).find_each(batch_size: 1000) do |asset|
+            volume_name = volume_name_from_parent(asset)
+            full_path = build_full_path(volume_name, asset.isilon_path)
+            next if full_path.blank?
+
+            out << [ full_path ]
+            written += 1
+          end
         end
-
-        stdout_and_log("Rule 4 post-processing completed. Updated #{total_updated} assets.")
-
-        OpenStruct.new(
-          success?: true,
-          tiff_comparisons_updated: parent_dirs_with_counts.size,
-          migration_statuses_updated: total_updated,
-          error_message: nil
-        )
-      rescue => e
-        error_msg = "Post-processing failed: #{e.message}"
-        stdout_and_log(error_msg, level: :error)
-
-        OpenStruct.new(
-          success?: false,
-          tiff_comparisons_updated: 0,
-          migration_statuses_updated: 0,
-          error_message: error_msg
-        )
       end
+
+      stdout_and_log("Wrote #{written} assets to #{@output_path}")
     end
 
     private
 
-    ROOT_CHILD_KEY = "__root__".freeze
+    def default_output_path
+      "log/isilon-tiffs-export.csv"
+    end
 
     def find_parent_dirs_with_matching_tiff_counts_ar
       base_query = build_base_tiff_query
@@ -113,13 +101,6 @@ module SyncService
 
           next unless processed_entry[:count] == unprocessed_entry[:count]
 
-          log_tiff_directory(
-            original_parent,
-            child_display,
-            processed_entry[:count],
-            unprocessed_entry[:count]
-          )
-
           matches << {
             parent_dir: original_parent,
             parent_key: parent_key,
@@ -134,26 +115,46 @@ module SyncService
       matches
     end
 
+    def assets_for_match(parent_info)
+      patterns =
+        if parent_info[:child_key] == ROOT_CHILD_KEY
+          [
+            "#{parent_info[:parent_key]}/unprocessed/%",
+            "#{parent_info[:parent_key]}/raw/%"
+          ]
+        else
+          [
+            "#{parent_info[:parent_key]}/unprocessed/#{parent_info[:child_key]}/%",
+            "#{parent_info[:parent_key]}/raw/#{parent_info[:child_key]}/%"
+          ]
+        end
+
+      query = IsilonAsset.joins(parent_folder: :volume)
+        .where(
+          "(LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?)",
+          *patterns
+        )
+        .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
+
+      query = query.where(parent_folder: { volume: @parent_volume }) if @parent_volume
+      query
+    end
+
     def build_base_tiff_query
-      # Start with IsilonAsset, join to get volume info if needed
       query = IsilonAsset.joins(parent_folder: :volume)
 
-      # Filter to only TIFF files
       query = query.where(
         "LOWER(file_type) LIKE ? OR LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?",
         "%tiff%", "%.tiff", "%.tif"
       )
 
-      # Exclude SCRC Accessions regardless of volume prefix stripping
       query = query.where("LOWER(isilon_path) NOT LIKE ?", "%/scrc accessions/%")
 
-      # Filter to processed, unprocessed, or raw subdirectories
       query = query.where(
         "LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?",
         "%/processed/%", "%/unprocessed/%", "%/raw/%"
       )
 
-      # Add volume filter if processing specific volume
       query = query.where(parent_folder: { volume: @parent_volume }) if @parent_volume
 
       query
@@ -182,65 +183,39 @@ module SyncService
       [ parent_dir, child_folder, category ]
     end
 
-    def mark_unprocessed_tiffs_as_dont_migrate(parent_dir, child_folder, child_key, parent_key, count)
-      dont_migrate_status = MigrationStatus.find_by(name: "Don't migrate")
+    def build_full_path(volume_name, isilon_path)
+      return nil if volume_name.blank?
 
-      unless dont_migrate_status
-        stdout_and_log("ERROR: 'Don't migrate' status not found", level: :error)
-        return 0
-      end
-
-      patterns =
-        if child_key == ROOT_CHILD_KEY
-          [
-            "#{parent_key}/unprocessed/%",
-            "#{parent_key}/raw/%"
-          ]
-        else
-          [
-            "#{parent_key}/unprocessed/#{child_key}/%",
-            "#{parent_key}/raw/#{child_key}/%"
-          ]
-        end
-
-      query = IsilonAsset.joins(parent_folder: :volume)
-        .where(
-          "(LOWER(isilon_path) LIKE ? OR LOWER(isilon_path) LIKE ?)",
-          *patterns
-        )
-        .where("(LOWER(file_type) LIKE '%tiff%' OR LOWER(isilon_path) LIKE '%.tiff' OR LOWER(isilon_path) LIKE '%.tif')")
-
-      # Add volume filter if processing specific volume
-      query = query.where(parent_folder: { volume: @parent_volume }) if @parent_volume
-
-      updated_count = query.update_all(migration_status_id: dont_migrate_status.id)
-
-      stdout_and_log(
-        "Rule 4: Marked #{updated_count} unprocessed TIFFs as 'Don't migrate' in #{parent_dir}/(#{child_folder || 'root'}) "\
-        "(#{count} processed = #{count} unprocessed)"
-      )
-
-      updated_count
-    end
-
-    def extract_parent_directory(path)
-      extract_parent_child_and_category(path)&.first
-    end
-
-    def classify_subdirectory_type(path)
-      _, _, category = extract_parent_child_and_category(path)
-      return nil unless category
-
-      category == :processed ? "processed" : "unprocessed"
-    end
-
-    def log_tiff_directory(parent_dir, child_folder, processed_count, unprocessed_count)
-      # intentionally suppressed verbose candidate logging
+      path = isilon_path.to_s
+      path = "/#{path}" unless path.start_with?("/")
+      "/#{volume_name}#{path}".gsub(%r{//+}, "/")
     end
 
     def stdout_and_log(message, level: :info)
       @log.send(level, message)
       @stdout.send(level, message)
+    end
+
+    def volume_name_from_parent(asset)
+      parent = asset.parent_folder
+      unless parent
+        log_missing_parent(asset, reason: "missing_parent_folder")
+        return nil
+      end
+
+      volume = parent.volume
+      unless volume
+        log_missing_parent(asset, reason: "missing_parent_volume")
+        return nil
+      end
+
+      volume.name
+    end
+
+    def log_missing_parent(asset, reason:)
+      @missing_parent_log.info(
+        "Skipped volume lookup (#{reason}) for asset_id=#{asset.id} isilon_path=#{asset.isilon_path}"
+      )
     end
 
     def validate_volume_name!(name)
