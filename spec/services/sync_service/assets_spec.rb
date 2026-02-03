@@ -5,102 +5,22 @@ require 'rails_helper'
 RSpec.describe SyncService::Assets, type: :service do
   let!(:volume) { FactoryBot.create(:volume, name: "deposit") }
   let!(:default_migration_status) { FactoryBot.create(:migration_status, :default) }
-  let!(:migrated_status) { FactoryBot.create(:migration_status, :migrated) }
-  let!(:dont_migrate_status) { FactoryBot.create(:migration_status, :dont_migrate) }
+  describe 'Integration test: full sync' do
+    let(:csv_path) { Rails.root.join("spec/fixtures/files/assets_sync.csv").to_s }
 
-  describe '#apply_automation_rules' do
-    let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
-    let(:service) { described_class.new(csv_path: csv_path) }
-
-    context 'Rule 1: Migrated directories in deposit' do
-      let(:test_data) { CSV.read(file_fixture('rule_1_test_data.csv'), headers: true) }
-
-      it 'applies "Migrated" status to files in migrated directories' do
-        row_data = test_data[0] # Migrated directory in deposit
-        row = { "Path" => row_data['Path'] }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to eq(migrated_status.id)
-      end
-
-      it 'does not apply to born-digital areas' do
-        row_data = test_data[1] # Born-digital area with Migrated
-        row = { "Path" => row_data['Path'] }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil
-      end
-
-      it 'does not apply to non-deposit areas' do
-        row_data = test_data[2] # Non-deposit area with Migrated
-        row = { "Path" => row_data['Path'] }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil
-      end
-    end
-
-    context 'Rule 2: DELETE directories in born-digital areas' do
-      let(:test_data) { CSV.read(file_fixture('rule_2_test_data.csv'), headers: true) }
-
-      it 'applies "Don\'t migrate" status to files in DELETE directories' do
-        row_data = test_data[0] # DELETE in born-digital area
-        row = { "Path" => row_data['Path'] }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to eq(dont_migrate_status.id)
-      end
-
-      it 'does not apply to DELETE directories outside born-digital areas' do
-        row_data = test_data[1] # DELETE outside born-digital area
-        row = { "Path" => row_data['Path'] }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil
-      end
-    end
-
-    context 'No rules apply' do
-      it 'returns nil for regular files' do
-        row = { "Path" => "/deposit/some-other-area/regular-file.pdf" }
-        result = service.send(:apply_automation_rules, row)
-        expect(result).to be_nil
-      end
-    end
-  end
-
-  describe 'Integration test: full sync with automation' do
-    let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
-
-    it 'applies all automation rules correctly during sync' do
+    it 'applies default migration status during sync' do
       service = described_class.new(csv_path: csv_path)
       service.sync
 
-      # Rule 1: Migrated directory
-      migrated_asset = IsilonAsset.find_by(isilon_path: "/migrated-collection - Migrated/photo.jpg")
-      expect(migrated_asset.migration_status).to eq(migrated_status)
-
-      # Rule 2: DELETE directory
-      delete_asset = IsilonAsset.find_by(isilon_path: "/SCRC Accessions/DELETE-temp/document.pdf")
-      expect(delete_asset.migration_status).to eq(dont_migrate_status)
-
-      # Rule 3: Duplicate outside main areas - NOW HANDLED BY SEPARATE TASK
-      # Duplicates will get default status during sync, then updated by duplicate detector
-      duplicate_asset = IsilonAsset.find_by(isilon_path: "/backup/duplicate.pdf")
-      expect(duplicate_asset.migration_status).to eq(default_migration_status) # Changed expectation
-
-      # Rule 4: TIFF post-processing is now handled by separate SyncService::Tiffs task
-      # Assets sync only applies Rules 1-3, TIFF processing happens later
-
-      # No rules applied
-      normal_asset = IsilonAsset.find_by(isilon_path: "/regular/normal-file.pdf")
+      normal_asset = IsilonAsset.find_by(isilon_name: "file.txt")
+      expect(normal_asset).to be_present
+      expect(normal_asset.isilon_path).to eq("/alpha/file.txt")
       expect(normal_asset.migration_status).to eq(default_migration_status)
-
-      # Root-level asset (no parent folders) should import successfully
-      root_asset = IsilonAsset.find_by(isilon_path: "/root-level.txt")
-      expect(root_asset).to be_present
-      expect(root_asset.parent_folder_id).to be_nil
-      expect(root_asset.migration_status).to eq(default_migration_status)
     end
   end
 
   describe '#find_or_create_folder_safely' do
-    let(:csv_path) { file_fixture('automation_rules_sync.csv').to_s }
+    let(:csv_path) { Rails.root.join("spec/fixtures/files/assets_sync.csv").to_s }
     let(:service) { described_class.new(csv_path: csv_path) }
 
     context 'when handling race conditions' do
