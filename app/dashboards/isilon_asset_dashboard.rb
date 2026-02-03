@@ -22,7 +22,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     file_checksum: Field::String,
     file_size: Field::String,
     file_type: Field::String,
-    full_isilon_path: Field::String,
     isilon_name: Field::String,
     isilon_path: Field::String,
     full_path_with_volume: Field::String,
@@ -57,7 +56,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     id
     migration_status
     isilon_name
-    full_isilon_path
     isilon_path
     parent_folder
     full_path_with_volume
@@ -84,7 +82,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   FORM_ATTRIBUTES = %i[
     migration_status
     isilon_name
-    full_isilon_path
     isilon_path
     date_created_in_isilon
     last_modified_in_isilon
