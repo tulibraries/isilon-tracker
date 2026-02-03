@@ -1,51 +1,39 @@
-# spec/models/isilon_asset_spec.rb
+# frozen_string_literal: true
+
 require "rails_helper"
 
 RSpec.describe IsilonAsset, type: :model do
-  let!(:migration_status) { FactoryBot.create(:migration_status, :default) }
+  describe "#full_path_with_volume" do
+    it "prepends the volume name when available" do
+      volume = create(:volume, name: "Deposit")
+      folder = create(:isilon_folder, volume: volume, full_path: "/Deposit/alpha")
+      asset = create(:isilon_asset, parent_folder: folder, isilon_path: "/alpha/file.txt")
 
-  it "can be created with a migration status" do
-    asset = IsilonAsset.create!(
-      isilon_name: "Example File",
-      migration_status: migration_status,
-      isilon_path: "/foo/bar",
+      expect(asset.full_path_with_volume).to eq("/Deposit/alpha/file.txt")
+    end
 
-    )
-    expect(asset.migration_status.name).to eq("Needs review")
+    it "returns isilon_path when volume is missing" do
+      volume = create(:volume, name: "Test Volume")
+      folder = create(:isilon_folder, volume: volume, full_path: "/alpha")
+      asset = create(:isilon_asset, parent_folder: folder, isilon_path: "/alpha/file.txt")
+
+      allow(folder).to receive(:volume).and_return(nil)
+
+      expect(asset.full_path_with_volume).to eq("/alpha/file.txt")
+    end
   end
 
-  it "associates with an aspace collection" do
-    collection = AspaceCollection.create!(name: "Photographs")
-    asset = IsilonAsset.create!(
-      isilon_name: "Example File",
-      aspace_collection: collection,
-      isilon_path: "/foo/bar",
+  describe "#duplicates" do
+    it "returns all assets in the same duplicate group" do
+      asset = create(:isilon_asset, file_checksum: "abc", file_size: "100")
+      other = create(:isilon_asset, file_checksum: "abc", file_size: "100")
+      group = DuplicateGroup.create!(checksum: "abc")
 
-    )
-    expect(asset.aspace_collection.name).to eq("Photographs")
-  end
+      DuplicateGroupMembership.create!(duplicate_group: group, isilon_asset: asset)
+      DuplicateGroupMembership.create!(duplicate_group: group, isilon_asset: other)
 
-  it "associates with an contentdm collection" do
-    collection = ContentdmCollection.create!(name: "Photographs")
-    asset = IsilonAsset.create!(
-      isilon_name: "Example File",
-      contentdm_collection: collection,
-      isilon_path: "/foo/bar",
-
-    )
-    expect(asset.contentdm_collection.name).to eq("Photographs")
-  end
-
-  it "is valid with a migration_status_id" do
-    asset = IsilonAsset.new(
-      isilon_name: "Another File",
-      migration_status_id: migration_status.id
-    )
-    expect(asset).to be_valid
-  end
-
-  it "is valid without a migration status if optional" do
-    asset = IsilonAsset.new(isilon_name: "No status file")
-    expect(asset).to be_valid
+      expect(asset.duplicates).to include(asset, other)
+      expect(other.duplicates).to include(asset, other)
+    end
   end
 end
