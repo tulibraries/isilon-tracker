@@ -15,6 +15,7 @@ RSpec.describe SyncService::Assets, type: :service do
       normal_asset = IsilonAsset.find_by(isilon_name: "file.txt")
       expect(normal_asset).to be_present
       expect(normal_asset.isilon_path).to eq("/alpha/file.txt")
+      expect(normal_asset.full_isilon_path).to eq("/deposit/alpha/file.txt")
       expect(normal_asset.migration_status).to eq(default_migration_status)
     end
   end
