@@ -1,5 +1,6 @@
 class BatchActionsController < ApplicationController
   before_action :set_volume
+  BATCH_UPDATE_SIZE = 10_000
 
   def update
     asset_ids = params[:asset_ids].to_s.split(",").map(&:to_i).reject(&:zero?)
@@ -127,7 +128,11 @@ class BatchActionsController < ApplicationController
     assets_count = assets.count
     return 0 if assets_count == 0
 
-    assets.update_all(updates) if updates.any?
+    if updates.any?
+      assets.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
+        batch.update_all(updates)
+      end
+    end
 
     assets_count
   end
@@ -144,7 +149,9 @@ class BatchActionsController < ApplicationController
 
       folder_ids = folder_ids_with_descendants(folders.pluck(:id))
       if folder_ids.any?
-        IsilonFolder.where(id: folder_ids).update_all(assigned_to: user&.id)
+        folder_ids.each_slice(BATCH_UPDATE_SIZE) do |batch_ids|
+          IsilonFolder.where(id: batch_ids).update_all(assigned_to: user&.id)
+        end
         updated_count += folder_ids.length
       end
 
