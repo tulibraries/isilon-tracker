@@ -76,6 +76,8 @@ module SyncService
     end
 
     def log_missing_parent(asset, reason:)
+      return unless file_with_extension?(asset.isilon_path)
+
       @missing_parent_log.info(
         "Skipped volume lookup (#{reason}) for asset_id=#{asset.id} isilon_path=#{asset.isilon_path}"
       )
@@ -87,6 +89,11 @@ module SyncService
       path = isilon_path.to_s
       path = "/#{path}" unless path.start_with?("/")
       "/#{volume_name}#{path}".gsub(%r{//+}, "/")
+    end
+
+    def file_with_extension?(path)
+      basename = path.to_s.split("/").last.to_s
+      basename.match?(/\.[^.]+\z/)
     end
 
     def migration_status_for(asset_path, volume_name)
