@@ -28,6 +28,11 @@
 #       enabled: "ON"
 
 en:
+  activerecord:
+    attributes:
+      isilon_asset:
+        has_duplicates: "Has Duplicates"
+        full_path_with_volume: "Path (with volume)"
   errors:
     messages:
       user_not_registered: "User Not registered. Please contact a server administrator for a user account"
