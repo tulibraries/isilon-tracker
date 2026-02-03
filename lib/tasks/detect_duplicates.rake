@@ -16,8 +16,6 @@ namespace :duplicates do
     puts "Scanning assets with matching checksums..."
     puts "Processing in batches of #{batch_size}..."
 
-    IsilonAsset.update_all(has_duplicates: false)
-
     duplicate_checksums = IsilonAsset.where("NULLIF(TRIM(file_checksum), '') IS NOT NULL")
                                      .group(:file_checksum)
                                      .having("COUNT(*) > 1")
