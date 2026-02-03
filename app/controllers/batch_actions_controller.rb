@@ -88,21 +88,23 @@ class BatchActionsController < ApplicationController
   end
 
   def process_asset_updates(assets, updates_applied)
+    updates = {}
+
     # Update Migration Status
     if params[:migration_status_id].present?
       migration_status = MigrationStatus.find(params[:migration_status_id])
-      assets.update_all(migration_status_id: migration_status.id)
+      updates[:migration_status_id] = migration_status.id
       updates_applied << "migration status to #{migration_status.name}"
     end
 
     # Update Assigned User
     if params[:assigned_user_id].present?
       if params[:assigned_user_id] == "unassigned"
-        assets.update_all(assigned_to: nil)
+        updates[:assigned_to] = nil
         updates_applied << "assigned user to unassigned"
       else
         user = User.find(params[:assigned_user_id])
-        assets.update_all(assigned_to: user.id)
+        updates[:assigned_to] = user.id
         updates_applied << "assigned user to #{user.title}"
       end
     end
@@ -110,19 +112,24 @@ class BatchActionsController < ApplicationController
     # Update ASpace Collection
     if params[:aspace_collection_id].present?
       aspace_collection = AspaceCollection.find(params[:aspace_collection_id])
-      assets.update_all(aspace_collection_id: aspace_collection.id)
+      updates[:aspace_collection_id] = aspace_collection.id
       updates_applied << "ASpace collection to #{aspace_collection.name}"
     end
 
     # Update ASpace Linking Status
     if params[:aspace_linking_status].present? && params[:aspace_linking_status] != ""
       linking_status = params[:aspace_linking_status]
-      assets.update_all(aspace_linking_status: linking_status)
+      updates[:aspace_linking_status] = linking_status
       status_text = linking_status == "true" ? "linked" : "not linked"
       updates_applied << "ASpace linking status to #{status_text}"
     end
 
-    assets.count
+    assets_count = assets.count
+    return 0 if assets_count == 0
+
+    assets.update_all(updates) if updates.any?
+
+    assets_count
   end
 
   def process_folder_updates(folders, updates_applied)
@@ -135,23 +142,36 @@ class BatchActionsController < ApplicationController
         user = User.find(params[:assigned_user_id])
       end
 
-      # Collect all folders that need updating (selected + descendants)
-      all_folders_to_update = []
-      folders.each do |folder|
-        all_folders_to_update << folder
-        all_folders_to_update.concat(folder.descendant_folders)
-      end
-
-      # Bulk update all folders at once
-      if all_folders_to_update.any?
-        folder_ids = all_folders_to_update.map(&:id)
+      folder_ids = folder_ids_with_descendants(folders.pluck(:id))
+      if folder_ids.any?
         IsilonFolder.where(id: folder_ids).update_all(assigned_to: user&.id)
-        updated_count += all_folders_to_update.count
+        updated_count += folder_ids.length
       end
 
       updates_applied << "assigned folders to #{user ? user.title : 'unassigned'}"
     end
 
     updated_count
+  end
+
+  def folder_ids_with_descendants(folder_ids)
+    ids = folder_ids.map(&:to_i).reject(&:zero?).uniq
+    return [] if ids.empty?
+
+    volume_id = @volume.id
+
+    sql = <<~SQL.squish
+      WITH RECURSIVE descendants AS (
+        SELECT id FROM isilon_folders
+        WHERE id IN (#{ids.join(",")}) AND volume_id = #{volume_id}
+        UNION ALL
+        SELECT f.id FROM isilon_folders f
+        INNER JOIN descendants d ON f.parent_folder_id = d.id
+        WHERE f.volume_id = #{volume_id}
+      )
+      SELECT id FROM descendants
+    SQL
+
+    ActiveRecord::Base.connection.exec_query(sql).rows.flatten.map(&:to_i).uniq
   end
 end
