@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_02_02_181000) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -39,6 +39,23 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
     t.index ["name"], name: "index_contentdm_collections_on_name"
   end
 
+  create_table "duplicate_group_memberships", force: :cascade do |t|
+    t.integer "duplicate_group_id", null: false
+    t.integer "isilon_asset_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["duplicate_group_id", "isilon_asset_id"], name: "index_duplicate_group_memberships_unique", unique: true
+    t.index ["duplicate_group_id"], name: "index_duplicate_group_memberships_on_duplicate_group_id"
+    t.index ["isilon_asset_id"], name: "index_duplicate_group_memberships_on_isilon_asset_id"
+  end
+
+  create_table "duplicate_groups", force: :cascade do |t|
+    t.string "checksum", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["checksum"], name: "index_duplicate_groups_on_checksum", unique: true
+  end
+
   create_table "isilon_assets", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -57,14 +74,14 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
     t.integer "migration_status_id"
     t.integer "aspace_collection_id"
     t.integer "contentdm_collection_id"
-    t.integer "duplicate_of_id"
     t.integer "assigned_to"
+    t.boolean "has_duplicates", default: false, null: false
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
     t.index ["assigned_to", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_and_migration_status"
     t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
-    t.index ["duplicate_of_id"], name: "index_isilon_assets_on_duplicate_of_id"
     t.index ["file_checksum"], name: "index_isilon_assets_on_file_checksum"
+    t.index ["has_duplicates"], name: "index_isilon_assets_on_has_duplicates"
     t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id", "migration_status_id"], name: "index_isilon_assets_on_parent_folder_and_migration_status"
@@ -119,9 +136,10 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_15_120000) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "duplicate_group_memberships", "duplicate_groups"
+  add_foreign_key "duplicate_group_memberships", "isilon_assets"
   add_foreign_key "isilon_assets", "aspace_collections"
   add_foreign_key "isilon_assets", "contentdm_collections"
-  add_foreign_key "isilon_assets", "isilon_assets", column: "duplicate_of_id"
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_assets", "migration_statuses"
   add_foreign_key "isilon_assets", "users", column: "assigned_to"

@@ -1,0 +1,18 @@
+<% if field.data.present? %>
+  <div class="duplicates-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Path (with volume)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% field.data.each do |duplicate| %>
+          <tr>
+            <td><%= link_to duplicate.full_path_with_volume, admin_isilon_asset_path(duplicate) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

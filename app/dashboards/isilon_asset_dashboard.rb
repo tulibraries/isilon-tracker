@@ -15,18 +15,16 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     assigned_to: Field::String,
     contentdm_collection: Field::BelongsTo,
     date_created_in_isilon: Field::String,
-    duplicate_of: Field::BelongsTo.with_options(
-      class_name: "IsilonAsset",
-      foreign_key: "duplicate_of_id"
-    ),
-    duplicates: Field::HasMany.with_options(
+    duplicates: DuplicatesField.with_options(
       class_name: "IsilonAsset"
     ),
+    has_duplicates: HasDuplicatesField,
     file_checksum: Field::String,
     file_size: Field::String,
     file_type: Field::String,
     isilon_name: Field::String,
     isilon_path: Field::String,
+    full_path_with_volume: Field::String,
     last_modified_in_isilon: Field::String,
     last_updated_by: Field::String,
     migration_status: Field::BelongsTo,
@@ -48,6 +46,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   COLLECTION_ATTRIBUTES = %i[
     isilon_name
     migration_status
+    has_duplicates
     assigned_to
   ].freeze
 
@@ -59,6 +58,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     isilon_name
     isilon_path
     parent_folder
+    full_path_with_volume
     date_created_in_isilon
     last_modified_in_isilon
     file_size
@@ -68,7 +68,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     aspace_linking_status
     contentdm_collection
     preservica_reference_id
-    duplicate_of
     duplicates
     notes
     assigned_to
@@ -84,7 +83,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     migration_status
     isilon_name
     isilon_path
-    parent_folder
     date_created_in_isilon
     last_modified_in_isilon
     file_size

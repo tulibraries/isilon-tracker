@@ -107,6 +107,20 @@ a {
   color: #fff;
 }
 
+.duplicates-table {
+  overflow-x: auto;
+}
+
+.duplicates-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.duplicates-table td {
+  word-break: break-word;
+  white-space: normal;
+}
+
 [data-command="filter"].wb-helper-invalid,
 [data-command="filter"].filter-active.wb-helper-invalid {
   color: #2E6F40 !important;
