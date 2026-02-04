@@ -19,6 +19,9 @@ export default class extends Controller {
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
+  _selectSeq = 0;
+  selectInflightControllers = new Set();
+  _selectCancelToken = 0;
 
   selectLikeColumns = new Set([
     "migration_status",
@@ -276,6 +279,7 @@ export default class extends Controller {
         select: (e) => {
           const node = e.node;
           const shouldSelect = !!node?.isSelected?.();
+          this._cancelActiveSelection();
 
           if (node?.data?.folder) {
             setTimeout(() => {
@@ -417,6 +421,10 @@ export default class extends Controller {
     input.addEventListener("keydown", (e) => {
       
       if (e.key === "Escape") {
+        this._filterSeq += 1;
+        this._cancelInflight();
+        this._cancelActiveSearch();
+        this._cancelActiveSelection();
         input.value = "";
         this._runDeepFilter("");
       }
@@ -431,7 +439,8 @@ export default class extends Controller {
     btn.addEventListener("click", () => {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
-
+      
+      this._cancelActiveSelection();
       this.columnFilters.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
@@ -475,6 +484,7 @@ export default class extends Controller {
 
   // Executes backend-backed filtering and materializes matching paths.
   async _runDeepFilter(raw) {
+    this._cancelActiveSearch();
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
@@ -557,35 +567,66 @@ export default class extends Controller {
   async _loadAndSelectDescendants(node, flag) {
     if (!node?.data?.folder) return;
 
-    const seq = this._filterSeq;
+    const filterSeq = this._filterSeq;
+    const mySelectSeq = ++this._selectSeq;
+    const myCancelToken = this._selectCancelToken;
+
     const queue = [node];
     let processed = 0;
 
-        this._setLoading(true, "Selecting…");
+    this._setLoading(true, "Selecting…");
 
     try {
       while (queue.length > 0) {
+        if (
+          filterSeq !== this._filterSeq ||
+          mySelectSeq !== this._selectSeq ||
+          myCancelToken !== this._selectCancelToken
+        ) {
+          break;
+        }
+
         const current = queue.shift();
         const key = String(current.key ?? current.data?.key ?? current.data?.id ?? "");
         if (!key) continue;
-        if (seq !== this._filterSeq) break;
 
-        await this._hydrateSingleParentByKey(key, seq);
-        await this._ensureAssetsForFolderCancellable(key, seq);
+        await this._hydrateSingleParentByKey(key, filterSeq);
+
+        if (
+          filterSeq !== this._filterSeq ||
+          mySelectSeq !== this._selectSeq ||
+          myCancelToken !== this._selectCancelToken
+        ) {
+          break;
+        }
+
+        await this._ensureAssetsForFolderCancellable(key, filterSeq);
+
+        if (
+          filterSeq !== this._filterSeq ||
+          mySelectSeq !== this._selectSeq ||
+          myCancelToken !== this._selectCancelToken
+        ) {
+          break;
+        }
 
         const children = current.children || [];
         for (const child of children) {
-          if (child.statusNodeType) continue;
-          child.setSelected(flag, { force: true });
-          if (child.data?.folder) queue.push(child);
-        }
+          if (
+            filterSeq !== this._filterSeq ||
+            mySelectSeq !== this._selectSeq ||
+            myCancelToken !== this._selectCancelToken
+          ) {
+            break;
+          }
 
-        // Select any newly added children after asset load
-        const refreshedChildren = current.children || [];
-        for (const child of refreshedChildren) {
           if (child.statusNodeType) continue;
+
           child.setSelected(flag, { force: true });
-          if (child.data?.folder && !queue.includes(child)) queue.push(child);
+
+          if (child.data?.folder) {
+            queue.push(child);
+          }
         }
 
         processed += 1;
@@ -594,9 +635,16 @@ export default class extends Controller {
         }
       }
     } finally {
+      if (
+        filterSeq === this._filterSeq &&
+        mySelectSeq === this._selectSeq &&
+        myCancelToken === this._selectCancelToken
+      ) {
+        this._emitSelectionChange();
+        this._updateSelectAllButtonState();
+      }
+
       this._setLoading(false);
-      this._emitSelectionChange();
-      this._updateSelectAllButtonState();
     }
   }
 
@@ -1064,10 +1112,28 @@ export default class extends Controller {
     return ctrl;
   }
 
+  // Creates and tracks an AbortController for selections.
+  _beginSelectFetchGroup() {
+    const ctrl = new AbortController();
+    this.selectInflightControllers.add(ctrl);
+    return ctrl;
+  }
+
   // Cancels all in-flight network requests.
   _cancelInflight() {
     for (const c of this.inflightControllers) { try { c.abort(); } catch {} }
     this.inflightControllers.clear();
+  }
+
+  // Cancels an active search
+  _cancelActiveSearch() {
+    this._filterSeq += 1;
+    this._cancelInflight();
+  }
+
+  // Cancels the selection process
+  _cancelActiveSelection() {
+    this._selectCancelToken += 1;
   }
 
   // Fetches JSON with abort support.
