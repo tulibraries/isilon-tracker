@@ -21,6 +21,7 @@ namespace :duplicates do
     progress_interval = batch_size * 5
     log_every = ENV.fetch("DUPLICATES_LOG_EVERY", "500").to_i
     slow_seconds = ENV.fetch("DUPLICATES_SLOW_SECONDS", "10").to_f
+    large_group_size = ENV.fetch("DUPLICATES_LARGE_GROUP_SIZE", "20000").to_i
 
     log.call("Scanning assets with matching checksums...")
     log.call("Processing in batches of #{batch_size}...")
@@ -78,7 +79,7 @@ namespace :duplicates do
 
           elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
           global_index = processed + index + 1
-          if (global_index % log_every == 0) || elapsed >= slow_seconds || asset_ids.length >= (BATCH_UPDATE_SIZE * 2)
+          if (global_index % log_every == 0) || elapsed >= slow_seconds || asset_ids.length >= large_group_size
             log.call("Processed checksum #{global_index}/#{duplicate_checksums.length} (assets=#{asset_ids.length}) in #{format('%.2f', elapsed)}s")
           end
         end
