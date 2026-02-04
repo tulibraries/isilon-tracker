@@ -1,20 +1,29 @@
 # frozen_string_literal: true
 
 require "csv"
+require "logger"
 
 namespace :duplicates do
   desc "Detect and list duplicates according to Rule 3"
   task detect: :environment do
-    puts "Starting Rule 3 duplicate detection..."
+    logger = Logger.new("log/isilon-duplicates-detect.log")
+    log = lambda do |message|
+      puts message
+      logger.info(message)
+    end
+
+    log.call("Starting Rule 3 duplicate detection...")
 
     # Find all assets outside main areas with non-empty checksums
     output_path = "log/isilon-duplicate-paths.csv"
     processed = 0
     batch_size = 1000
     progress_interval = batch_size * 5
+    log_every = ENV.fetch("DUPLICATES_LOG_EVERY", "500").to_i
+    slow_seconds = ENV.fetch("DUPLICATES_SLOW_SECONDS", "10").to_f
 
-    puts "Scanning assets with matching checksums..."
-    puts "Processing in batches of #{batch_size}..."
+    log.call("Scanning assets with matching checksums...")
+    log.call("Processing in batches of #{batch_size}...")
 
     duplicate_checksums = IsilonAsset.where("NULLIF(TRIM(file_checksum), '') IS NOT NULL")
                                      .group(:file_checksum)
@@ -36,7 +45,9 @@ namespace :duplicates do
     written = 0
     CSV.open(output_path, "w", write_headers: true, headers: [ "FullPath" ]) do |csv|
       duplicate_checksums.each_slice(batch_size) do |checksum_batch|
-        checksum_batch.each do |checksum|
+        batch_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        checksum_batch.each_with_index do |checksum, index|
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           asset_ids = IsilonAsset.where(file_checksum: checksum).pluck(:id)
           next if asset_ids.empty?
 
@@ -64,20 +75,29 @@ namespace :duplicates do
             csv << [ full_path ]
             written += 1
           end
+
+          elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+          global_index = processed + index + 1
+          if (global_index % log_every == 0) || elapsed >= slow_seconds || asset_ids.length >= (BATCH_UPDATE_SIZE * 2)
+            log.call("Processed checksum #{global_index}/#{duplicate_checksums.length} (assets=#{asset_ids.length}) in #{format('%.2f', elapsed)}s")
+          end
         end
 
         processed += checksum_batch.size
         GC.start
 
         if processed % progress_interval == 0
-          puts "Processed #{processed} checksum groups..."
+          log.call("Processed #{processed} checksum groups...")
         end
+
+        batch_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - batch_started_at
+        log.call("Batch complete (#{checksum_batch.size} checksums) in #{format('%.2f', batch_elapsed)}s")
       end
     end
 
-    puts "\n✓ Complete!"
-    puts "Processed: #{processed} checksum groups"
-    puts "Duplicate paths exported to #{output_path} (#{written} rows)"
+    log.call("\n✓ Complete!")
+    log.call("Processed: #{processed} checksum groups")
+    log.call("Duplicate paths exported to #{output_path} (#{written} rows)")
   end
 
   desc "Show duplicate statistics"
