@@ -282,9 +282,21 @@ export default class extends Controller {
           this._cancelActiveSelection();
 
           if (node?.data?.folder) {
+            const startFilterSeq = this._filterSeq;
+            const startCancelToken = this._selectCancelToken;
+
             setTimeout(() => {
+              if (
+                startFilterSeq !== this._filterSeq ||
+                startCancelToken !== this._selectCancelToken
+              ) {
+                return;
+              }
+
               void this._loadAndSelectDescendants(node, shouldSelect);
             }, 0);
+
+            return;
           }
 
           this._emitSelectionChange();
@@ -299,41 +311,61 @@ export default class extends Controller {
       this._setupFilterModeToggle();
 
       selectAllButton.addEventListener("click", () => {
-        const selected = this.tree.getSelectedNodes();
- 
-        if (selected.length > 0) {
-          selected.forEach((node) => node.setSelected(false, { force: true }));
-          this._emitSelectionChange();
-          this._updateSelectAllButtonState(0);
-          return;
-        }
- 
+        this._cancelActiveSelection();
+
         if (!this._hasActiveFilter()) {
-          this._updateSelectAllButtonState(selected.length);
+          this._updateSelectAllButtonState(
+            this.tree.getSelectedNodes().length
+          );
           return;
         }
- 
-        const matchedNodes = [];
+
         const predicate = this.currentFilterPredicate;
+        if (!predicate) return;
 
-        this.tree.getSelectedNodes().forEach((node) => node.setSelected(false, { force: true }));
+        const matched = [];
+        const selectedKeys = new Set(
+          this.tree.getSelectedNodes().map(n => n.key)
+        );
 
-    this._setLoading(true, "Selecting…");
+        this.tree.visit((node) => {
+          if (node.statusNodeType) return;
+          if (predicate(node)) matched.push(node);
+        });
 
-        Promise.resolve()
-          .then(() => {
-            this.tree.visit((node) => {
-              if (!predicate || node.statusNodeType) return;
-              if (predicate(node)) matchedNodes.push(node);
-            });
+        const allSelected =
+          matched.length > 0 &&
+          matched.every(n => selectedKeys.has(n.key));
 
-            matchedNodes.forEach((node) => node.setSelected(true, { force: true }));
-            this._emitSelectionChange();
-            this._updateSelectAllButtonState(matchedNodes.length);
-          })
-          .finally(() => {
-            this._setLoading(false);
-          });
+        const total = matched.length;
+        const verb = allSelected ? "Clearing" : "Selecting";
+
+        this._setLoading(true, `${verb} 0 / ${total}…`);
+
+        setTimeout(async () => {
+          const status = document.querySelector(".wb-loading");
+          let processed = 0;
+          const step = 40;
+
+          for (const node of matched) {
+            node.setSelected(!allSelected, { force: true });
+            processed += 1;
+
+            if (processed % step === 0) {
+              await new Promise(requestAnimationFrame);
+              if (status) {
+                status.textContent = `${verb} ${processed} / ${total}…`;
+              }
+            }
+          }
+
+          this._emitSelectionChange();
+          this._updateSelectAllButtonState(
+            allSelected ? 0 : total
+          );
+
+          this._setLoading(false);
+        }, 0);
       });
 
       this.element.addEventListener("pointerdown", (e) => {
@@ -426,6 +458,7 @@ export default class extends Controller {
         this._cancelActiveSearch();
         this._cancelActiveSelection();
         input.value = "";
+        this._setLoading(false);
         this._runDeepFilter("");
       }
     });
@@ -630,7 +663,7 @@ export default class extends Controller {
         }
 
         processed += 1;
-        if (processed % 200 === 0) {
+        if ((processed & 127) === 0) {
           await Promise.resolve();
         }
       }
@@ -1134,6 +1167,17 @@ export default class extends Controller {
   // Cancels the selection process
   _cancelActiveSelection() {
     this._selectCancelToken += 1;
+    this._selectSeq += 1;
+  }
+
+  // Displays Selecting element when clicking selectAll toggle button.
+  _beginSelectLoading(text = "Selecting…") {
+    this._setLoading(true, text);
+  }
+
+  // Removes the Selecting element when selection is complete.
+  _endSelectLoading() {
+    this._setLoading(false);
   }
 
   // Fetches JSON with abort support.
