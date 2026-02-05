@@ -19,11 +19,8 @@ RSpec.describe "duplicates rake tasks", type: :task do
     let!(:deposit_folder) { create(:isilon_folder, volume: deposit_volume, full_path: "/Deposit/project") }
     let!(:media_folder) { create(:isilon_folder, volume: media_volume, full_path: "/Media-Repository/project") }
     let(:export_path) { Rails.root.join("log/isilon-duplicate-paths.csv") }
-    let(:detect_log_path) { Rails.root.join("log/isilon-duplicates-detect.log") }
-
     after do
       File.delete(export_path) if File.exist?(export_path)
-      File.delete(detect_log_path) if File.exist?(detect_log_path)
     end
 
     it "groups assets with matching checksums" do

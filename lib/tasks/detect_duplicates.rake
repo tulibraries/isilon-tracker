@@ -1,18 +1,10 @@
 # frozen_string_literal: true
 
 require "csv"
-require "logger"
-
 namespace :duplicates do
   desc "Detect and list duplicates according to Rule 3"
   task detect: :environment do
-    logger = Logger.new("log/isilon-duplicates-detect.log")
-    log = lambda do |message|
-      puts message
-      logger.info(message)
-    end
-
-    log.call("Starting Rule 3 duplicate detection...")
+    puts "Starting Rule 3 duplicate detection..."
 
     # Find all assets outside main areas with non-empty checksums
     output_path = "log/isilon-duplicate-paths.csv"
@@ -23,8 +15,8 @@ namespace :duplicates do
     slow_seconds = ENV.fetch("DUPLICATES_SLOW_SECONDS", "10").to_f
     large_group_size = ENV.fetch("DUPLICATES_LARGE_GROUP_SIZE", "20000").to_i
 
-    log.call("Scanning assets with matching checksums...")
-    log.call("Processing in batches of #{batch_size}...")
+    puts "Scanning assets with matching checksums..."
+    puts "Processing in batches of #{batch_size}..."
 
     main_volume_names = %w[Deposit Media-Repository]
 
@@ -90,7 +82,7 @@ namespace :duplicates do
           elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
           global_index = processed + index + 1
           if (global_index % log_every == 0) || elapsed >= slow_seconds || asset_ids.length >= large_group_size
-            log.call("Processed checksum #{global_index}/#{duplicate_checksums.length} (assets=#{asset_ids.length}) in #{format('%.2f', elapsed)}s")
+            puts "Processed checksum #{global_index}/#{duplicate_checksums.length} (assets=#{asset_ids.length}) in #{format('%.2f', elapsed)}s"
           end
         end
 
@@ -98,17 +90,17 @@ namespace :duplicates do
         GC.start
 
         if processed % progress_interval == 0
-          log.call("Processed #{processed} checksum groups...")
+          puts "Processed #{processed} checksum groups..."
         end
 
         batch_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - batch_started_at
-        log.call("Batch complete (#{checksum_batch.size} checksums) in #{format('%.2f', batch_elapsed)}s")
+        puts "Batch complete (#{checksum_batch.size} checksums) in #{format('%.2f', batch_elapsed)}s"
       end
     end
 
-    log.call("\n✓ Complete!")
-    log.call("Processed: #{processed} checksum groups")
-    log.call("Duplicate paths exported to #{output_path} (#{written} rows)")
+    puts "\n✓ Complete!"
+    puts "Processed: #{processed} checksum groups"
+    puts "Duplicate paths exported to #{output_path} (#{written} rows)"
   end
 
   desc "Show duplicate statistics"
