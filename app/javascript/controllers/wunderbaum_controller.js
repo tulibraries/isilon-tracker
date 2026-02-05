@@ -19,6 +19,7 @@ export default class extends Controller {
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
+  selectInflightControllers = new Set();
 
   selectLikeColumns = new Set([
     "migration_status",
@@ -281,6 +282,7 @@ export default class extends Controller {
             setTimeout(() => {
               void this._loadAndSelectDescendants(node, shouldSelect);
             }, 0);
+            return;
           }
 
           this._emitSelectionChange();
@@ -295,41 +297,61 @@ export default class extends Controller {
       this._setupFilterModeToggle();
 
       selectAllButton.addEventListener("click", () => {
-        const selected = this.tree.getSelectedNodes();
- 
-        if (selected.length > 0) {
-          selected.forEach((node) => node.setSelected(false, { force: true }));
-          this._emitSelectionChange();
-          this._updateSelectAllButtonState(0);
-          return;
-        }
- 
+        document.getElementById("tree-match-count")?.remove();
+
         if (!this._hasActiveFilter()) {
-          this._updateSelectAllButtonState(selected.length);
+          this._updateSelectAllButtonState(
+            this.tree.getSelectedNodes().length
+          );
           return;
         }
- 
-        const matchedNodes = [];
+
         const predicate = this.currentFilterPredicate;
+        if (!predicate) return;
 
-        this.tree.getSelectedNodes().forEach((node) => node.setSelected(false, { force: true }));
+        const matched = [];
+        const selectedKeys = new Set(
+          this.tree.getSelectedNodes().map(n => n.key)
+        );
 
-    this._setLoading(true, "Selecting…");
+        this.tree.visit((node) => {
+          if (node.statusNodeType) return;
+          if (predicate(node)) matched.push(node);
+        });
 
-        Promise.resolve()
-          .then(() => {
-            this.tree.visit((node) => {
-              if (!predicate || node.statusNodeType) return;
-              if (predicate(node)) matchedNodes.push(node);
-            });
+        const allSelected =
+          matched.length > 0 &&
+          matched.every(n => selectedKeys.has(n.key));
 
-            matchedNodes.forEach((node) => node.setSelected(true, { force: true }));
-            this._emitSelectionChange();
-            this._updateSelectAllButtonState(matchedNodes.length);
-          })
-          .finally(() => {
-            this._setLoading(false);
-          });
+        const total = matched.length;
+        const verb = allSelected ? "Clearing" : "Selecting";
+
+        this._setLoading(true, `${verb} 0 / ${total}…`);
+
+        setTimeout(async () => {
+          const status = document.querySelector(".wb-loading");
+          let processed = 0;
+          const step = 40;
+
+          for (const node of matched) {
+            node.setSelected(!allSelected, { force: true });
+            processed += 1;
+
+            if (processed % step === 0) {
+              await new Promise(requestAnimationFrame);
+              if (status) {
+                status.textContent = `${verb} ${processed} / ${total}…`;
+              }
+            }
+          }
+
+          this._emitSelectionChange();
+          this._updateSelectAllButtonState(
+            allSelected ? 0 : total
+          );
+
+          this._setLoading(false);
+        }, 0);
       });
 
       this.element.addEventListener("pointerdown", (e) => {
@@ -417,7 +439,12 @@ export default class extends Controller {
     input.addEventListener("keydown", (e) => {
       
       if (e.key === "Escape") {
+        this._filterSeq += 1;
+        this._cancelInflight();
+        this._cancelActiveSearch();
+        document.getElementById("tree-match-count")?.remove();
         input.value = "";
+        this._setLoading(false);
         this._runDeepFilter("");
       }
     });
@@ -431,7 +458,7 @@ export default class extends Controller {
     btn.addEventListener("click", () => {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
-
+      document.getElementById("tree-match-count")?.remove();
       this.columnFilters.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
@@ -475,6 +502,7 @@ export default class extends Controller {
 
   // Executes backend-backed filtering and materializes matching paths.
   async _runDeepFilter(raw) {
+    this._cancelActiveSearch();
     this._cancelInflight();
     const mySeq = ++this._filterSeq;
     this.loadedFolders.clear();
@@ -551,52 +579,84 @@ export default class extends Controller {
     this.tree.filterNodes(predicate, opts);
     this._updateFilterModeButton();
     this._updateSelectAllButtonState();
+
+    const count = this._countFilteredNodes();
+    this._updateMatchCount(count);
+
+    this._updateFilterModeButton();
+    this._updateSelectAllButtonState();
+
+    let debugCount = 0;
+    this.tree.visitRows((node) => {
+      if (node.statusNodeType) return;
+      debugCount += 1;
+    });
+    console.log("FILTERED ROW COUNT:", debugCount);
   }
 
   // Load and select all descendants for a folder node without blocking UI.
   async _loadAndSelectDescendants(node, flag) {
     if (!node?.data?.folder) return;
 
-    const seq = this._filterSeq;
+    const filterSeq = this._filterSeq;
     const queue = [node];
     let processed = 0;
 
-        this._setLoading(true, "Selecting…");
+    this._setLoading(true, "Selecting…");
 
     try {
       while (queue.length > 0) {
+        if (filterSeq !== this._filterSeq) {
+          break;
+        }
+
         const current = queue.shift();
         const key = String(current.key ?? current.data?.key ?? current.data?.id ?? "");
         if (!key) continue;
-        if (seq !== this._filterSeq) break;
 
-        await this._hydrateSingleParentByKey(key, seq);
-        await this._ensureAssetsForFolderCancellable(key, seq);
+        await this._hydrateSingleParentByKey(key, filterSeq);
+
+        if (
+          filterSeq !== this._filterSeq) {
+          break;
+        }
+
+        await this._ensureAssetsForFolderCancellable(key, filterSeq);
+
+        if (
+          filterSeq !== this._filterSeq) {
+          break;
+        }
 
         const children = current.children || [];
         for (const child of children) {
-          if (child.statusNodeType) continue;
-          child.setSelected(flag, { force: true });
-          if (child.data?.folder) queue.push(child);
-        }
+          if (
+            filterSeq !== this._filterSeq) {
+            break;
+          }
 
-        // Select any newly added children after asset load
-        const refreshedChildren = current.children || [];
-        for (const child of refreshedChildren) {
           if (child.statusNodeType) continue;
+
           child.setSelected(flag, { force: true });
-          if (child.data?.folder && !queue.includes(child)) queue.push(child);
+
+          if (child.data?.folder) {
+            queue.push(child);
+          }
         }
 
         processed += 1;
-        if (processed % 200 === 0) {
+        if ((processed & 127) === 0) {
           await Promise.resolve();
         }
       }
     } finally {
+      if (
+        filterSeq === this._filterSeq) {
+        this._emitSelectionChange();
+        this._updateSelectAllButtonState();
+      }
+
       this._setLoading(false);
-      this._emitSelectionChange();
-      this._updateSelectAllButtonState();
     }
   }
 
@@ -1070,6 +1130,12 @@ export default class extends Controller {
     this.inflightControllers.clear();
   }
 
+  // Cancels an active search
+  _cancelActiveSearch() {
+    this._filterSeq += 1;
+    this._cancelInflight();
+  }
+
   // Fetches JSON with abort support.
   async _fetchJson(url, ctrl) {
     const res = await fetch(url, {
@@ -1193,6 +1259,51 @@ export default class extends Controller {
     if (this.tree) {
       this.tree.setSelection(false);
     }
+  }
+
+  // Counts the number of matches
+  _countFilteredNodes() {
+    const predicate = this.currentFilterPredicate;
+    if (!predicate) return 0;
+
+    let count = 0;
+
+    this.tree.visit((node) => {
+      if (node.statusNodeType) return;
+      if (predicate(node)) count += 1;
+    });
+
+    return count;
+  }
+
+  // Displays count for query search matches
+  _updateMatchCount(count) {
+    const input = document.getElementById("tree-filter");
+    if (!input) return;
+
+    let el = document.getElementById("tree-match-count");
+    const toolbar = input.closest(".wb-toolbar") || input.parentElement;
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "tree-match-count";
+      el.className = "wb-match-count wb-loading-style";
+      el.style.position = "absolute";
+      el.style.pointerEvents = "none";
+
+      (toolbar || document.body).appendChild(el);
+    }
+
+    if (toolbar && getComputedStyle(toolbar).position === "static") {
+      toolbar.style.position = "relative";
+    }
+
+    const topOffset = (toolbar.offsetHeight || 0) + 8;
+    el.style.top = `${topOffset}px`;
+    el.style.left = "0";
+    el.style.display = "block";
+
+    el.textContent = `${count.toLocaleString()} matches`;
   }
 
   // Refreshes tree nodes after batch updates.

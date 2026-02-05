@@ -100,4 +100,23 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_no_css(".wb-loading", wait: 6)
     expect(page).to have_no_content("scan_beta_001.tif", wait: 6)
   end
+
+  it "shows a match count after filtering" do
+    visit volume_path(volume)
+
+    fill_in "tree-filter", with: "journals"
+
+    expect(page).to have_css("#tree-match-count", wait: 6)
+    expect(page).to have_text("matches")
+  end
+
+  it "does not apply stale search results after clearing the search" do
+    visit volume_path(volume)
+
+    fill_in "tree-filter", with: "journals"
+    fill_in "tree-filter", with: ""
+
+    expect(page).to have_no_css("#tree-match-count", wait: 6)
+    expect(page).to have_no_text("journals")
+  end
 end
