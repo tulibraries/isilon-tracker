@@ -26,6 +26,8 @@ namespace :duplicates do
     log.call("Scanning assets with matching checksums...")
     log.call("Processing in batches of #{batch_size}...")
 
+    main_volume_names = %w[Deposit Media-Repository]
+
     duplicate_checksums = IsilonAsset.where("NULLIF(TRIM(file_checksum), '') IS NOT NULL")
                                      .group(:file_checksum)
                                      .having("COUNT(*) > 1")
@@ -44,7 +46,8 @@ namespace :duplicates do
     end
 
     written = 0
-    CSV.open(output_path, "w", write_headers: true, headers: [ "FullPath" ]) do |csv|
+    headers = [ "File", "Path", "Checksum", "File Size" ]
+    CSV.open(output_path, "w", write_headers: true, headers: headers) do |csv|
       duplicate_checksums.each_slice(batch_size) do |checksum_batch|
         batch_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         checksum_batch.each_with_index do |checksum, index|
@@ -67,13 +70,20 @@ namespace :duplicates do
           DuplicateGroupMembership.insert_all(rows) if rows.any?
           IsilonAsset.where(id: asset_ids).update_all(has_duplicates: true)
 
-          IsilonAsset.where(id: asset_ids)
-                     .includes(parent_folder: :volume)
-                     .find_each do |asset|
+          main_scope = IsilonAsset.joins(parent_folder: :volume)
+                                  .where(file_checksum: checksum, volumes: { name: main_volume_names })
+          outside_scope = IsilonAsset.joins(parent_folder: :volume)
+                                     .where(file_checksum: checksum)
+                                     .where.not(volumes: { name: main_volume_names })
+
+          next unless main_scope.exists?
+          next unless outside_scope.exists?
+
+          outside_scope.includes(parent_folder: :volume).find_each do |asset|
             full_path = build_full_path.call(asset)
             next unless full_path
 
-            csv << [ full_path ]
+            csv << [ asset.isilon_name, full_path, checksum, asset.file_size ]
             written += 1
           end
 
