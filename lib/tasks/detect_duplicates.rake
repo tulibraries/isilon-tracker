@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "csv"
-
 namespace :duplicates do
   desc "Detect and list duplicates according to Rule 3"
   task detect: :environment do
@@ -12,9 +11,14 @@ namespace :duplicates do
     processed = 0
     batch_size = 1000
     progress_interval = batch_size * 5
+    log_every = ENV.fetch("DUPLICATES_LOG_EVERY", "500").to_i
+    slow_seconds = ENV.fetch("DUPLICATES_SLOW_SECONDS", "10").to_f
+    large_group_size = ENV.fetch("DUPLICATES_LARGE_GROUP_SIZE", "20000").to_i
 
     puts "Scanning assets with matching checksums..."
     puts "Processing in batches of #{batch_size}..."
+
+    main_volume_names = %w[Deposit Media-Repository]
 
     duplicate_checksums = IsilonAsset.where("NULLIF(TRIM(file_checksum), '') IS NOT NULL")
                                      .group(:file_checksum)
@@ -34,9 +38,12 @@ namespace :duplicates do
     end
 
     written = 0
-    CSV.open(output_path, "w", write_headers: true, headers: [ "FullPath" ]) do |csv|
+    headers = [ "File", "Path", "Checksum", "File Size" ]
+    CSV.open(output_path, "w", write_headers: true, headers: headers) do |csv|
       duplicate_checksums.each_slice(batch_size) do |checksum_batch|
-        checksum_batch.each do |checksum|
+        batch_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        checksum_batch.each_with_index do |checksum, index|
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           asset_ids = IsilonAsset.where(file_checksum: checksum).pluck(:id)
           next if asset_ids.empty?
 
@@ -55,14 +62,27 @@ namespace :duplicates do
           DuplicateGroupMembership.insert_all(rows) if rows.any?
           IsilonAsset.where(id: asset_ids).update_all(has_duplicates: true)
 
-          IsilonAsset.where(id: asset_ids)
-                     .includes(parent_folder: :volume)
-                     .find_each do |asset|
+          main_scope = IsilonAsset.joins(parent_folder: :volume)
+                                  .where(file_checksum: checksum, volumes: { name: main_volume_names })
+          outside_scope = IsilonAsset.joins(parent_folder: :volume)
+                                     .where(file_checksum: checksum)
+                                     .where.not(volumes: { name: main_volume_names })
+
+          next unless main_scope.exists?
+          next unless outside_scope.exists?
+
+          outside_scope.includes(parent_folder: :volume).find_each do |asset|
             full_path = build_full_path.call(asset)
             next unless full_path
 
-            csv << [ full_path ]
+            csv << [ asset.isilon_name, full_path, checksum, asset.file_size ]
             written += 1
+          end
+
+          elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+          global_index = processed + index + 1
+          if (global_index % log_every == 0) || elapsed >= slow_seconds || asset_ids.length >= large_group_size
+            puts "Processed checksum #{global_index}/#{duplicate_checksums.length} (assets=#{asset_ids.length}) in #{format('%.2f', elapsed)}s"
           end
         end
 
@@ -72,6 +92,9 @@ namespace :duplicates do
         if processed % progress_interval == 0
           puts "Processed #{processed} checksum groups..."
         end
+
+        batch_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - batch_started_at
+        puts "Batch complete (#{checksum_batch.size} checksums) in #{format('%.2f', batch_elapsed)}s"
       end
     end
 
