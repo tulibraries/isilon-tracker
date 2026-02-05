@@ -19,9 +19,7 @@ export default class extends Controller {
   inflightControllers = new Set();
   _filterTimer = null;
   _filterSeq = 0;
-  _selectSeq = 0;
   selectInflightControllers = new Set();
-  _selectCancelToken = 0;
 
   selectLikeColumns = new Set([
     "migration_status",
@@ -279,23 +277,11 @@ export default class extends Controller {
         select: (e) => {
           const node = e.node;
           const shouldSelect = !!node?.isSelected?.();
-          this._cancelActiveSelection();
 
           if (node?.data?.folder) {
-            const startFilterSeq = this._filterSeq;
-            const startCancelToken = this._selectCancelToken;
-
             setTimeout(() => {
-              if (
-                startFilterSeq !== this._filterSeq ||
-                startCancelToken !== this._selectCancelToken
-              ) {
-                return;
-              }
-
               void this._loadAndSelectDescendants(node, shouldSelect);
             }, 0);
-
             return;
           }
 
@@ -311,8 +297,8 @@ export default class extends Controller {
       this._setupFilterModeToggle();
 
       selectAllButton.addEventListener("click", () => {
-        this._cancelActiveSelection();
-
+        document.getElementById("tree-match-count")?.remove();
+        
         if (!this._hasActiveFilter()) {
           this._updateSelectAllButtonState(
             this.tree.getSelectedNodes().length
@@ -456,7 +442,7 @@ export default class extends Controller {
         this._filterSeq += 1;
         this._cancelInflight();
         this._cancelActiveSearch();
-        this._cancelActiveSelection();
+        document.getElementById("tree-match-count")?.remove();
         input.value = "";
         this._setLoading(false);
         this._runDeepFilter("");
@@ -472,8 +458,7 @@ export default class extends Controller {
     btn.addEventListener("click", () => {
       const input = document.getElementById("tree-filter");
       if (input) input.value = "";
-      
-      this._cancelActiveSelection();
+      document.getElementById("tree-match-count")?.remove();
       this.columnFilters.clear();
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
@@ -594,6 +579,19 @@ export default class extends Controller {
     this.tree.filterNodes(predicate, opts);
     this._updateFilterModeButton();
     this._updateSelectAllButtonState();
+
+    const count = this._countFilteredNodes();
+    this._updateMatchCount(count);
+
+    this._updateFilterModeButton();
+    this._updateSelectAllButtonState();
+
+    let debugCount = 0;
+    this.tree.visitRows((node) => {
+      if (node.statusNodeType) return;
+      debugCount += 1;
+    });
+    console.log("FILTERED ROW COUNT:", debugCount);
   }
 
   // Load and select all descendants for a folder node without blocking UI.
@@ -601,9 +599,6 @@ export default class extends Controller {
     if (!node?.data?.folder) return;
 
     const filterSeq = this._filterSeq;
-    const mySelectSeq = ++this._selectSeq;
-    const myCancelToken = this._selectCancelToken;
-
     const queue = [node];
     let processed = 0;
 
@@ -611,11 +606,7 @@ export default class extends Controller {
 
     try {
       while (queue.length > 0) {
-        if (
-          filterSeq !== this._filterSeq ||
-          mySelectSeq !== this._selectSeq ||
-          myCancelToken !== this._selectCancelToken
-        ) {
+        if (filterSeq !== this._filterSeq) {
           break;
         }
 
@@ -626,30 +617,21 @@ export default class extends Controller {
         await this._hydrateSingleParentByKey(key, filterSeq);
 
         if (
-          filterSeq !== this._filterSeq ||
-          mySelectSeq !== this._selectSeq ||
-          myCancelToken !== this._selectCancelToken
-        ) {
+          filterSeq !== this._filterSeq) {
           break;
         }
 
         await this._ensureAssetsForFolderCancellable(key, filterSeq);
 
         if (
-          filterSeq !== this._filterSeq ||
-          mySelectSeq !== this._selectSeq ||
-          myCancelToken !== this._selectCancelToken
-        ) {
+          filterSeq !== this._filterSeq) {
           break;
         }
 
         const children = current.children || [];
         for (const child of children) {
           if (
-            filterSeq !== this._filterSeq ||
-            mySelectSeq !== this._selectSeq ||
-            myCancelToken !== this._selectCancelToken
-          ) {
+            filterSeq !== this._filterSeq) {
             break;
           }
 
@@ -669,10 +651,7 @@ export default class extends Controller {
       }
     } finally {
       if (
-        filterSeq === this._filterSeq &&
-        mySelectSeq === this._selectSeq &&
-        myCancelToken === this._selectCancelToken
-      ) {
+        filterSeq === this._filterSeq) {
         this._emitSelectionChange();
         this._updateSelectAllButtonState();
       }
@@ -1145,13 +1124,6 @@ export default class extends Controller {
     return ctrl;
   }
 
-  // Creates and tracks an AbortController for selections.
-  _beginSelectFetchGroup() {
-    const ctrl = new AbortController();
-    this.selectInflightControllers.add(ctrl);
-    return ctrl;
-  }
-
   // Cancels all in-flight network requests.
   _cancelInflight() {
     for (const c of this.inflightControllers) { try { c.abort(); } catch {} }
@@ -1162,22 +1134,6 @@ export default class extends Controller {
   _cancelActiveSearch() {
     this._filterSeq += 1;
     this._cancelInflight();
-  }
-
-  // Cancels the selection process
-  _cancelActiveSelection() {
-    this._selectCancelToken += 1;
-    this._selectSeq += 1;
-  }
-
-  // Displays Selecting element when clicking selectAll toggle button.
-  _beginSelectLoading(text = "Selecting…") {
-    this._setLoading(true, text);
-  }
-
-  // Removes the Selecting element when selection is complete.
-  _endSelectLoading() {
-    this._setLoading(false);
   }
 
   // Fetches JSON with abort support.
@@ -1303,6 +1259,51 @@ export default class extends Controller {
     if (this.tree) {
       this.tree.setSelection(false);
     }
+  }
+
+  // Counts the number of matches
+  _countFilteredNodes() {
+    const predicate = this.currentFilterPredicate;
+    if (!predicate) return 0;
+
+    let count = 0;
+
+    this.tree.visit((node) => {
+      if (node.statusNodeType) return;
+      if (predicate(node)) count += 1;
+    });
+
+    return count;
+  }
+
+  // Displays count for query search matches
+  _updateMatchCount(count) {
+    const input = document.getElementById("tree-filter");
+    if (!input) return;
+
+    let el = document.getElementById("tree-match-count");
+    const toolbar = input.closest(".wb-toolbar") || input.parentElement;
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "tree-match-count";
+      el.className = "wb-loading wb-match-count";
+      el.style.position = "absolute";
+      el.style.pointerEvents = "none";
+
+      (toolbar || document.body).appendChild(el);
+    }
+
+    if (toolbar && getComputedStyle(toolbar).position === "static") {
+      toolbar.style.position = "relative";
+    }
+
+    const topOffset = (toolbar.offsetHeight || 0) + 8;
+    el.style.top = `${topOffset}px`;
+    el.style.left = "0";
+    el.style.display = "block";
+
+    el.textContent = `${count.toLocaleString()} matches`;
   }
 
   // Refreshes tree nodes after batch updates.
