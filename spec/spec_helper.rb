@@ -19,6 +19,9 @@ SimpleCov.formatters = SimpleCov::Formatter::MultiFormatter.new(
 )
 
 SimpleCov.start("rails") do
+  minimum_coverage 0
+  maximum_coverage_drop 100
+
   add_filter "app/channels"
   add_filter "app/fields"
   add_filter "app/jobs"

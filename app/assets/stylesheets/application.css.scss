@@ -259,6 +259,10 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   font: 12px/1.6 system-ui, sans-serif;
 }
 
+.wb-loading-style {
+  @extend .wb-loading;
+}
+
 .wb-no-results {
   position: absolute;
   inset: 48px 16px 16px 16px;

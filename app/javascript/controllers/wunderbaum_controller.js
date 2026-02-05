@@ -298,7 +298,7 @@ export default class extends Controller {
 
       selectAllButton.addEventListener("click", () => {
         document.getElementById("tree-match-count")?.remove();
-        
+
         if (!this._hasActiveFilter()) {
           this._updateSelectAllButtonState(
             this.tree.getSelectedNodes().length
@@ -1287,7 +1287,7 @@ export default class extends Controller {
     if (!el) {
       el = document.createElement("div");
       el.id = "tree-match-count";
-      el.className = "wb-loading wb-match-count";
+      el.className = "wb-match-count wb-loading-style";
       el.style.position = "absolute";
       el.style.pointerEvents = "none";
 
