@@ -20,30 +20,16 @@ RSpec.describe "File tree duplicate column", type: :system, js: true do
   end
 
   it "shows a duplicate tag for assets with duplicates" do
-    page.execute_script(<<~JS)
-      (() => {
-        const start = Date.now();
-        const tryExpand = () => {
-          const el = document.querySelector("[data-controller~='wunderbaum']");
-          const controller = window.Stimulus?.getControllerForElementAndIdentifier(el, "wunderbaum");
-          const node = controller?._findNodeByKey?.("#{root_folder.id}");
-          if (node && !node.expanded) {
-            node.setExpanded(true);
-            return;
-          }
-          if (Date.now() - start < 2000) setTimeout(tryExpand, 50);
-        };
-        tryExpand();
-      })();
-    JS
+    within "#tree" do
+      find("i.wb-expander", match: :first).click
 
-    expect(page).to have_selector(".wb-row .wb-title", text: duplicate_asset.isilon_name, wait: 10)
-
-    title = find(".wb-row .wb-title", text: duplicate_asset.isilon_name, wait: 10)
-    row = title.find(:xpath, "./ancestor::div[contains(@class,'wb-row')]")
-
-    within(row) do
-      expect(page).to have_selector(".duplicate-tag", text: "Duplicate", wait: 10, visible: :all)
+      expect(page).to have_selector(".wb-row .wb-title", text: duplicate_asset.isilon_name, wait: 10)
+      expect(page).to have_xpath(
+        "//div[contains(@class,'wb-row')]" \
+        "[.//span[contains(@class,'wb-title')][normalize-space()='#{duplicate_asset.isilon_name}']]" \
+        "//span[contains(@class,'duplicate-tag')][normalize-space()='Duplicate']",
+        wait: 10
+      )
     end
   end
 end
