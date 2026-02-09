@@ -7,6 +7,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
              :file_type, :file_size, :notes,
              :contentdm_collection, :aspace_collection,
              :preservica_reference_id, :aspace_linking_status,
+             :is_duplicate,
              :url, :lazy, :parent_folder_id, :isilon_name, :path
 
   def title
@@ -35,6 +36,10 @@ class IsilonAssetSerializer < ActiveModel::Serializer
 
   def aspace_linking_status
     object.aspace_linking_status || false
+  end
+
+  def is_duplicate
+    object.has_duplicates
   end
 
   def lazy

@@ -102,6 +102,12 @@ export default class extends Controller {
             sortValue: (node) => (node?.data?.assigned_to || "").toString().toLowerCase()
           },
           {
+            id: "is_duplicate",
+            classes: "wb-helper-center",
+            title: "Is Duplicate",
+            width: "150px"
+          },
+          {
             id: "notes",
             classes: "wb-helper-center",
             title: "Notes",
@@ -198,6 +204,17 @@ export default class extends Controller {
             if (isFolder && colId !== "assigned_to" && this.selectLikeColumns.has(colId)) {
               colInfo.elem.replaceChildren();
               colInfo.elem.classList.remove("wb-select-like");
+              continue;
+            }
+
+            if (colId === "is_duplicate") {
+              colInfo.elem.replaceChildren();
+              if (!isFolder && rawValue) {
+                const tag = document.createElement("span");
+                tag.className = "duplicate-tag";
+                tag.textContent = "Duplicate";
+                colInfo.elem.appendChild(tag);
+              }
               continue;
             }
 
