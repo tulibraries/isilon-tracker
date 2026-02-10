@@ -56,6 +56,22 @@ qa_deploy:
     - helm pull oci://$HARBOR/tulibraries/charts/isilon-tracker --untar
     - helm upgrade isilon-tracker oci://$HARBOR/tulibraries/charts/isilon-tracker --history-max=5 --namespace=isilon-tracker-qa --values isilon-tracker/values.yaml --set image.repository=$IMAGE:$VERSION
 
+tag_prod:
+  stage: tag
+  extends: .tag_image
+  variables:
+    TAG: prod
+  only:
+    - tags
+
+tag_release:
+  stage: tag
+  extends: .tag_image
+  variables:
+    TAG: $CI_COMMIT_TAG
+  only:
+    - tags
+
 tag_prod_chart:
   stage: tag
   extends: .tag_image
