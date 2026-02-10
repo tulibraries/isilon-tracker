@@ -93,6 +93,11 @@ export default class extends Controller {
     if (unchangedRadio) {
       unchangedRadio.checked = true
     }
+
+    const notesInput = modal.querySelector('input[name="notes"]')
+    if (notesInput) {
+      notesInput.value = ''
+    }
   }
 
   submitBatchAction(event) {

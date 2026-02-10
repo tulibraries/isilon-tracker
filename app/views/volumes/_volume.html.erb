@@ -132,6 +132,25 @@
               </div>
               <div class="form-text">Set the ASpace linking status for the selected assets</div>
             </div>
+
+            <!-- Notes Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Notes</label>
+              <%= form.select :notes_action,
+                    options_for_select(
+                      [
+                        [ "Unchanged", "" ],
+                        [ "Append", "append" ],
+                        [ "Replace", "replace" ],
+                        [ "Clear (removes all notes)", "clear" ]
+                      ],
+                      ""
+                    ),
+                    {},
+                    { class: "form-select mb-2" } %>
+              <%= form.text_field :notes, class: "form-control", placeholder: "Enter note text" %>
+              <div class="form-text">Append adds “; ” between existing notes and the new text.</div>
+            </div>
             
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
