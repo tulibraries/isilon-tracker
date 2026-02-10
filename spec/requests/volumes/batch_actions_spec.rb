@@ -194,6 +194,56 @@ RSpec.describe "Volumes batch actions", type: :request do
       end
     end
 
+    context "when updating notes" do
+      it "appends notes with a semicolon delimiter" do
+        asset_1.update!(notes: "First note")
+        asset_2.update!(notes: nil)
+
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: "#{asset_1.id},#{asset_2.id}",
+          notes_action: "append",
+          notes: "Second note"
+        }
+
+        expect(response).to have_http_status(:redirect)
+
+        asset_1.reload
+        asset_2.reload
+
+        expect(asset_1.notes).to eq("First note; Second note")
+        expect(asset_2.notes).to eq("Second note")
+        expect(flash[:notice]).to include("notes appended")
+      end
+
+      it "replaces notes even when the new value is blank" do
+        asset_1.update!(notes: "Existing note")
+
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: asset_1.id.to_s,
+          notes_action: "replace",
+          notes: ""
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(asset_1.reload.notes).to eq("")
+        expect(flash[:notice]).to include("notes replaced")
+      end
+
+      it "clears notes for selected assets" do
+        asset_1.update!(notes: "Existing note")
+
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: asset_1.id.to_s,
+          notes_action: "clear",
+          notes: "ignored"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(asset_1.reload.notes).to be_nil
+        expect(flash[:notice]).to include("notes cleared")
+      end
+    end
+
     context "when updating multiple fields simultaneously" do
       it "updates all specified fields for selected assets" do
         patch volume_batch_actions_path(volume), params: {

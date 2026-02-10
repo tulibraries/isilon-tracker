@@ -125,6 +125,25 @@ class BatchActionsController < ApplicationController
       updates_applied << "ASpace linking status to #{status_text}"
     end
 
+    # Update Notes
+    notes_action = params[:notes_action].to_s
+    notes_text = params[:notes].to_s
+
+    case notes_action
+    when "append"
+      if notes_text.strip.present?
+        quoted_notes = ActiveRecord::Base.connection.quote(notes_text)
+        updates[:notes] = Arel.sql("CASE WHEN notes IS NULL OR notes = '' THEN #{quoted_notes} ELSE notes || '; ' || #{quoted_notes} END")
+        updates_applied << "notes appended"
+      end
+    when "replace"
+      updates[:notes] = notes_text
+      updates_applied << "notes replaced"
+    when "clear"
+      updates[:notes] = nil
+      updates_applied << "notes cleared"
+    end
+
     assets_count = assets.count
     return 0 if assets_count == 0
 
