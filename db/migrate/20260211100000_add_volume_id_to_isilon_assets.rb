@@ -13,11 +13,11 @@ class AddVolumeIdToIsilonAssets < ActiveRecord::Migration[7.2]
     SQL
 
     remove_index :isilon_assets, :isilon_path
-    add_index :isilon_assets, [:volume_id, :isilon_path], unique: true
+    add_index :isilon_assets, [ :volume_id, :isilon_path ], unique: true
   end
 
   def down
-    remove_index :isilon_assets, [:volume_id, :isilon_path]
+    remove_index :isilon_assets, [ :volume_id, :isilon_path ]
     add_index :isilon_assets, :isilon_path, unique: true
     remove_reference :isilon_assets, :volume, foreign_key: true, index: false
   end
