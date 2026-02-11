@@ -3,6 +3,7 @@
 FactoryBot.define do
   factory :isilon_asset do
     association :parent_folder, factory: :isilon_folder
+    volume { parent_folder.volume }
 
     sequence(:isilon_name) { |n| "asset_#{n}.txt" }
     isilon_path { File.join(parent_folder.full_path, isilon_name) }
