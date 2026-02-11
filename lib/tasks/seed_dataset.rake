@@ -110,10 +110,11 @@ def create_assets!(folder, amount, reference)
     filename = "#{folder.id}-asset-#{index + 1}.#{extension}"
     isilon_path = "#{folder.full_path}/#{filename}"
 
-    next if IsilonAsset.exists?(isilon_path: isilon_path)
+    next if IsilonAsset.exists?(volume_id: folder.volume_id, isilon_path: isilon_path)
 
     IsilonAsset.create!(
       parent_folder: folder,
+      volume: folder.volume,
       isilon_name: filename,
       isilon_path: isilon_path,
       file_size: rand(5_000..75_000_000).to_s,

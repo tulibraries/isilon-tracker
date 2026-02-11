@@ -1,5 +1,6 @@
 class IsilonAsset < ApplicationRecord
   belongs_to :parent_folder, class_name: "IsilonFolder", foreign_key: "parent_folder_id", optional: true
+  belongs_to :volume, optional: true
   belongs_to :migration_status, optional: true  # optional: true if some records are still NULL
   belongs_to :aspace_collection, optional: true
   belongs_to :contentdm_collection, optional: true
@@ -10,6 +11,7 @@ class IsilonAsset < ApplicationRecord
   has_many :duplicates, -> { distinct }, through: :duplicate_groups, source: :isilon_assets
 
   before_validation :set_default_migration_status, on: :create
+  before_validation :sync_volume_from_parent
 
   def full_path_with_volume
     volume_name = parent_folder&.volume&.name
@@ -25,5 +27,11 @@ class IsilonAsset < ApplicationRecord
 
   def set_default_migration_status
     self.migration_status ||= MigrationStatus.find_by(default: true)
+  end
+
+  def sync_volume_from_parent
+    return unless parent_folder
+
+    self.volume_id = parent_folder.volume_id
   end
 end
