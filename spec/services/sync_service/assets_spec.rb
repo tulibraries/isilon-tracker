@@ -91,4 +91,28 @@ RSpec.describe SyncService::Assets, type: :service do
       end
     end
   end
+
+  describe "directory rows" do
+    it "creates folders for directory rows without creating assets" do
+      csv_file = Tempfile.new([ "assets_sync", ".csv" ])
+      csv_file.write(<<~CSV)
+        Path,Size,Type,Hash,CreatedAt,ModifiedAt
+        /SSDL-Data/SSDL Work/Internal Projects,0,directory,,2023-01-01,2023-01-02
+        /SSDL-Data/SSDL Work/Internal Projects/file.txt,10,text/plain,hash1,2023-01-01,2023-01-02
+      CSV
+      csv_file.close
+
+      described_class.new(csv_path: csv_file.path).sync
+
+      volume = Volume.find_by!(name: "SSDL-Data")
+      folder = IsilonFolder.find_by!(volume_id: volume.id, full_path: "/SSDL Work/Internal Projects")
+
+      expect(IsilonAsset.find_by(isilon_path: "/SSDL Work/Internal Projects")).to be_nil
+
+      asset = IsilonAsset.find_by!(volume_id: volume.id, isilon_path: "/SSDL Work/Internal Projects/file.txt")
+      expect(asset.parent_folder_id).to eq(folder.id)
+    ensure
+      csv_file.unlink
+    end
+  end
 end
