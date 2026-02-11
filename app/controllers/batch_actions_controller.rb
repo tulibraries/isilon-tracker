@@ -13,6 +13,7 @@ class BatchActionsController < ApplicationController
 
     updated_count = 0
     updates_applied = []
+    descendant_folder_ids = []
 
     begin
       ActiveRecord::Base.transaction do
@@ -28,8 +29,13 @@ class BatchActionsController < ApplicationController
         if folder_ids.any?
           folders = @volume.isilon_folders.where(id: folder_ids)
           if folders.any?
-            updated_count += process_folder_updates(folders, updates_applied)
+            descendant_folder_ids = folder_ids_with_descendants(folders.pluck(:id))
+            updated_count += process_folder_updates(descendant_folder_ids, updates_applied)
           end
+        end
+
+        if descendant_folder_ids.any?
+          updated_count += process_descendant_asset_notes(descendant_folder_ids, asset_ids, updates_applied)
         end
       end
 
@@ -126,22 +132,10 @@ class BatchActionsController < ApplicationController
     end
 
     # Update Notes
-    notes_action = params[:notes_action].to_s
-    notes_text = params[:notes].to_s
-
-    case notes_action
-    when "append"
-      if notes_text.strip.present?
-        quoted_notes = ActiveRecord::Base.connection.quote(notes_text)
-        updates[:notes] = Arel.sql("CASE WHEN notes IS NULL OR notes = '' THEN #{quoted_notes} ELSE notes || '; ' || #{quoted_notes} END")
-        updates_applied << "notes appended"
-      end
-    when "replace"
-      updates[:notes] = notes_text
-      updates_applied << "notes replaced"
-    when "clear"
-      updates[:notes] = nil
-      updates_applied << "notes cleared"
+    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+    if notes_updates
+      updates.merge!(notes_updates)
+      add_update_message(updates_applied, notes_message)
     end
 
     assets_count = assets.count
@@ -156,28 +150,78 @@ class BatchActionsController < ApplicationController
     assets_count
   end
 
-  def process_folder_updates(folders, updates_applied)
+  def process_folder_updates(descendant_folder_ids, updates_applied)
     updated_count = 0
+    updates = {}
 
-    # Only assigned_to is supported for folders currently
     if params[:assigned_user_id].present?
       user = nil
       if params[:assigned_user_id] != "unassigned"
         user = User.find(params[:assigned_user_id])
       end
 
-      folder_ids = folder_ids_with_descendants(folders.pluck(:id))
-      if folder_ids.any?
-        folder_ids.each_slice(BATCH_UPDATE_SIZE) do |batch_ids|
-          IsilonFolder.where(id: batch_ids).update_all(assigned_to: user&.id)
-        end
-        updated_count += folder_ids.length
-      end
-
-      updates_applied << "assigned folders to #{user ? user.title : 'unassigned'}"
+      updates[:assigned_to] = user&.id
+      add_update_message(updates_applied, "assigned folders to #{user ? user.title : 'unassigned'}")
     end
 
+    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+    if notes_updates
+      updates.merge!(notes_updates)
+      add_update_message(updates_applied, notes_message)
+    end
+
+    return 0 if updates.empty?
+    return 0 if descendant_folder_ids.empty?
+
+    descendant_folder_ids.each_slice(BATCH_UPDATE_SIZE) do |batch_ids|
+      IsilonFolder.where(id: batch_ids).update_all(updates)
+    end
+    updated_count += descendant_folder_ids.length
+
     updated_count
+  end
+
+  def process_descendant_asset_notes(descendant_folder_ids, excluded_asset_ids, updates_applied)
+    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+    return 0 unless notes_updates
+    return 0 if descendant_folder_ids.empty?
+
+    scope = @volume.isilon_assets.where(parent_folder_id: descendant_folder_ids)
+    scope = scope.where.not(id: excluded_asset_ids) if excluded_asset_ids.any?
+
+    assets_count = scope.count
+    return 0 if assets_count == 0
+
+    scope.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
+      batch.update_all(notes_updates)
+    end
+
+    add_update_message(updates_applied, notes_message)
+    assets_count
+  end
+
+  def notes_update_for_action(notes_action, notes_text)
+    case notes_action
+    when "append"
+      return nil if notes_text.strip.blank?
+
+      quoted_notes = ActiveRecord::Base.connection.quote(notes_text)
+      updates = { notes: Arel.sql("CASE WHEN notes IS NULL OR notes = '' THEN #{quoted_notes} ELSE notes || '; ' || #{quoted_notes} END") }
+      [updates, "notes appended"]
+    when "replace"
+      [{ notes: notes_text }, "notes replaced"]
+    when "clear"
+      [{ notes: nil }, "notes cleared"]
+    else
+      nil
+    end
+  end
+
+  def add_update_message(updates_applied, message)
+    return if message.blank?
+    return if updates_applied.include?(message)
+
+    updates_applied << message
   end
 
   def folder_ids_with_descendants(folder_ids)
