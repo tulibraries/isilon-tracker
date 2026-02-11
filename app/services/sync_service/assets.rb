@@ -50,6 +50,16 @@ module SyncService
 
         # Ensure directory structure exists before bulk insert
         isilon_path = set_full_path(row["Path"])
+        is_directory = row["Type"].to_s.casecmp("directory").zero?
+
+        if is_directory
+          if ensure_directory_structure(isilon_path, include_leaf: true)
+            next
+          else
+            stdout_and_log("Skipping folder with invalid path: #{isilon_path}", level: :error)
+            next
+          end
+        end
 
         if ensure_directory_structure(isilon_path)
           begin
@@ -92,9 +102,9 @@ module SyncService
       batch_imported
     end
 
-    def ensure_directory_structure(isilon_path)
+    def ensure_directory_structure(isilon_path, include_leaf: false)
       all_directories = isilon_path.split("/").compact_blank
-      directories = all_directories[0...-1]
+      directories = include_leaf ? all_directories : all_directories[0...-1]
       return true if directories.empty?
 
       volume = @parent_volume
