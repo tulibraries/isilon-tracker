@@ -1,5 +1,5 @@
 class IsilonFolderSerializer < ActiveModel::Serializer
-  attributes :title, :folder, :id, :lazy,
+  attributes :title, :full_path, :folder, :id, :lazy,
              :assigned_to_id, :assigned_to,
              :parent_folder_id, :path, :key, :notes
 
