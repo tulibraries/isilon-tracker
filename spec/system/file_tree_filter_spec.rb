@@ -59,7 +59,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
   def visit_volume_tree
     visit volume_path(volume)
-    expect(page).to have_content("/LibraryBeta")
+    expect(page).to have_content("LibraryBeta")
   end
 
   it "shows deep matches (folders expand and asset appears) and clears the loading badge" do
@@ -75,6 +75,15 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_content("TUL_OHIST")
     expect(page).to have_content("Scans")
 
+    expect(page).to have_no_css(".wb-loading", wait: 6)
+  end
+
+  it "matches folders by full path when filtering by an ancestor segment" do
+    visit_volume_tree
+
+    fill_in "tree-filter", with: "librarybeta"
+
+    expect(page).to have_content("LibDigital", wait: 12)
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 

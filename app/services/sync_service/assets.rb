@@ -56,6 +56,7 @@ module SyncService
             parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
 
             assets_to_create << {
+              volume_id: @parent_volume.id,
               isilon_path: isilon_path,
               isilon_name: get_name(row["Path"]),
               file_size: row["Size"],

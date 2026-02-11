@@ -572,6 +572,7 @@ export default class extends Controller {
     const predicate = (node) => {
       if (q) {
         const text = String(
+          node.data.full_path ??
           node.data.title ??
           node.data.name ??
           node.title ??
