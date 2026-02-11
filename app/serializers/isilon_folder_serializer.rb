@@ -4,7 +4,8 @@ class IsilonFolderSerializer < ActiveModel::Serializer
              :parent_folder_id, :path, :key, :notes
 
   def title
-    object.full_path
+    name = object.full_path.to_s.split("/").reject(&:blank?).last
+    name.presence || object.full_path
   end
 
   def key
