@@ -207,11 +207,11 @@ class BatchActionsController < ApplicationController
 
       quoted_notes = ActiveRecord::Base.connection.quote(notes_text)
       updates = { notes: Arel.sql("CASE WHEN notes IS NULL OR notes = '' THEN #{quoted_notes} ELSE notes || '; ' || #{quoted_notes} END") }
-      [updates, "notes appended"]
+      [ updates, "notes appended" ]
     when "replace"
-      [{ notes: notes_text }, "notes replaced"]
+      [ { notes: notes_text }, "notes replaced" ]
     when "clear"
-      [{ notes: nil }, "notes cleared"]
+      [ { notes: nil }, "notes cleared" ]
     else
       nil
     end
