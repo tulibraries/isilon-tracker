@@ -3,13 +3,17 @@
     <table>
       <thead>
         <tr>
-          <th>Path (with volume)</th>
+          <th style="width: 60%;">Path (with volume)</th>
+          <th style="width: 20%;">Assigned to</th>
+          <th style="width: 20%;">Migration status</th>
         </tr>
       </thead>
       <tbody>
         <% field.data.each do |duplicate| %>
           <tr>
-            <td><%= link_to duplicate.full_path_with_volume, admin_isilon_asset_path(duplicate) %></td>
+            <td><%= link_to duplicate.full_path_with_volume, edit_admin_isilon_asset_path(duplicate) %></td>
+            <td><%= duplicate.assigned_to&.title || "Unassigned" %></td>
+            <td><%= duplicate.migration_status&.name.to_s %></td>
           </tr>
         <% end %>
       </tbody>
