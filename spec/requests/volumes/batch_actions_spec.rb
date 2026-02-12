@@ -244,6 +244,79 @@ RSpec.describe "Volumes batch actions", type: :request do
       end
     end
 
+    context "when updating notes for folders and descendants" do
+      it "applies notes to selected folders and assets under those folders" do
+        child_folder_1.update!(notes: "Folder note")
+        nested_asset_1.update!(notes: "Asset note")
+        asset_1.update!(notes: "Root asset")
+
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "#{child_folder_1.id},#{child_folder_2.id}",
+          notes_action: "append",
+          notes: "New note"
+        }
+
+        expect(response).to have_http_status(:redirect)
+
+        expect(child_folder_1.reload.notes).to eq("Folder note; New note")
+        expect(child_folder_2.reload.notes).to eq("New note")
+        expect(nested_asset_1.reload.notes).to eq("Asset note; New note")
+        expect(nested_asset_2.reload.notes).to eq("New note")
+        expect(asset_1.reload.notes).to eq("Root asset")
+        expect(flash[:notice]).to include("notes appended")
+      end
+
+      it "does not double-append when assets are explicitly selected" do
+        nested_asset_1.update!(notes: "Asset note")
+
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: child_folder_1.id.to_s,
+          asset_ids: nested_asset_1.id.to_s,
+          notes_action: "append",
+          notes: "New note"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(nested_asset_1.reload.notes).to eq("Asset note; New note")
+      end
+
+      it "replaces notes for selected folders and descendant assets" do
+        child_folder_1.update!(notes: "Folder note")
+        nested_asset_1.update!(notes: "Asset note")
+
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "#{child_folder_1.id},#{child_folder_2.id}",
+          notes_action: "replace",
+          notes: ""
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(child_folder_1.reload.notes).to eq("")
+        expect(child_folder_2.reload.notes).to eq("")
+        expect(nested_asset_1.reload.notes).to eq("")
+        expect(nested_asset_2.reload.notes).to eq("")
+        expect(flash[:notice]).to include("notes replaced")
+      end
+
+      it "clears notes for selected folders and descendant assets" do
+        child_folder_1.update!(notes: "Folder note")
+        nested_asset_1.update!(notes: "Asset note")
+
+        patch volume_batch_actions_path(volume), params: {
+          folder_ids: "#{child_folder_1.id},#{child_folder_2.id}",
+          notes_action: "clear",
+          notes: "ignored"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(child_folder_1.reload.notes).to be_nil
+        expect(child_folder_2.reload.notes).to be_nil
+        expect(nested_asset_1.reload.notes).to be_nil
+        expect(nested_asset_2.reload.notes).to be_nil
+        expect(flash[:notice]).to include("notes cleared")
+      end
+    end
+
     context "when updating multiple fields simultaneously" do
       it "updates all specified fields for selected assets" do
         patch volume_batch_actions_path(volume), params: {
