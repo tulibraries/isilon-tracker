@@ -344,7 +344,7 @@ export default class extends Controller {
         const total = matched.length;
         const verb = allSelected ? "Clearing" : "Selecting";
 
-        this._setLoading(true, `${verb} 0 / ${total}…`);
+        this._setLoading(true, `${verb} 0%`);
 
         setTimeout(async () => {
           const status = document.querySelector(".wb-loading");
@@ -358,14 +358,19 @@ export default class extends Controller {
             if (processed % step === 0) {
               await new Promise(requestAnimationFrame);
               if (status) {
-                status.textContent = `${verb} ${processed} / ${total}…`;
+                const percent = Math.round((processed / total) * 100);
+                status.textContent = `${verb} ${percent}%`;
               }
             }
           }
 
+          if (status) {
+            status.textContent = `${verb} 100%`;
+          }
+
           this._emitSelectionChange();
           this._updateSelectAllButtonState(
-            allSelected ? 0 : total
+            this.tree.getSelectedNodes().length
           );
 
           this._setLoading(false);
@@ -610,7 +615,6 @@ export default class extends Controller {
       if (node.statusNodeType) return;
       debugCount += 1;
     });
-    console.log("FILTERED ROW COUNT:", debugCount);
   }
 
   // Load and select all descendants for a folder node without blocking UI.
@@ -1218,6 +1222,8 @@ export default class extends Controller {
       if (this._loadingCount === 0) {
         statusEl.textContent = "";
         container.style.display = "none";
+        const bar = container.querySelector(".wb-progress");
+        if (bar) bar.remove();
       }
     }
   }
@@ -1333,6 +1339,32 @@ export default class extends Controller {
     el.style.display = "block";
 
     el.textContent = `${count.toLocaleString()} matches`;
+  }
+
+  // Updates or creates the selection progress bar based on processed vs total nodes.
+  _updateProgress(processed, total, label = "Selecting…") {
+    const container = document.querySelector(".wb-loading-container");
+    if (!container) return;
+
+    let bar = container.querySelector(".wb-progress");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "wb-progress";
+      bar.innerHTML = `
+        <div class="wb-progress-label"></div>
+        <div class="wb-progress-track">
+          <div class="wb-progress-fill"></div>
+        </div>
+      `;
+      container.appendChild(bar);
+    }
+
+    const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+    bar.querySelector(".wb-progress-label").textContent =
+      `${label} ${percent}%`;
+
+    bar.querySelector(".wb-progress-fill").style.width = `${percent}%`;
   }
 
   // Refreshes tree nodes after batch updates.
