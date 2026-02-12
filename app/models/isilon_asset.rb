@@ -8,7 +8,7 @@ class IsilonAsset < ApplicationRecord
 
   has_many :duplicate_group_memberships, dependent: :delete_all
   has_many :duplicate_groups, through: :duplicate_group_memberships
-  has_many :duplicates, -> { distinct }, through: :duplicate_groups, source: :isilon_assets
+  has_many :duplicates, -> { distinct.includes(:assigned_to, :migration_status) }, through: :duplicate_groups, source: :isilon_assets
 
   before_validation :set_default_migration_status, on: :create
   before_validation :sync_volume_from_parent
