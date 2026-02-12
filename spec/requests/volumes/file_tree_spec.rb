@@ -128,5 +128,21 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parsed).to eq([])
     end
+
+    it "filters assets by duplicate status" do
+      duplicate_asset = create(:isilon_asset,
+        parent_folder: folder_c,
+        isilon_name: "dup.txt",
+        isilon_path: "#{folder_c.full_path}/dup.txt",
+        has_duplicates: true)
+
+      get "/volumes/#{volume.id}/file_tree_assets_search.json", params: { is_duplicate: "true" }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      ids = body.map { |h| h["id"] }
+      expect(ids).to include(duplicate_asset.id)
+      expect(ids).not_to include(asset.id)
+    end
   end
 end

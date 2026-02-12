@@ -55,6 +55,7 @@ class VolumesController < ApplicationController
     scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
     scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
     scope = scope.where(aspace_linking_status: ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])) if params.key?(:aspace_linking_status)
+    scope = scope.where(has_duplicates: ActiveModel::Type::Boolean.new.cast(params[:is_duplicate])) if params.key?(:is_duplicate)
 
     # Handle unassigned users (assigned_to = nil)
     if params[:assigned_to] == "unassigned"
