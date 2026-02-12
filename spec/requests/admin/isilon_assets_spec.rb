@@ -50,4 +50,65 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
     expect(response.body).to include("Contentdm collection")
     expect(response.body).to include("Contentdm Foo")
   end
+
+  it "renders assigned_to with the user title on the show page" do
+    assignee = FactoryBot.create(:user, name: "Assigned User")
+    asset = IsilonAsset.create!(
+      isilon_name: "Test Asset",
+      isilon_path: "/foo/bar/",
+      assigned_to: assignee
+    )
+
+    get admin_isilon_asset_path(asset)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Assigned to")
+    expect(response.body).to include("Assigned User")
+  end
+
+  it "renders last_updated_by using the matching user title on the show page" do
+    updater = FactoryBot.create(:user, name: "Updater User")
+    asset = IsilonAsset.create!(
+      isilon_name: "Test Asset",
+      isilon_path: "/foo/bar/",
+      last_updated_by: updater.id.to_s
+    )
+
+    get admin_isilon_asset_path(asset)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Last updated by")
+    expect(response.body).to include("Updater User")
+  end
+
+  it "renders assigned_to select but omits last_updated_by on the edit form" do
+    assignee = FactoryBot.create(:user, name: "Assigned User")
+    asset = IsilonAsset.create!(
+      isilon_name: "Test Asset",
+      isilon_path: "/foo/bar/",
+      assigned_to: assignee,
+      last_updated_by: assignee.id.to_s
+    )
+
+    get edit_admin_isilon_asset_path(asset)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Assigned to")
+    expect(response.body).to include("Assigned User")
+    expect(response.body).not_to include("Last updated by")
+  end
+
+  it "renders file size in a human-readable format on the show page" do
+    asset = IsilonAsset.create!(
+      isilon_name: "Test Asset",
+      isilon_path: "/foo/bar/",
+      file_size: "2048"
+    )
+
+    get admin_isilon_asset_path(asset)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("File size")
+    expect(response.body).to include("2 KB")
+  end
 end
