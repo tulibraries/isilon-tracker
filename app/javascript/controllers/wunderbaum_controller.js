@@ -104,6 +104,7 @@ export default class extends Controller {
           {
             id: "is_duplicate",
             classes: "wb-helper-center",
+            filterable: true,
             title: "Is Duplicate",
             width: "150px"
           },
@@ -885,6 +886,11 @@ export default class extends Controller {
       return id == null ? "" : String(id);
     }
 
+    if (colId === "is_duplicate") {
+      if (data.is_duplicate == null) return "";
+      return data.is_duplicate ? "true" : "false";
+    }
+
     return this._normalizeValue(colId, data[colId]);
   }
 
@@ -952,6 +958,11 @@ export default class extends Controller {
       options = this.userOptions || [];
     } else if (colId === "migration_status") {
       options = this.migrationStatusOptions || [];
+    } else if (colId === "is_duplicate") {
+      options = [
+        { value: "true", label: "True" },
+        { value: "false", label: "False" }
+      ];
     } else if (colId === "contentdm_collection_id") {
       options = this.contentdmCollectionOptions || [];
     } else if (colId === "aspace_collection_id") {
