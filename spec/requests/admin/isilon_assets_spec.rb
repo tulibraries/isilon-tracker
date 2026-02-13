@@ -104,6 +104,14 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
       isilon_path: "/foo/bar/",
       file_size: "2048"
     )
+
+    get admin_isilon_asset_path(asset)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("File size")
+    expect(response.body).to include("2 KB")
+  end
+
   it "renders duplicate rows with assigned_to and migration status" do
     assignee = FactoryBot.create(:user, name: "Assigned User")
     status = FactoryBot.create(:migration_status, name: "Needs Review")
@@ -125,8 +133,6 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
     get admin_isilon_asset_path(asset)
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("File size")
-    expect(response.body).to include("2 KB")
     expect(response.body).to include("Path (with volume)")
     expect(response.body).to include("Assigned to")
     expect(response.body).to include("Migration status")
