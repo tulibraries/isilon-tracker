@@ -107,11 +107,11 @@ class BatchActionsController < ApplicationController
     # Update Assigned User
     if params[:assigned_user_id].present?
       if params[:assigned_user_id] == "unassigned"
-        updates[:assigned_to] = nil
+        updates[:assigned_to_id] = nil
         updates_applied << "assigned user to unassigned"
       else
         user = User.find(params[:assigned_user_id])
-        updates[:assigned_to] = user.id
+        updates[:assigned_to_id] = user.id
         updates_applied << "assigned user to #{user.title}"
       end
     end
@@ -160,7 +160,7 @@ class BatchActionsController < ApplicationController
         user = User.find(params[:assigned_user_id])
       end
 
-      updates[:assigned_to] = user&.id
+      updates[:assigned_to_id] = user&.id
       add_update_message(updates_applied, "assigned folders to #{user ? user.title : 'unassigned'}")
     end
 

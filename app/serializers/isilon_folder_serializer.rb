@@ -28,6 +28,7 @@ class IsilonFolderSerializer < ActiveModel::Serializer
     object.assigned_to&.name.to_s.presence || "Unassigned"
   end
 
+
   def path
     return [] if object.respond_to?(:parent_folder_id) && object.parent_folder_id.nil?
 

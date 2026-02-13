@@ -6,7 +6,7 @@ class User < ApplicationRecord
          :timeoutable,
          :omniauthable, omniauth_providers: [ :google_oauth2 ]
 
-  has_many :assigned_assets, class_name: "IsilonAsset", foreign_key: "assigned_to"
+  has_many :assigned_assets, class_name: "IsilonAsset", foreign_key: "assigned_to_id"
   enum :status, { inactive: "inactive", active: "active" }, suffix: true
   before_validation :assign_names_from_name_field
   before_validation :ensure_random_password, if: :new_record?

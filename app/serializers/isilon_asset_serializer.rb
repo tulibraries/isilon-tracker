@@ -62,6 +62,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
     object.assigned_to&.name.to_s.presence || "Unassigned"
   end
 
+
   def contentdm_collection
     object.contentdm_collection&.id.to_s
   end

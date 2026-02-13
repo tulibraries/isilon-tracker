@@ -4,7 +4,7 @@ class IsilonAsset < ApplicationRecord
   belongs_to :migration_status, optional: true  # optional: true if some records are still NULL
   belongs_to :aspace_collection, optional: true
   belongs_to :contentdm_collection, optional: true
-  belongs_to :assigned_to, class_name: "User", foreign_key: "assigned_to", optional: true
+  belongs_to :assigned_to, class_name: "User", optional: true
 
   has_many :duplicate_group_memberships, dependent: :delete_all
   has_many :duplicate_groups, through: :duplicate_group_memberships
@@ -21,15 +21,6 @@ class IsilonAsset < ApplicationRecord
     path = "/#{path}" unless path.start_with?("/")
     "/#{volume_name}#{path}".gsub(%r{//+}, "/")
   end
-
-  def assigned_to_id
-    assigned_to&.id
-  end
-
-  def assigned_to_id=(value)
-    self.assigned_to = value.present? ? User.find(value) : nil
-  end
-
 
   private
 

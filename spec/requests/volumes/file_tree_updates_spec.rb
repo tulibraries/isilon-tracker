@@ -35,6 +35,24 @@ RSpec.describe "FileTreeUpdates", type: :request do
         expect(response).to have_http_status(:ok)
         expect(folder.reload.notes).to eq("Folder note")
       end
+
+      it "updates and persists assigned_to for a folder" do
+        assignee = create(:user, name: "Other User")
+
+        patch file_tree_updates_volume_path(volume), params: {
+          node_id: folder.id,
+          node_type: "folder",
+          field: "assigned_to",
+          value: assignee.id
+        }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(folder.reload.assigned_to).to eq(assignee)
+
+        json = JSON.parse(response.body)
+        expect(json["field"]).to eq("assigned_to_id")
+        expect(json["label"]).to eq("Other User")
+      end
     end
 
     context "with an invalid node_id" do

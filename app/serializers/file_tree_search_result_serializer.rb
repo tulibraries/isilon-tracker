@@ -1,6 +1,6 @@
 class FileTreeSearchResultSerializer < ActiveModel::Serializer
   attributes :id, :folder, :parent_folder_id, :path,
-             :migration_status, :assigned_to
+             :migration_status, :assigned_to_id, :assigned_to
 
   def folder
     folder?
@@ -22,6 +22,11 @@ class FileTreeSearchResultSerializer < ActiveModel::Serializer
   def migration_status
     return nil if folder?
     object.migration_status&.name.to_s
+  end
+
+  def assigned_to_id
+    return nil if folder?
+    object.assigned_to&.id
   end
 
   def assigned_to
