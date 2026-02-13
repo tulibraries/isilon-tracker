@@ -72,10 +72,20 @@
           <hr class="dropdown-divider">
         </li>
         <li class="nav-item dropdown d-lg-none <%= user_signed_in? ? '' : 'd-none' %>" data-session-timeout-signed-in>
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-person-circle"></i>
-            <%= current_user&.name || current_user&.email %>
-          </a>
+          <div class="d-flex align-items-center gap-3">
+            <%= link_to t("navigation.user_guide_url"),
+                        class: "nav-link user-menu-link user-guide-link p-0",
+                        aria: { label: t("navigation.user_guide_label") },
+                        title: t("navigation.user_guide_label"),
+                        target: "_blank",
+                        rel: "noopener" do %>
+              <span class="user-guide-icon" aria-hidden="true">&#xF505;</span>
+            <% end %>
+            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle"></i>
+              <%= current_user&.name || current_user&.email %>
+            </a>
+          </div>
           <ul class="dropdown-menu">
             <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
           </ul>
@@ -91,14 +101,24 @@
   <div class="user-menu-container d-none d-lg-block">
     <div class="<%= user_signed_in? ? '' : 'd-none' %>" data-session-timeout-signed-in>
       <!-- User dropdown -->
-      <div class="dropdown">
-        <a class="nav-link dropdown-toggle d-flex align-items-center user-menu-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-person-circle me-1"></i>
-          <%= current_user&.name || current_user&.email %>
-        </a>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
-        </ul>
+      <div class="d-flex align-items-center gap-3">
+        <%= link_to t("navigation.user_guide_url"),
+                    class: "nav-link user-menu-link user-guide-link p-0",
+                    aria: { label: t("navigation.user_guide_label") },
+                    title: t("navigation.user_guide_label"),
+                    target: "_blank",
+                    rel: "noopener" do %>
+          <span class="user-guide-icon" aria-hidden="true">&#xF505;</span>
+        <% end %>
+        <div class="dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center user-menu-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle me-1"></i>
+            <%= current_user&.name || current_user&.email %>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><%= link_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item" %></li>
+          </ul>
+        </div>
       </div>
     </div>
     <div class="<%= user_signed_in? ? 'd-none' : '' %>" data-session-timeout-signed-out>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_02_02_181000) do
+ActiveRecord::Schema[7.2].define(version: 2026_02_11_100000) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -76,16 +76,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_02_181000) do
     t.integer "contentdm_collection_id"
     t.integer "assigned_to"
     t.boolean "has_duplicates", default: false, null: false
+    t.integer "volume_id"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
     t.index ["assigned_to", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_and_migration_status"
     t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["file_checksum"], name: "index_isilon_assets_on_file_checksum"
     t.index ["has_duplicates"], name: "index_isilon_assets_on_has_duplicates"
-    t.index ["isilon_path"], name: "index_isilon_assets_on_isilon_path", unique: true
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id", "migration_status_id"], name: "index_isilon_assets_on_parent_folder_and_migration_status"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
+    t.index ["volume_id", "isilon_path"], name: "index_isilon_assets_on_volume_id_and_isilon_path", unique: true
   end
 
   create_table "isilon_folders", force: :cascade do |t|
@@ -143,6 +144,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_02_181000) do
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_assets", "migration_statuses"
   add_foreign_key "isilon_assets", "users", column: "assigned_to"
+  add_foreign_key "isilon_assets", "volumes"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_folders", "users", column: "assigned_to"
   add_foreign_key "isilon_folders", "volumes"

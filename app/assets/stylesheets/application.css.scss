@@ -121,6 +121,29 @@ a {
   white-space: normal;
 }
 
+.duplicate-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 10px;
+  border-radius: 0;
+  background-color: #e9d8ff;
+  color: #4a2a7a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.wunderbaum .wb-col[data-colid="is_duplicate"] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 [data-command="filter"].wb-helper-invalid,
 [data-command="filter"].filter-active.wb-helper-invalid {
   color: #2E6F40 !important;

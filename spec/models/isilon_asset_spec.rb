@@ -36,4 +36,33 @@ RSpec.describe IsilonAsset, type: :model do
       expect(other.duplicates).to include(asset, other)
     end
   end
+
+  describe "volume scoping" do
+    it "allows the same isilon_path in different volumes" do
+      volume_a = create(:volume, name: "Volume A")
+      volume_b = create(:volume, name: "Volume B")
+      folder_a = create(:isilon_folder, volume: volume_a, full_path: "/Volume A/alpha")
+      folder_b = create(:isilon_folder, volume: volume_b, full_path: "/Volume B/alpha")
+
+      create(:isilon_asset, parent_folder: folder_a, isilon_name: "file.txt", isilon_path: "/alpha/file.txt")
+
+      expect {
+        create(:isilon_asset, parent_folder: folder_b, isilon_name: "file.txt", isilon_path: "/alpha/file.txt")
+      }.not_to raise_error
+
+      expect(IsilonAsset.where(isilon_path: "/alpha/file.txt").count).to eq(2)
+    end
+
+    it "sets volume from the parent folder when missing" do
+      volume = create(:volume, name: "Volume A")
+      folder = create(:isilon_folder, volume: volume, full_path: "/Volume A/alpha")
+      asset = create(:isilon_asset,
+        parent_folder: folder,
+        volume: nil,
+        isilon_name: "file.txt",
+        isilon_path: "/alpha/file.txt")
+
+      expect(asset.volume).to eq(volume)
+    end
+  end
 end

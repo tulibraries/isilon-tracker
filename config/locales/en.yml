@@ -41,3 +41,6 @@ en:
     stay_signed_in: "Stay signed in"
     error_message: "We couldn't extend your session. Please save your work and sign in again."
     expired_message: "Your session has expired. Please sign in again to continue."
+  navigation:
+    user_guide_label: "Isilon Tracker User Guide"
+    user_guide_url: "https://tuprd.sharepoint.com/:w:/r/sites/TULUP-DCI-DigitalCollectionsInfrastructure/Shared%20Documents/Preservation%20Planning/Migration%20Tools/Isilon%20Tracker%20Tool/Isilon%20Tracker%20User%20Guide.docx?d=wf24fc71a96344d68b14c1c671377ffce&csf=1&web=1&e=cLmcCS"

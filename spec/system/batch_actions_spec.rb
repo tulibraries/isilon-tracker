@@ -65,6 +65,11 @@ RSpec.describe "Batch Actions", type: :system, js: true do
         expect(page).to have_select("migration_status_id")
         expect(page).to have_select("assigned_user_id")
         expect(page).to have_select("aspace_collection_id")
+        expect(page).to have_select(
+          "notes_action",
+          with_options: [ "Unchanged", "Append", "Replace", "Clear (removes all notes)" ]
+        )
+        expect(page).to have_field("notes")
         expect(page).to have_field("aspace_linking_unchanged", checked: true)
       end
     end

@@ -1,10 +1,11 @@
 class IsilonFolderSerializer < ActiveModel::Serializer
-  attributes :title, :folder, :id, :lazy,
+  attributes :title, :full_path, :folder, :id, :lazy,
              :assigned_to_id, :assigned_to,
              :parent_folder_id, :path, :key, :notes
 
   def title
-    object.full_path
+    name = object.full_path.to_s.split("/").reject(&:blank?).last
+    name.presence || object.full_path
   end
 
   def key
