@@ -98,6 +98,24 @@ RSpec.describe "Admin::IsilonAssets", type: :request do
     expect(response.body).not_to include("Last updated by")
   end
 
+  it "allows clearing assigned_to on update" do
+    assignee = FactoryBot.create(:user, name: "Assigned User")
+    asset = IsilonAsset.create!(
+      isilon_name: "Test Asset",
+      isilon_path: "/foo/bar/",
+      assigned_to: assignee
+    )
+
+    patch admin_isilon_asset_path(asset), params: {
+      isilon_asset: {
+        assigned_to_id: ""
+      }
+    }
+
+    expect(response).not_to have_http_status(:internal_server_error)
+    expect(asset.reload.assigned_to).to be_nil
+  end
+
   it "renders file size in a human-readable format on the show page" do
     asset = IsilonAsset.create!(
       isilon_name: "Test Asset",

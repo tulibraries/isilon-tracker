@@ -22,6 +22,14 @@ class IsilonAsset < ApplicationRecord
     "/#{volume_name}#{path}".gsub(%r{//+}, "/")
   end
 
+  def assigned_to_id
+    assigned_to&.id
+  end
+
+  def assigned_to_id=(value)
+    self.assigned_to = value.present? ? User.find(value) : nil
+  end
+
 
   private
 
