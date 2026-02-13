@@ -11,8 +11,10 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   ATTRIBUTE_TYPES = {
     id: Field::Number,
     aspace_collection: Field::BelongsTo,
-    aspace_linking_status: Field::String,
-    assigned_to: Field::String,
+    aspace_linking_status: Field::Select.with_options(
+      collection: ->(_field) { [ [ "", "" ], [ "True", "true" ], [ "False", "false" ] ] }
+    ),
+    assigned_to: Field::BelongsTo.with_options(class_name: "User"),
     contentdm_collection: Field::BelongsTo,
     date_created_in_isilon: Field::String,
     duplicates: DuplicatesField.with_options(
@@ -20,13 +22,13 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     ),
     has_duplicates: HasDuplicatesField,
     file_checksum: Field::String,
-    file_size: Field::String,
+    file_size: FileSizeField,
     file_type: Field::String,
     isilon_name: Field::String,
     isilon_path: Field::String,
     full_path_with_volume: Field::String,
     last_modified_in_isilon: Field::String,
-    last_updated_by: Field::String,
+    last_updated_by: LastUpdatedByField,
     migration_status: Field::BelongsTo,
     notes: Field::Text,
     preservica_reference_id: Field::String,
@@ -56,8 +58,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     id
     migration_status
     isilon_name
-    isilon_path
-    parent_folder
     full_path_with_volume
     date_created_in_isilon
     last_modified_in_isilon
@@ -82,7 +82,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
   FORM_ATTRIBUTES = %i[
     migration_status
     isilon_name
-    isilon_path
+    full_path_with_volume
     date_created_in_isilon
     last_modified_in_isilon
     file_size
@@ -94,7 +94,6 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     preservica_reference_id
     notes
     assigned_to
-    last_updated_by
   ].freeze
 
   # COLLECTION_FILTERS
