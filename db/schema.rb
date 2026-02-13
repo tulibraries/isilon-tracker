@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_02_11_100000) do
+ActiveRecord::Schema[7.2].define(version: 2026_02_13_143000) do
   create_table "admins", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -74,12 +74,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_11_100000) do
     t.integer "migration_status_id"
     t.integer "aspace_collection_id"
     t.integer "contentdm_collection_id"
-    t.integer "assigned_to"
+    t.integer "assigned_to_id"
     t.boolean "has_duplicates", default: false, null: false
     t.integer "volume_id"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
-    t.index ["assigned_to", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_and_migration_status"
-    t.index ["assigned_to"], name: "index_isilon_assets_on_assigned_to"
+    t.index ["assigned_to_id", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_id_and_migration_status"
+    t.index ["assigned_to_id"], name: "index_isilon_assets_on_assigned_to_id"
     t.index ["contentdm_collection_id"], name: "index_isilon_assets_on_contentdm_collection_id"
     t.index ["file_checksum"], name: "index_isilon_assets_on_file_checksum"
     t.index ["has_duplicates"], name: "index_isilon_assets_on_has_duplicates"
@@ -95,9 +95,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_11_100000) do
     t.integer "parent_folder_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "assigned_to"
+    t.integer "assigned_to_id"
     t.text "notes"
-    t.index ["assigned_to"], name: "index_isilon_folders_on_assigned_to"
+    t.index ["assigned_to_id"], name: "index_isilon_folders_on_assigned_to_id"
     t.index ["parent_folder_id"], name: "index_isilon_folders_on_parent_folder_id"
     t.index ["volume_id", "full_path"], name: "index_isilon_folders_on_volume_id_and_full_path", unique: true
     t.index ["volume_id"], name: "index_isilon_folders_on_volume_id"
@@ -143,9 +143,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_11_100000) do
   add_foreign_key "isilon_assets", "contentdm_collections"
   add_foreign_key "isilon_assets", "isilon_folders", column: "parent_folder_id"
   add_foreign_key "isilon_assets", "migration_statuses"
-  add_foreign_key "isilon_assets", "users", column: "assigned_to"
+  add_foreign_key "isilon_assets", "users", column: "assigned_to_id"
   add_foreign_key "isilon_assets", "volumes"
   add_foreign_key "isilon_folders", "isilon_folders", column: "parent_folder_id"
-  add_foreign_key "isilon_folders", "users", column: "assigned_to"
+  add_foreign_key "isilon_folders", "users", column: "assigned_to_id"
   add_foreign_key "isilon_folders", "volumes"
 end

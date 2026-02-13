@@ -99,7 +99,11 @@ export default class extends Controller {
             filterable: true,
             title: "Assigned To",
             width: "175px",
-            sortValue: (node) => (node?.data?.assigned_to || "").toString().toLowerCase()
+            sortValue: (node) => {
+              const label = node?.data?.assigned_to ||
+                this._optionLabelFor("assigned_to", node?.data?.assigned_to_id);
+              return (label || "").toString().toLowerCase();
+            }
           },
           {
             id: "is_duplicate",
@@ -200,7 +204,10 @@ export default class extends Controller {
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
-            let rawValue = this._normalizeValue(colId, node.data[colId]);
+            let rawValue = this._normalizeValue(
+              colId,
+              colId === "assigned_to" ? node.data.assigned_to_id : node.data[colId]
+            );
 
             if (isFolder && colId !== "assigned_to" && this.selectLikeColumns.has(colId)) {
               colInfo.elem.replaceChildren();
@@ -228,7 +235,11 @@ export default class extends Controller {
             let displayValue = rawValue ?? "";
 
             if (this.selectLikeColumns.has(colId)) {
-              displayValue = this._optionLabelFor(colId, rawValue);
+              if (colId === "assigned_to" && node.data?.assigned_to) {
+                displayValue = node.data.assigned_to;
+              } else {
+                displayValue = this._optionLabelFor(colId, rawValue);
+              }
             }
 
             colInfo.elem.dataset.colid = colId;
@@ -288,7 +299,13 @@ export default class extends Controller {
           const colId = e.info.colId;
           const value = util.getValueFromElem(e.inputElem, true);
 
-          e.node.data[colId] = value;
+          if (colId === "assigned_to") {
+            const label = this._optionLabelFor("assigned_to", value);
+            e.node.data.assigned_to_id = value === "unassigned" ? null : value;
+            e.node.data.assigned_to = label;
+          } else {
+            e.node.data[colId] = value;
+          }
           this._saveCellChange(e.node, colId, value);
         },
 
@@ -881,7 +898,7 @@ export default class extends Controller {
   // Normalizes column values for predicate comparisons.
   _filterValueFor(colId, data = {}) {
     if (colId === "assigned_to") {
-      const id = data.assigned_to_id ?? data.assigned_to;
+      const id = data.assigned_to_id;
       return (id == null || id === "") ? "unassigned" : String(id);
     }
 

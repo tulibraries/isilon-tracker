@@ -14,7 +14,7 @@ class IsilonAssetDashboard < Administrate::BaseDashboard
     aspace_linking_status: Field::Select.with_options(
       collection: ->(_field) { [ [ "", "" ], [ "True", "true" ], [ "False", "false" ] ] }
     ),
-    assigned_to: AssignedToField.with_options(class_name: "User"),
+    assigned_to: Field::BelongsTo.with_options(class_name: "User"),
     contentdm_collection: Field::BelongsTo,
     date_created_in_isilon: Field::String,
     duplicates: DuplicatesField.with_options(

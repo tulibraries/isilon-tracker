@@ -51,7 +51,7 @@ class VolumesController < ApplicationController
 
     # Column filters
     scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
-    scope = scope.where(assigned_to: params[:assigned_to]) if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+    scope = scope.where(assigned_to_id: params[:assigned_to]) if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
     scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
     scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
     scope = scope.where(aspace_linking_status: ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])) if params.key?(:aspace_linking_status)
@@ -59,7 +59,7 @@ class VolumesController < ApplicationController
 
     # Handle unassigned users (assigned_to = nil)
     if params[:assigned_to] == "unassigned"
-      scope = scope.where(assigned_to: [ nil, "" ])
+      scope = scope.where(assigned_to_id: nil)
     end
 
     assets = scope.includes(parent_folder: :parent_folder).limit(500)
@@ -91,21 +91,21 @@ class VolumesController < ApplicationController
       end
 
     field_map = {
-      "migration_status" => "migration_status_id"
+      "migration_status" => "migration_status_id",
+      "assigned_to" => "assigned_to_id"
     }
 
     db_field = field_map[params[:field]] || params[:field]
     value    = params[:value]
 
-    # Handle assigned_to specially - it's an association, not a direct field
-    if db_field == "assigned_to"
+    if db_field == "assigned_to_id"
       if value.present? && value != "unassigned"
         user = User.find_by(id: value.to_i)
         unless user
           return render json: { status: "error", errors: [ "User not found" ] },
                         status: :unprocessable_entity
         end
-        value = user
+        value = user.id
       else
         value = nil  # unassigned
       end
@@ -120,7 +120,7 @@ class VolumesController < ApplicationController
       aspace_collection_id
       preservica_reference_id
       aspace_linking_status
-      assigned_to
+      assigned_to_id
       notes
     ]
 
@@ -139,6 +139,7 @@ class VolumesController < ApplicationController
         case db_field
         when "contentdm_collection_id" then record.contentdm_collection&.name
         when "aspace_collection_id"    then record.aspace_collection&.name
+        when "assigned_to_id"          then record.assigned_to&.name
         else record[db_field]
         end
 
