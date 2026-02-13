@@ -41,7 +41,14 @@ bundle exec rails runner "pwd = SecureRandom.alphanumeric(16); u = User.create!(
 
 * Ingest sample sample data from the repo, if needed (file included in the repo). 
 
-`bundle exec rails sync:assets[scan_output.applications-backup.csv]`
+```
+bundle exec rails sync:assets[scan_output.applications-backup.csv]
+
+# Run these after full assets ingest is complete.
+bundle exec rails sync:cleanup_folder_assets
+bundle exec rails duplicates:detect
+```
+
 
 In some zsh shells with nomatch turned on, escaping the brackets in this command may be necessary. Alternatively, quote the entire task portion of the command, or add "setopt +o nomatch" to your ~/.zshrc profile to prevent zsh from requiring bracket escaping in Rails commands.
 
