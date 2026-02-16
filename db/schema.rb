@@ -97,6 +97,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_16_154353) do
     t.datetime "updated_at", null: false
     t.integer "assigned_to_id"
     t.text "notes"
+    t.boolean "has_descendant_assets", default: false, null: false
     t.integer "descendant_assets_count", default: 0, null: false
     t.index ["assigned_to_id"], name: "index_isilon_folders_on_assigned_to_id"
     t.index ["descendant_assets_count"], name: "index_isilon_folders_on_descendant_assets_count"

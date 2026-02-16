@@ -47,6 +47,26 @@ namespace :sync do
     puts "Deleted #{count} asset(s)"
   end
 
+  desc "Post-ingest housekeeping: cleanup folder-assets, backfill folder counts, detect duplicates"
+  task :post_ingest, [ :volume_name ] => :environment do |_t, args|
+    args.with_defaults(volume_name: nil)
+
+    volume_name = args[:volume_name]
+
+    puts "Running post-ingest housekeeping..."
+
+    Rake::Task["sync:cleanup_folder_assets"].reenable
+    Rake::Task["sync:cleanup_folder_assets"].invoke(volume_name)
+
+    Rake::Task["folders:backfill_counts"].reenable
+    Rake::Task["folders:backfill_counts"].invoke
+
+    Rake::Task["duplicates:detect"].reenable
+    Rake::Task["duplicates:detect"].invoke
+
+    puts "Post-ingest housekeeping complete."
+  end
+
   desc "Export TIFF rule matches without updating migration_status"
   task :tiffs_export, [ :output_path, :volume_name ] => :environment do |_t, args|
     args.with_defaults(output_path: nil, volume_name: nil)
