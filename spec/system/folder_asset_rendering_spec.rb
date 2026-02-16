@@ -8,7 +8,18 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
       :isilon_folder,
       volume: volume,
       parent_folder: nil,
-      full_path: "RootFolder"
+      full_path: "RootFolder",
+      has_descendant_assets: true
+    )
+  end
+
+  let!(:empty_folder) do
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: nil,
+      full_path: "EmptyFolder",
+      has_descendant_assets: false
     )
   end
 
@@ -67,5 +78,21 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
     expect(asset_row).to have_css("[data-colid='aspace_collection_id']")
     expect(asset_row).to have_css("[data-colid='preservica_reference_id']")
     expect(asset_row).to have_css("input[type='checkbox']")
+  end
+
+  it "adds a class for empty folders" do
+    empty_title = page
+      .all(".wb-title", visible: true)
+      .find { |title| title.text == "EmptyFolder" }
+
+    expect(empty_title).to be_present
+    expect(empty_title[:class]).to include("wb-title-empty")
+
+    non_empty_title = page
+      .all(".wb-title", visible: true)
+      .find { |title| title.text == "RootFolder" }
+
+    expect(non_empty_title).to be_present
+    expect(non_empty_title[:class]).not_to include("wb-title-empty")
   end
 end

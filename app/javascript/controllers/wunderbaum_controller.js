@@ -266,6 +266,13 @@ export default class extends Controller {
             titleElem.innerHTML =
               `<a href="${node.data.url}" class="asset-link" target="_blank" rel="noopener" data-turbo="false">${node.title}</a>`;
           }
+
+          if (isFolder) {
+            const isEmpty = node.data.has_descendant_assets === false;
+            titleElem.classList.toggle("wb-title-empty", isEmpty);
+          } else {
+            titleElem.classList.remove("wb-title-empty");
+          }
         },
         
         buttonClick: (e) => {
