@@ -65,4 +65,25 @@ RSpec.describe IsilonAsset, type: :model do
       expect(asset.volume).to eq(volume)
     end
   end
+
+  describe "descendant_assets_count" do
+    let!(:root) { create(:isilon_folder) }
+    let!(:child) { create(:isilon_folder, parent_folder: root) }
+
+    it "increments counts up the tree when asset is created" do
+      expect {
+        create(:isilon_asset, parent_folder: child)
+      }.to change { child.reload.descendant_assets_count }.by(1)
+      .and change { root.reload.descendant_assets_count }.by(1)
+    end
+
+    it "decrements counts when asset is destroyed" do
+      asset = create(:isilon_asset, parent_folder: child)
+
+      expect {
+        asset.destroy
+      }.to change { child.reload.descendant_assets_count }.by(-1)
+      .and change { root.reload.descendant_assets_count }.by(-1)
+    end
+  end
 end

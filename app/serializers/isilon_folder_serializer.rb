@@ -1,6 +1,6 @@
 class IsilonFolderSerializer < ActiveModel::Serializer
   attributes :title, :full_path, :folder, :id, :lazy,
-             :assigned_to_id, :assigned_to,
+             :assigned_to_id, :assigned_to, :descendant_assets_count,
              :parent_folder_id, :path, :key, :notes
 
   def title
@@ -28,6 +28,10 @@ class IsilonFolderSerializer < ActiveModel::Serializer
     object.assigned_to&.name.to_s.presence || "Unassigned"
   end
 
+  def descendant_assets_count
+    return nil unless object.is_a?(IsilonFolder)
+    object.descendant_assets_count
+  end
 
   def path
     return [] if object.respond_to?(:parent_folder_id) && object.parent_folder_id.nil?
