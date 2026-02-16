@@ -262,6 +262,16 @@ export default class extends Controller {
 
           if (isFolder) {
             titleElem.textContent = node.title || "";
+
+            const count = node.data?.descendant_assets_count;
+            if (count != null) {
+              const badge = document.createElement("span");
+              badge.className = "wb-badge";
+              badge.textContent = count;
+              badge.title = `${count} assets`;
+              badge.style.marginLeft = "6px";
+              titleElem.appendChild(badge);
+            }
           } else {
             titleElem.innerHTML =
               `<a href="${node.data.url}" class="asset-link" target="_blank" rel="noopener" data-turbo="false">${node.title}</a>`;

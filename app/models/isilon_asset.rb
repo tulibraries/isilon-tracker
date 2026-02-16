@@ -13,6 +13,10 @@ class IsilonAsset < ApplicationRecord
   before_validation :set_default_migration_status, on: :create
   before_validation :sync_volume_from_parent
 
+  after_create :increment_folder_counts
+  after_destroy :decrement_folder_counts
+  after_update :handle_folder_move
+
   def full_path_with_volume
     volume_name = parent_folder&.volume&.name
     return isilon_path unless volume_name.present?
@@ -20,6 +24,30 @@ class IsilonAsset < ApplicationRecord
     path = isilon_path.to_s
     path = "/#{path}" unless path.start_with?("/")
     "/#{volume_name}#{path}".gsub(%r{//+}, "/")
+  end
+
+  def increment_folder_counts
+    update_ancestors(parent_folder_id, 1)
+  end
+
+  def decrement_folder_counts
+    update_ancestors(parent_folder_id, -1)
+  end
+
+  def handle_folder_move
+    if saved_change_to_parent_folder_id?
+      old_id, new_id = saved_change_to_parent_folder_id
+      update_ancestors(old_id, -1) if old_id
+      update_ancestors(new_id, 1) if new_id
+    end
+  end
+
+  def update_ancestors(folder_id, delta)
+    folder = IsilonFolder.find_by(id: folder_id)
+    while folder
+      folder.increment!(:descendant_assets_count, delta)
+      folder = folder.parent_folder
+    end
   end
 
   private

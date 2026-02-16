@@ -60,6 +60,18 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       ids = body.map { |h| h["id"] }
       expect(ids).to include(root.id)
     end
+
+    let!(:folder) { create(:isilon_folder, volume: volume) }
+
+    it "returns correct descendant_assets_count" do
+      create_list(:isilon_asset, 3, parent_folder: folder)
+
+      get file_tree_volume_path(volume, format: :json)
+
+      json = JSON.parse(response.body)
+      match = json.find { |h| h["id"] == folder.id }
+      expect(match["descendant_assets_count"]).to eq(3)
+    end
   end
 
   describe "GET /volumes/:id/file_tree_assets" do

@@ -10,4 +10,10 @@ RSpec.describe IsilonFolderSerializer do
 
     expect(serialized[:notes]).to eq("Serializer note")
   end
+
+  it "includes descendant_assets_count for folders" do
+    folder = create(:isilon_folder, descendant_assets_count: 5)
+    json = IsilonFolderSerializer.new(folder).as_json
+    expect(json[:descendant_assets_count]).to eq(5)
+  end
 end
