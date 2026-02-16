@@ -100,6 +100,26 @@ namespace :sync do
     puts "Updated folder descendant flags."
   end
 
+  desc "Post-ingest housekeeping: cleanup folder-assets, refresh empty-folder flags, detect duplicates"
+  task :post_ingest, [ :volume_name ] => :environment do |_t, args|
+    args.with_defaults(volume_name: nil)
+
+    volume_name = args[:volume_name]
+
+    puts "Running post-ingest housekeeping..."
+
+    Rake::Task["sync:cleanup_folder_assets"].reenable
+    Rake::Task["sync:cleanup_folder_assets"].invoke(volume_name)
+
+    Rake::Task["sync:refresh_folder_descendant_assets"].reenable
+    Rake::Task["sync:refresh_folder_descendant_assets"].invoke(volume_name)
+
+    Rake::Task["duplicates:detect"].reenable
+    Rake::Task["duplicates:detect"].invoke
+
+    puts "Post-ingest housekeeping complete."
+  end
+
   desc "Export TIFF rule matches without updating migration_status"
   task :tiffs_export, [ :output_path, :volume_name ] => :environment do |_t, args|
     args.with_defaults(output_path: nil, volume_name: nil)
