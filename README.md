@@ -44,9 +44,9 @@ bundle exec rails runner "pwd = SecureRandom.alphanumeric(16); u = User.create!(
 ```
 bundle exec rails sync:assets[scan_output.applications-backup.csv]
 
-# Run these after full assets ingest is complete.
-bundle exec rails sync:cleanup_folder_assets
-bundle exec rails duplicates:detect
+# Run this after full assets ingest is complete. 
+
+bundle exec rails sync:post_ingest
 ```
 
 
