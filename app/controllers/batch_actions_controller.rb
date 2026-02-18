@@ -118,9 +118,14 @@ class BatchActionsController < ApplicationController
 
     # Update ASpace Collection
     if params[:aspace_collection_id].present?
-      aspace_collection = AspaceCollection.find(params[:aspace_collection_id])
-      updates[:aspace_collection_id] = aspace_collection.id
-      updates_applied << "ASpace collection to #{aspace_collection.name}"
+      if params[:aspace_collection_id] == "none"
+        updates[:aspace_collection_id] = nil
+        updates_applied << "ASpace collection cleared"
+      else
+        aspace_collection = AspaceCollection.find(params[:aspace_collection_id])
+        updates[:aspace_collection_id] = aspace_collection.id
+        updates_applied << "ASpace collection to #{aspace_collection.name}"
+      end
     end
 
     # Update ASpace Linking Status

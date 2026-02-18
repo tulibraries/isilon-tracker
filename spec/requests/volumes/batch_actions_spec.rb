@@ -146,6 +146,29 @@ RSpec.describe "Volumes batch actions", type: :request do
 
         expect(flash[:notice]).to include("ASpace collection to Collection B")
       end
+
+      it "clears ASpace collection for selected assets" do
+        asset_1.update!(aspace_collection: aspace_collection_2)
+        asset_2.update!(aspace_collection: aspace_collection_2)
+
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: "#{asset_1.id},#{asset_2.id}",
+          aspace_collection_id: "none"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+
+        asset_1.reload
+        asset_2.reload
+        asset_3.reload
+
+        expect(asset_1.aspace_collection).to be_nil
+        expect(asset_2.aspace_collection).to be_nil
+        expect(asset_3.aspace_collection).to eq(aspace_collection_1)
+
+        expect(flash[:notice]).to include("ASpace collection cleared")
+      end
     end
 
     context "when updating ASpace linking status" do

@@ -106,7 +106,7 @@
             <div class="mb-4">
               <label class="form-label fw-bold">ASpace Collection</label>
               <%= form.select :aspace_collection_id, 
-                    options_for_select([['Unchanged', '']] + AspaceCollection.all.map { |ac| [ac.name, ac.id] }, ''), 
+                    options_for_select([['Unchanged', ''], ['None', 'none']] + AspaceCollection.all.map { |ac| [ac.name, ac.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Set the ASpace collection for the selected assets</div>

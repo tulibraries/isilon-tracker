@@ -1008,7 +1008,14 @@ export default class extends Controller {
       options = [...values].sort().map(v => ({ value: v, label: v }));
     }
 
+    const allowInlineClear =
+      isInline &&
+      (colId === "contentdm_collection_id" || colId === "aspace_collection_id");
+
     options = options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+    if (allowInlineClear) {
+      options.unshift({ value: "", label: "None" });
+    }
 
     for (const o of options) {
       const opt = document.createElement("option");
