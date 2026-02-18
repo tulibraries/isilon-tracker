@@ -27,10 +27,15 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
            full_path: "#{folder_b.full_path}/Scans")
   end
 
+  let!(:aspace_collection) { create(:aspace_collection, name: "Spec ASpace") }
+  let!(:contentdm_collection) { create(:contentdm_collection, name: "Spec ContentDM") }
+
   let!(:asset) do
     create(:isilon_asset, parent_folder: folder_c,
            isilon_name: "scan_beta_001.tif",
-           isilon_path: "#{folder_c.full_path}/scan_beta_001.tif")
+           isilon_path: "#{folder_c.full_path}/scan_beta_001.tif",
+           aspace_collection: aspace_collection,
+           contentdm_collection: contentdm_collection)
   end
 
   def parsed
@@ -90,6 +95,8 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(keys).to include("a-#{asset.id}")
       match = body.find { |h| h["key"] == "a-#{asset.id}" }
       expect(match["path"]).to eq([ root.id, folder_a.id, folder_b.id, folder_c.id ])
+      expect(match["aspace_collection_id"]).to eq(aspace_collection.id)
+      expect(match["contentdm_collection_id"]).to eq(contentdm_collection.id)
     end
   end
 
