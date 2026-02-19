@@ -27,7 +27,8 @@
     "wunderbaum": "^0.13.0"
   },
   "resolutions": {
-    "minimist": "^1.2.6"
+    "minimist": "^1.2.6",
+    "minimatch": "^10.2.1"
   },
   "browserslist": [
     "defaults"
