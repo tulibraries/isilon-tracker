@@ -102,7 +102,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id", with_options: [ "Unchanged", "Needs Review", "In Progress" ])
         expect(page).to have_select("assigned_user_id", with_options: [ "Unchanged", "Unassigned" ])
-        expect(page).to have_select("aspace_collection_id", with_options: [ "Unchanged", "Collection A", "Collection B" ])
+        expect(page).to have_select("aspace_collection_id", with_options: [ "Unchanged", "None", "Collection A", "Collection B" ])
       end
     end
 

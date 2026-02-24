@@ -5,7 +5,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
              :migration_status_id, :migration_status,
              :assigned_to_id, :assigned_to,
              :file_type, :file_size, :notes,
-             :contentdm_collection, :aspace_collection,
+             :contentdm_collection_id, :aspace_collection_id,
              :preservica_reference_id, :aspace_linking_status,
              :is_duplicate,
              :url, :lazy, :parent_folder_id, :isilon_name, :path
@@ -63,12 +63,12 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   end
 
 
-  def contentdm_collection
-    object.contentdm_collection&.id.to_s
+  def contentdm_collection_id
+    object.contentdm_collection&.id
   end
 
-  def aspace_collection
-    object.aspace_collection&.id.to_s
+  def aspace_collection_id
+    object.aspace_collection&.id
   end
 
   def path

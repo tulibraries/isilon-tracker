@@ -967,6 +967,7 @@ export default class extends Controller {
   // Renders and positions the column filter dropdown.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
     const isInline = typeof opts.onSelect === "function";
+    const currentValue = opts.currentValue;
 
     const existing = document.querySelector(`[data-popup-for='${colId}']`);
     if (existing) {
@@ -1008,7 +1009,14 @@ export default class extends Controller {
       options = [...values].sort().map(v => ({ value: v, label: v }));
     }
 
+    const allowInlineClear =
+      isInline &&
+      (colId === "contentdm_collection_id" || colId === "aspace_collection_id");
+
     options = options.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+    if (allowInlineClear) {
+      options.unshift({ value: "", label: "None" });
+    }
 
     for (const o of options) {
       const opt = document.createElement("option");
@@ -1031,7 +1039,11 @@ export default class extends Controller {
     }
 
     if (isInline) {
-      select.value = "";
+      if (currentValue != null) {
+        select.value = String(currentValue);
+      } else {
+        select.value = "";
+      }
     } else {
       select.value = this.columnFilters.has(colId)
         ? String(this.columnFilters.get(colId))
@@ -1124,6 +1136,7 @@ export default class extends Controller {
   // Opens the shared dropdown popup to edit a cell value inline instead of applying a column filter
   _showInlineEditor(cell, node, colId) {
     this._showDropdownFilter(cell, colId, null, {
+      currentValue: this._normalizeValue(colId, node.data[colId]),
       onSelect: (value) => {
         const normalized = this._normalizeValue(colId, value);
         node.data[colId] = normalized;
