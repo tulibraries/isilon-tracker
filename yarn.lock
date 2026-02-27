@@ -638,7 +638,7 @@ microplugin@0.0.3:
   resolved "https://registry.yarnpkg.com/microplugin/-/microplugin-0.0.3.tgz#1fc2e1bb7c9e19e82bd84bba9137bbe71250d8cd"
   integrity sha512-3wKXex4/iyALV0GX2juow66J9dabkEMgHeZAihdLTaRTzm0N+RubXioNPpfIQDPuBRxr3JbjNt7B0Lr/3yE9yQ==
 
-minimatch@^10.2.1, minimatch@^3.1.2:
+minimatch@^10.2.1:
   version "10.2.1"
   resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-10.2.1.tgz#9d82835834cdc85d5084dd055e9a4685fa56e5f0"
   integrity sha512-MClCe8IL5nRRmawL6ib/eT4oLyeKMGCghibcDWK+J0hh0Q8kqSdia6BvbRMVk6mPa6WqUa5uR2oxt6C5jd533A==
@@ -670,15 +670,15 @@ node-releases@^2.0.26:
   resolved "https://registry.yarnpkg.com/node-releases/-/node-releases-2.0.27.tgz#eedca519205cf20f650f61d56b070db111231e4e"
   integrity sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==
 
-nodemon@^3.1.10:
-  version "3.1.10"
-  resolved "https://registry.yarnpkg.com/nodemon/-/nodemon-3.1.10.tgz#5015c5eb4fffcb24d98cf9454df14f4fecec9bc1"
-  integrity sha512-WDjw3pJ0/0jMFmyNDp3gvY2YizjLmmOUQo6DEBY+JgdvW/yQ9mEeSw6H5ythl5Ny2ytb7f9C2nIbjSxMNzbJXw==
+nodemon@^3.1.14:
+  version "3.1.14"
+  resolved "https://registry.yarnpkg.com/nodemon/-/nodemon-3.1.14.tgz#8487ca379c515301d221ec007f27f24ecafa2b51"
+  integrity sha512-jakjZi93UtB3jHMWsXL68FXSAosbLfY0In5gtKq3niLSkrWznrVBzXFNOEMJUfc9+Ke7SHWoAZsiMkNP3vq6Jw==
   dependencies:
     chokidar "^3.5.2"
     debug "^4"
     ignore-by-default "^1.0.1"
-    minimatch "^3.1.2"
+    minimatch "^10.2.1"
     pstree.remy "^1.1.8"
     semver "^7.5.3"
     simple-update-notifier "^2.0.0"
