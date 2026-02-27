@@ -51,8 +51,7 @@ RUN apk add -U --no-cache \
     if [ "${RAILS_ENV}" = "production" ]; then apk del build-dependencies; fi && \
     rm -rf /var/cache/apk/ && \
     mkdir -p /secure-tmp && chmod 700 /secure-tmp && \
-    mkdir -p /secure-tmp/log && chmod 700 /secure-tmp/log && \
-    rails users:sync_initial
+    mkdir -p /secure-tmp/log && chmod 700 /secure-tmp/log
 
 USER 65534:65534
 
