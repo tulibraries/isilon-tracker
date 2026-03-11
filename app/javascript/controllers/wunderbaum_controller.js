@@ -905,6 +905,25 @@ export default class extends Controller {
     return value;
   }
 
+  _inlineEditorValue(colId, data = {}) {
+    if (colId === "assigned_to") {
+      return this._normalizeValue(colId, data.assigned_to_id);
+    }
+
+    return this._normalizeValue(colId, data[colId]);
+  }
+
+  _applyNodeValue(node, field, value, label = null) {
+    if (field === "assigned_to" || field === "assigned_to_id") {
+      const normalized = this._normalizeValue("assigned_to", value);
+      node.data.assigned_to_id = normalized === "unassigned" ? null : normalized;
+      node.data.assigned_to = label ?? this._optionLabelFor("assigned_to", normalized);
+      return;
+    }
+
+    node.data[field] = value;
+  }
+
   // Normalizes column values for predicate comparisons.
   _filterValueFor(colId, data = {}) {
     if (colId === "assigned_to") {
@@ -1136,13 +1155,15 @@ export default class extends Controller {
   // Opens the shared dropdown popup to edit a cell value inline instead of applying a column filter
   _showInlineEditor(cell, node, colId) {
     this._showDropdownFilter(cell, colId, null, {
-      currentValue: this._normalizeValue(colId, node.data[colId]),
+      currentValue: this._inlineEditorValue(colId, node.data),
       onSelect: (value) => {
         const normalized = this._normalizeValue(colId, value);
-        node.data[colId] = normalized;
+        this._applyNodeValue(node, colId, normalized);
         this._saveCellChange(node, colId, normalized);
 
-        const label = this._optionLabelFor(colId, normalized);
+        const label = colId === "assigned_to"
+          ? node.data.assigned_to
+          : this._optionLabelFor(colId, normalized);
         cell.textContent = label || "Unassigned";
         cell.classList.add("wb-select-like");
       }
@@ -1304,8 +1325,13 @@ export default class extends Controller {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      
-      node.data[field] = value;
+
+      this._applyNodeValue(
+        node,
+        data.field ?? field,
+        data.value ?? value,
+        data.label
+      );
     } catch (err) {
       console.error("Failed to save cell change", err);
     }
