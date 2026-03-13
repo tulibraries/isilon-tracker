@@ -50,8 +50,15 @@ RUN apk add -U --no-cache \
     if [ "${RAILS_ENV}" = "production" ]; then rm -rf tmp/*; fi && \
     if [ "${RAILS_ENV}" = "production" ]; then apk del build-dependencies; fi && \
     rm -rf /var/cache/apk/ && \
+<<<<<<< Updated upstream
     mkdir -p /secure-tmp && chmod 700 /secure-tmp && \
     mkdir -p /secure-tmp/log && chmod 700 /secure-tmp/log
+=======
+    mkdir -p /secure-tmp && \
+    chown 65534:65534 /secure-tmp && \
+    chmod 700 /secure-tmp && \
+    rails users:sync_initial
+>>>>>>> Stashed changes
 
 USER 65534:65534
 
