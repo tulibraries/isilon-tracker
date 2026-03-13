@@ -8,10 +8,14 @@ RSpec.describe "Wunderbaum select-like columns", type: :system do
 
   let!(:volume) { create(:volume) }
   let!(:user) { create(:user, email: "tester@temple.edu") }
+  let!(:assignee) { create(:user, name: "Alex Assign", email: "alex@example.com") }
   let!(:default_migration_status) { create(:migration_status, :default) }
   let!(:migrated_status) { create(:migration_status, :migrated) }
   let!(:root_folder) do
     create(:isilon_folder, :root, volume:, full_path: "/volume/#{volume.id}/root")
+  end
+  let!(:other_root_folder) do
+    create(:isilon_folder, volume:, parent_folder: nil, full_path: "/volume/#{volume.id}/other-root")
   end
   let!(:match_asset) do
     create(
@@ -51,6 +55,34 @@ RSpec.describe "Wunderbaum select-like columns", type: :system do
     find("select").select("tester@temple.edu")
 
     expect(page).to have_css(".wb-select-like", text: "tester@temple.edu")
+  end
+
+  it "keeps the assignee label after another file tree selection rerenders the row" do
+    visit volume_path(volume)
+
+    root_row = find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//span[contains(@class,'wb-title')][starts-with(normalize-space(.), 'root')]]",
+      wait: 10
+    )
+    root_row.find("[data-colid='assigned_to']").click
+    find(".wb-popup select").find("option", text: assignee.name).select_option
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_css(".wb-row [data-colid='assigned_to'].wb-select-like", text: assignee.name, wait: 10)
+
+    find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//span[contains(@class,'wb-title')][starts-with(normalize-space(.), 'other-root')]]",
+      wait: 10
+    ).find("i.wb-checkbox").click
+
+    updated_root_row = find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//span[contains(@class,'wb-title')][starts-with(normalize-space(.), 'root')]]",
+      wait: 10
+    )
+    expect(updated_root_row.find("[data-colid='assigned_to']").text).to eq(assignee.name)
   end
 
   it "stores assigned_to as unassigned when initially blank" do

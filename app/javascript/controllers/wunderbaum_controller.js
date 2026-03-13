@@ -1136,13 +1136,25 @@ export default class extends Controller {
   // Opens the shared dropdown popup to edit a cell value inline instead of applying a column filter
   _showInlineEditor(cell, node, colId) {
     this._showDropdownFilter(cell, colId, null, {
-      currentValue: this._normalizeValue(colId, node.data[colId]),
+      currentValue: this._normalizeValue(
+        colId,
+        colId === "assigned_to" ? node.data.assigned_to_id : node.data[colId]
+      ),
       onSelect: (value) => {
         const normalized = this._normalizeValue(colId, value);
-        node.data[colId] = normalized;
+
+        if (colId === "assigned_to") {
+          node.data.assigned_to_id = normalized === "unassigned" ? null : normalized;
+          node.data.assigned_to = this._optionLabelFor("assigned_to", normalized);
+        } else {
+          node.data[colId] = normalized;
+        }
+
         this._saveCellChange(node, colId, normalized);
 
-        const label = this._optionLabelFor(colId, normalized);
+        const label = colId === "assigned_to"
+          ? node.data.assigned_to
+          : this._optionLabelFor(colId, normalized);
         cell.textContent = label || "Unassigned";
         cell.classList.add("wb-select-like");
       }
@@ -1304,8 +1316,13 @@ export default class extends Controller {
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      
-      node.data[field] = value;
+
+      if (field === "assigned_to" || data.field === "assigned_to_id") {
+        node.data.assigned_to_id = data.value;
+        node.data.assigned_to = data.label || "Unassigned";
+      } else {
+        node.data[field] = data.value ?? value;
+      }
     } catch (err) {
       console.error("Failed to save cell change", err);
     }
