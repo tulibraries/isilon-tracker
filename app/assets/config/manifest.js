@@ -1,3 +1,4 @@
 //= link_tree ../images
-//= link_tree ../builds
+//= link_directory ../builds .css
+//= link_tree ../../javascript .js
 //= link wunderbaum/dist/wunderbaum.css

@@ -1,7 +1,7 @@
 import { Application } from "@hotwired/stimulus";
-import WunderbaumController from "./wunderbaum_controller";
-import BatchActionsController from "./batch_actions_controller";
-import SessionTimeoutController from "./session_timeout_controller";
+import WunderbaumController from "controllers/wunderbaum_controller";
+import BatchActionsController from "controllers/batch_actions_controller";
+import SessionTimeoutController from "controllers/session_timeout_controller";
 
 const application = Application.start();
 
