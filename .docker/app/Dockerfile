@@ -43,6 +43,7 @@ RUN apk add -U --no-cache \
       yarn=1.22.22-r1 && \
     if [ "${RAILS_ENV}" = "production" ]; then bundle config set --local without "development test"; fi && \
     bundle install --jobs=8 && \
+    bundle exec yarn install --frozen-lockfile && \
     find "$GEM_HOME" -name Gemfile.lock -exec rm "{}" \; && \
     find "$GEM_HOME" -name yarn.lock -exec rm "{}" \; && \
     bundle exec rails assets:precompile && \
