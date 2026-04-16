@@ -10,39 +10,39 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_02_16_154353) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_15_191738) do
   create_table "admins", force: :cascade do |t|
+    t.datetime "created_at", null: false
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
-    t.string "reset_password_token"
-    t.datetime "reset_password_sent_at"
     t.datetime "remember_created_at"
-    t.datetime "created_at", null: false
+    t.datetime "reset_password_sent_at"
+    t.string "reset_password_token"
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admins_on_email", unique: true
     t.index ["reset_password_token"], name: "index_admins_on_reset_password_token", unique: true
   end
 
   create_table "aspace_collections", force: :cascade do |t|
-    t.string "name"
     t.boolean "active"
     t.datetime "created_at", null: false
+    t.string "name"
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_aspace_collections_on_name"
   end
 
   create_table "contentdm_collections", force: :cascade do |t|
-    t.string "name"
     t.boolean "active"
     t.datetime "created_at", null: false
+    t.string "name"
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_contentdm_collections_on_name"
   end
 
   create_table "duplicate_group_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
     t.integer "duplicate_group_id", null: false
     t.integer "isilon_asset_id", null: false
-    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["duplicate_group_id", "isilon_asset_id"], name: "index_duplicate_group_memberships_unique", unique: true
     t.index ["duplicate_group_id"], name: "index_duplicate_group_memberships_on_duplicate_group_id"
@@ -57,25 +57,25 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_16_154353) do
   end
 
   create_table "isilon_assets", force: :cascade do |t|
+    t.integer "aspace_collection_id"
+    t.string "aspace_linking_status"
+    t.integer "assigned_to_id"
+    t.integer "contentdm_collection_id"
     t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.string "date_created_in_isilon"
+    t.string "file_checksum"
     t.string "file_size"
     t.string "file_type"
-    t.string "isilon_path", null: false
-    t.string "isilon_name", null: false
-    t.string "last_modified_in_isilon"
-    t.string "date_created_in_isilon"
-    t.string "preservica_reference_id"
-    t.string "aspace_linking_status"
-    t.text "notes"
-    t.string "last_updated_by"
-    t.string "file_checksum"
-    t.integer "parent_folder_id"
-    t.integer "migration_status_id"
-    t.integer "aspace_collection_id"
-    t.integer "contentdm_collection_id"
-    t.integer "assigned_to_id"
     t.boolean "has_duplicates", default: false, null: false
+    t.string "isilon_name", null: false
+    t.string "isilon_path", null: false
+    t.string "last_modified_in_isilon"
+    t.string "last_updated_by"
+    t.integer "migration_status_id"
+    t.text "notes"
+    t.integer "parent_folder_id"
+    t.string "preservica_reference_id"
+    t.datetime "updated_at", null: false
     t.integer "volume_id"
     t.index ["aspace_collection_id"], name: "index_isilon_assets_on_aspace_collection_id"
     t.index ["assigned_to_id", "migration_status_id"], name: "index_isilon_assets_on_assigned_to_id_and_migration_status"
@@ -90,15 +90,14 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_16_154353) do
   end
 
   create_table "isilon_folders", force: :cascade do |t|
-    t.string "full_path", null: false
-    t.integer "volume_id"
-    t.integer "parent_folder_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.integer "assigned_to_id"
-    t.text "notes"
-    t.boolean "has_descendant_assets", default: false, null: false
+    t.datetime "created_at", null: false
     t.integer "descendant_assets_count", default: 0, null: false
+    t.string "full_path", null: false
+    t.text "notes"
+    t.integer "parent_folder_id"
+    t.datetime "updated_at", null: false
+    t.integer "volume_id"
     t.index ["assigned_to_id"], name: "index_isilon_folders_on_assigned_to_id"
     t.index ["descendant_assets_count"], name: "index_isilon_folders_on_descendant_assets_count"
     t.index ["parent_folder_id"], name: "index_isilon_folders_on_parent_folder_id"
@@ -107,36 +106,36 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_16_154353) do
   end
 
   create_table "migration_statuses", force: :cascade do |t|
-    t.string "name"
-    t.boolean "default"
     t.boolean "active"
     t.datetime "created_at", null: false
+    t.boolean "default"
+    t.string "name"
     t.datetime "updated_at", null: false
     t.index "(LOWER(name))", name: "index_migration_statuses_on_lower_name"
     t.index ["name"], name: "index_migration_statuses_on_name"
   end
 
   create_table "users", force: :cascade do |t|
+    t.datetime "created_at", null: false
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
-    t.string "reset_password_token"
-    t.datetime "reset_password_sent_at"
-    t.datetime "remember_created_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "provider"
-    t.string "uid"
-    t.string "name"
-    t.string "status", default: "inactive"
     t.string "first_name"
     t.string "last_name"
+    t.string "name"
+    t.string "provider"
+    t.datetime "remember_created_at"
+    t.datetime "reset_password_sent_at"
+    t.string "reset_password_token"
+    t.string "status", default: "inactive"
+    t.string "uid"
+    t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
   create_table "volumes", force: :cascade do |t|
-    t.string "name", null: false
     t.datetime "created_at", null: false
+    t.string "name", null: false
     t.datetime "updated_at", null: false
   end
 
