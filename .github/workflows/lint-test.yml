@@ -52,6 +52,9 @@ jobs:
       - name: Precompile assets
         run: bin/rails assets:precompile
 
+      - name: Build Dart Sass assets for test env
+        run: bin/rails dartsass:build
+
       - name: Run rspec tests
         run: bundle exec rspec spec
         
