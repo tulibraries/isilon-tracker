@@ -24,8 +24,44 @@
   content: "\f194";
 }
 
+.bi-arrow-down::before {
+  content: "\f128";
+}
+
+.bi-arrow-up::before {
+  content: "\f148";
+}
+
+.bi-check-square::before {
+  content: "\f26d";
+}
+
 .bi-check2-square::before {
   content: "\f271";
+}
+
+.bi-chevron-down::before {
+  content: "\f282";
+}
+
+.bi-chevron-expand::before {
+  content: "\f283";
+}
+
+.bi-chevron-right::before {
+  content: "\f285";
+}
+
+.bi-circle-fill::before {
+  content: "\f287";
+}
+
+.bi-circle::before {
+  content: "\f28a";
+}
+
+.bi-dash-square-dotted::before {
+  content: "\f2e7";
 }
 
 .bi-file-text::before {
@@ -34,6 +70,18 @@
 
 .bi-files::before {
   content: "\f3c2";
+}
+
+.bi-file-earmark::before {
+  content: "\f392";
+}
+
+.bi-filter-circle-fill::before {
+  content: "\f3c4";
+}
+
+.bi-filter-circle::before {
+  content: "\f3c5";
 }
 
 .bi-filter-square-fill::before {
@@ -52,12 +100,40 @@
   content: "\f46e";
 }
 
+.bi-folder-symlink::before {
+  content: "\f3d5";
+}
+
+.bi-folder2-open::before {
+  content: "\f3d8";
+}
+
+.bi-folder2::before {
+  content: "\f3d9";
+}
+
 .bi-people::before {
   content: "\f4d0";
 }
 
 .bi-person-circle::before {
   content: "\f4d7";
+}
+
+.bi-question-circle::before {
+  content: "\f505";
+}
+
+.bi-record-circle::before {
+  content: "\f518";
+}
+
+.bi-square::before {
+  content: "\f584";
+}
+
+.bi-three-dots-vertical::before {
+  content: "\f5d3";
 }
 
 .bi-x-square::before {
