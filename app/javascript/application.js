@@ -1,10 +1,10 @@
 import "@hotwired/turbo-rails";
-import { application } from "./controllers";
+import { application } from "controllers";
 window.Stimulus = application;
 import * as bootstrap from "bootstrap";
 window.bootstrap = bootstrap; // Make Bootstrap globally available
 
-import { Wunderbaum } from "wunderbaum/dist/wunderbaum.esm.js"
+import { Wunderbaum } from "wunderbaum"
 window.Wunderbaum = Wunderbaum; // Make Wunderbaum globally available
 
 import Chartkick from "chartkick";

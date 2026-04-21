@@ -19,7 +19,7 @@ class IsilonAssetSerializer < ActiveModel::Serializer
   end
 
   def url
-    admin_isilon_asset_url(object.id)
+    admin_isilon_asset_path(object.id)
   end
 
   def folder

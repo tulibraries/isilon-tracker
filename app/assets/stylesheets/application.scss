@@ -1,5 +1,5 @@
-@import "bootstrap/scss/bootstrap";
-@import "bootstrap-icons/font/bootstrap-icons";
+@import "bootstrap";
+@import "bootstrap_icons";
 @import "global-nav";
 
 :root {
@@ -13,14 +13,13 @@
   --wb-row-hover-bg: #f1f3f5;
   --wb-border-color: transparent;
   --wb-border-radius: 0;
-
   --wb-input-padding: 5px 8px;
 }
 
 .wunderbaum {
   --wb-cell-padding: 8px 14px;
-  --wb-header-color: #dbeafe;              
-  --wb-header-text-color: #212529;        
+  --wb-header-color: #dbeafe;
+  --wb-header-text-color: #212529;
   --wb-header-font-weight: 600;
   --wb-header-font-size: 1rem;
   --wb-header-line-height: 1.5;
@@ -38,7 +37,7 @@
 }
 
 a {
-  color: #0B5394;
+  color: #0b5394;
   text-decoration: none;
 }
 
@@ -90,7 +89,7 @@ a {
 
 .icon-button:focus {
   outline: none;
-  box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .icon-button:disabled {
@@ -102,8 +101,8 @@ a {
 }
 
 .icon-button.active {
-  background-color: #0B5394;
-  border-color: #0B5394;
+  background-color: #0b5394;
+  border-color: #0b5394;
   color: #fff;
 }
 
@@ -146,17 +145,16 @@ a {
 
 [data-command="filter"].wb-helper-invalid,
 [data-command="filter"].filter-active.wb-helper-invalid {
-  color: #2E6F40 !important;
-  fill: #2E6F40 !important;
-  stroke: #2E6F40 !important;
+  color: #2e6f40 !important;
+  fill: #2e6f40 !important;
+  stroke: #2e6f40 !important;
 }
 
-/* HEADER ENHANCEMENTS */
 .wunderbaum .wb-tree .wb-header .wb-col {
   background-color: var(--wb-header-bg) !important;
   color: var(--wb-header-color) !important;
   font-weight: 600 !important;
-  border-bottom: 1px solid var(--wb-border-color)!important;
+  border-bottom: 1px solid var(--wb-border-color) !important;
   border-top: none !important;
   border-left: none !important;
   border-right: none !important;
@@ -185,13 +183,11 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   line-height: 1.4;
 }
 
-/* ROW HEIGHT AND CELL PADDING */
 .wunderbaum .wb-tree .wb-cell {
   vertical-align: middle !important;
   border-bottom: 1px solid var(--wb-border-color);
 }
 
-/* Prevent overlapping select arrows */
 .wunderbaum .wb-tree select {
   appearance: auto !important;
   padding: 5px 8px;
@@ -251,14 +247,14 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   border-radius: 6px;
   background-color: #fff;
   color: #333;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   outline: none;
   cursor: pointer;
 }
 
 .popup-select:focus {
   border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
 }
 
 .popup-select[size] {
@@ -287,17 +283,14 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   overflow-y: auto;
 }
 
-.wb-loading {
+.wb-loading,
+.wb-loading-style {
   display: inline-block;
   margin: 5px;
   padding: 2px 6px;
   border-radius: 4px;
   background: #d4edda;
   font: 12px/1.6 system-ui, sans-serif;
-}
-
-.wb-loading-style {
-  @extend .wb-loading;
 }
 
 .wb-no-results {
@@ -333,9 +326,9 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
 }
 
 .icon {
-  width: 1.0em;
+  width: 1em;
   height: auto;
-  vertical-align: -0.15em; 
+  vertical-align: -0.15em;
 }
 
 div.wunderbaum .wb-title .wb-badge {

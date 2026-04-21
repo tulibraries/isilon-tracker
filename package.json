@@ -1,28 +1,15 @@
 {
   "name": "app",
   "private": true,
-  "devDependencies": {
-    "esbuild": "^0.27.1"
-  },
-  "scripts": {
-    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets",
-    "build:css:compile": "sass ./app/assets/stylesheets/application.css.scss:./app/assets/builds/application.css --no-source-map --load-path=node_modules",
-    "build:css": "yarn build:css:compile"
-  },
+  "devDependencies": {},
   "dependencies": {
     "@hotwired/stimulus": "^3.2.2",
     "@hotwired/turbo-rails": "^8.0.13",
     "@popperjs/core": "^2.11.8",
-    "autoprefixer": "^10.4.21",
-    "bootstrap": "^5.3.6",
-    "bootstrap-icons": "^1.13.1",
     "chart.js": "^4.4.7",
     "chartkick": "^5.0.1",
     "jquery": "^3.7.1",
     "nodemon": "^3.1.14",
-    "postcss": "^8.5.3",
-    "postcss-cli": "^11.0.1",
-    "sass": "^1.89.2",
     "selectize": "^0.12.6",
     "wunderbaum": "^0.13.0"
   },

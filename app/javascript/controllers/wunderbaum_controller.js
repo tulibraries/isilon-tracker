@@ -237,6 +237,9 @@ export default class extends Controller {
             if (this.selectLikeColumns.has(colId)) {
               if (colId === "assigned_to" && node.data?.assigned_to) {
                 displayValue = node.data.assigned_to;
+                if (String(displayValue) === String(rawValue)) {
+                  displayValue = this._optionLabelFor(colId, rawValue);
+                }
               } else {
                 displayValue = this._optionLabelFor(colId, rawValue);
               }
