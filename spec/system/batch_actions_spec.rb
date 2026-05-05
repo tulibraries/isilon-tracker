@@ -1,42 +1,51 @@
 require 'rails_helper'
 
 RSpec.describe "Batch Actions", type: :system, js: true do
-  let!(:volume) { FactoryBot.create(:volume, name: "Test Volume") }
-  let!(:folder) { FactoryBot.create(:isilon_folder, volume: volume) }
-  let!(:user) { FactoryBot.create(:user) }
-  let!(:other_user) { FactoryBot.create(:user) }
-  let!(:migration_status_1) { FactoryBot.create(:migration_status, name: "Needs Review") }
-  let!(:migration_status_2) { FactoryBot.create(:migration_status, name: "In Progress") }
-  let!(:aspace_collection_1) { FactoryBot.create(:aspace_collection, name: "Collection A") }
-  let!(:aspace_collection_2) { FactoryBot.create(:aspace_collection, name: "Collection B") }
-  let!(:asset_1) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
-  let!(:asset_2) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
+  let(:volume) { FactoryBot.create(:volume, name: "Test Volume") }
+  let(:folder) { FactoryBot.create(:isilon_folder, volume: volume) }
+  let(:user) { FactoryBot.create(:user) }
+  let(:migration_status_1) { FactoryBot.create(:migration_status, name: "Needs Review") }
+  let(:migration_status_2) { FactoryBot.create(:migration_status, name: "In Progress") }
+  let(:aspace_collection_1) { FactoryBot.create(:aspace_collection, name: "Collection A") }
+  let(:aspace_collection_2) { FactoryBot.create(:aspace_collection, name: "Collection B") }
+  let(:asset_1) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
+  let(:asset_2) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
 
-  before do
-    driven_by :cuprite
+  def visit_volume_page
+    driven_by(RSpec.current_example.metadata[:js] ? :cuprite : :rack_test)
     sign_in user
     visit volume_path(volume)
+    expect(page).to have_css("[data-controller*='batch-actions']", wait: 0.5)
+  end
+
+  def dispatch_selection_changed(asset_ids:, folder_ids: [])
+    page.execute_script(<<~JS)
+      document.dispatchEvent(new CustomEvent("wunderbaum:selectionChanged", {
+        detail: {
+          selectedAssetIds: #{asset_ids},
+          selectedFolderIds: #{folder_ids}
+        }
+      }))
+    JS
   end
 
   describe "Batch Actions Buttons" do
-    it "initially hides batch actions button" do
-      expect(page).to have_css("#asset-batch-actions-btn", visible: false)
+    before do
+      visit_volume_page
+    end
+
+    it "initially hides batch actions button", :aggregate_failures, js: false do
+      button = find("#asset-batch-actions-btn", visible: :all, wait: 0.5)
+
+      expect(button).not_to be_visible
+      expect(button[:style]).to include("display: none")
     end
 
     it "shows batch actions button when assets are selected" do
-      # Wait for Stimulus controllers to load
-      sleep 1
+      asset_1
+      asset_2
 
-      # Simulate selecting assets via JavaScript
-      page.execute_script(<<~JS)
-        const event = new CustomEvent('wunderbaum:selectionChanged', {
-          detail: { selectedAssetIds: [#{asset_1.id}, #{asset_2.id}] }
-        });
-        document.dispatchEvent(event);
-      JS
-
-      # Wait for JavaScript to process
-      sleep 0.5
+      dispatch_selection_changed(asset_ids: [ asset_1.id, asset_2.id ])
 
       expect(page).to have_css("#asset-batch-actions-btn", visible: true)
       expect(page).to have_content("Batch Actions (2)")
@@ -45,13 +54,15 @@ RSpec.describe "Batch Actions", type: :system, js: true do
 
   describe "Asset Batch Actions Modal" do
     before do
-      # Select assets and open modal
-      page.execute_script(<<~JS)
-        const event = new CustomEvent('wunderbaum:selectionChanged', {
-          detail: { selectedAssetIds: [#{asset_1.id}, #{asset_2.id}] }
-        });
-        document.dispatchEvent(event);
-      JS
+      migration_status_1
+      migration_status_2
+      aspace_collection_1
+      aspace_collection_2
+      asset_1
+      asset_2
+      visit_volume_page
+
+      dispatch_selection_changed(asset_ids: [ asset_1.id, asset_2.id ])
 
       click_button "Batch Actions (2)"
     end
@@ -88,12 +99,15 @@ RSpec.describe "Batch Actions", type: :system, js: true do
 
   describe "Asset Form Interactions" do
     before do
-      page.execute_script(<<~JS)
-        const event = new CustomEvent('wunderbaum:selectionChanged', {
-          detail: { selectedAssetIds: [#{asset_1.id}, #{asset_2.id}] }
-        });
-        document.dispatchEvent(event);
-      JS
+      migration_status_1
+      migration_status_2
+      aspace_collection_1
+      aspace_collection_2
+      asset_1
+      asset_2
+      visit_volume_page
+
+      dispatch_selection_changed(asset_ids: [ asset_1.id, asset_2.id ])
 
       click_button "Batch Actions (2)"
     end
@@ -117,31 +131,29 @@ RSpec.describe "Batch Actions", type: :system, js: true do
   end
 
   describe "JavaScript Integration" do
+    before do
+      visit_volume_page
+    end
+
     it "loads the batch actions Stimulus controller" do
       expect(page).to have_css("[data-controller*='batch-actions']")
     end
 
     it "updates selection count dynamically for asset button" do
+      asset_1
+      asset_2
+
       # Initial state
-      expect(page).to have_css("#asset-batch-actions-btn", visible: false)
+      button = find("#asset-batch-actions-btn", visible: :all, wait: 0.5)
+      expect(button).not_to be_visible
 
       # Select one asset
-      page.execute_script(<<~JS)
-        const event = new CustomEvent('wunderbaum:selectionChanged', {
-          detail: { selectedAssetIds: [#{asset_1.id}] }
-        });
-        document.dispatchEvent(event);
-      JS
+      dispatch_selection_changed(asset_ids: [ asset_1.id ])
 
       expect(page).to have_content("Batch Actions (1)")
 
       # Select two assets
-      page.execute_script(<<~JS)
-        const event = new CustomEvent('wunderbaum:selectionChanged', {
-          detail: { selectedAssetIds: [#{asset_1.id}, #{asset_2.id}] }
-        });
-        document.dispatchEvent(event);
-      JS
+      dispatch_selection_changed(asset_ids: [ asset_1.id, asset_2.id ])
 
       expect(page).to have_content("Batch Actions (2)")
     end
