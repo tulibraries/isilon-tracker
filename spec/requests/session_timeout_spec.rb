@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe "Session timeout data", type: :request do
   include ActiveSupport::Testing::TimeHelpers
-  let(:user) { FactoryBot.create(:user) }
+
+  let(:user) { create(:user) }
   let(:warning_lead_time) { Rails.application.config.session_management.warning_lead_time.to_i }
 
   describe "GET /" do
@@ -17,7 +18,6 @@ RSpec.describe "Session timeout data", type: :request do
           container = Nokogiri::HTML(response.body).at_css("#flash-messages")
 
           expect(container["data-controller"]).to include("session-timeout")
-
           expect(container["data-session-timeout-expires-at-value"].to_i)
             .to eq((Time.current + Devise.timeout_in).to_i)
           expect(container["data-session-timeout-duration-value"].to_i)
@@ -46,9 +46,22 @@ RSpec.describe "Session timeout data", type: :request do
         container = Nokogiri::HTML(response.body).at_css("#flash-messages")
 
         expect(container["data-controller"]).to eq("session-timeout")
-        expect(
-          container.attribute_nodes.map(&:name)
-        ).to contain_exactly("id", "data-controller")
+        expect(container.attribute_nodes.map(&:name)).to contain_exactly("id", "data-controller")
+      end
+    end
+  end
+
+  describe "POST /users/session/keepalive" do
+    it "returns a renewed expiration timestamp for signed-in users" do
+      travel_to(Time.zone.local(2024, 1, 1, 12, 0, 0)) do
+        sign_in user
+
+        post user_session_keepalive_path, as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)).to eq(
+          "expires_at" => (Time.current + Devise.timeout_in).to_i
+        )
       end
     end
   end
