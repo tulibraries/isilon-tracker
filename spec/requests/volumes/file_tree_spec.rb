@@ -5,6 +5,8 @@ require "rails_helper"
 RSpec.describe "Volumes file tree endpoints", type: :request do
   let!(:volume) { create(:volume) }
   let!(:user)   { create(:user, email: "tester@temple.edu") }
+  let!(:assignee) { create(:user, name: "Assigned User", email: "assigned@example.com") }
+  let!(:migration_status) { create(:migration_status, :default) }
 
   before { sign_in user }
 
@@ -34,8 +36,13 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
     create(:isilon_asset, parent_folder: folder_c,
            isilon_name: "scan_beta_001.tif",
            isilon_path: "#{folder_c.full_path}/scan_beta_001.tif",
+           migration_status: migration_status,
+           assigned_to: assignee,
+           notes: "asset notes",
            aspace_collection: aspace_collection,
-           contentdm_collection: contentdm_collection)
+           contentdm_collection: contentdm_collection,
+           preservica_reference_id: "pres-123",
+           aspace_linking_status: true)
   end
 
   def parsed
@@ -77,6 +84,29 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       match = json.find { |h| h["id"] == folder.id }
       expect(match["descendant_assets_count"]).to eq(3)
     end
+
+    it "omits asset-only rendering fields from folder payloads" do
+      get file_tree_volume_path(volume, format: :json)
+
+      expect(response).to have_http_status(:ok)
+
+      match = parsed.find { |h| h["id"] == root.id }
+      expect(match).to include(
+        "folder" => true,
+        "assigned_to" => "Unassigned",
+        "key" => root.id.to_s,
+        "notes" => nil
+      )
+      expect(match.keys).not_to include(
+        "migration_status",
+        "migration_status_id",
+        "contentdm_collection_id",
+        "aspace_collection_id",
+        "preservica_reference_id",
+        "aspace_linking_status",
+        "url"
+      )
+    end
   end
 
   describe "GET /volumes/:id/file_tree_assets" do
@@ -95,8 +125,16 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(keys).to include("a-#{asset.id}")
       match = body.find { |h| h["key"] == "a-#{asset.id}" }
       expect(match["path"]).to eq([ root.id, folder_a.id, folder_b.id, folder_c.id ])
+      expect(match["assigned_to"]).to eq(assignee.name)
+      expect(match["assigned_to_id"]).to eq(assignee.id)
+      expect(match["migration_status"]).to eq(migration_status.name)
+      expect(match["migration_status_id"]).to eq(migration_status.id)
+      expect(match["notes"]).to eq("asset notes")
       expect(match["aspace_collection_id"]).to eq(aspace_collection.id)
       expect(match["contentdm_collection_id"]).to eq(contentdm_collection.id)
+      expect(match["preservica_reference_id"]).to eq("pres-123")
+      expect(match["aspace_linking_status"]).to eq("t")
+      expect(match["url"]).to end_with("/admin/isilon_assets/#{asset.id}")
     end
   end
 
