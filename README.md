@@ -50,6 +50,11 @@ bundle exec rails sync:post_ingest
 
 `sync:post_ingest` runs cleanup_folder_assets, folders:backfill_counts, and duplicates:detect.
 
+* Update existing Isilon assets when their filenames match filenames in ContentDM CSVs. The sync reads every `.csv` from the configured folder, appends `Filename exists in CONTENTdm` to notes, and updates the ContentDM collection.
+
+```bash
+bundle exec rails sync:contentdm_filenames
+```
 
 In some zsh shells with nomatch turned on, escaping the brackets in this command may be necessary. Alternatively, quote the entire task portion of the command, or add "setopt +o nomatch" to your ~/.zshrc profile to prevent zsh from requiring bracket escaping in Rails commands.
 
