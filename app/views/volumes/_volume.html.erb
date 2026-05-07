@@ -86,7 +86,7 @@
             <div class="mb-4">
               <label class="form-label fw-bold">Migration Status</label>
               <%= form.select :migration_status_id, 
-                    options_for_select([['Unchanged', '']] + MigrationStatus.all.map { |ms| [ms.name, ms.id] }, ''), 
+                    options_for_select([['Unchanged', '']] + MigrationStatus.order(:name).map { |ms| [ms.name, ms.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Select a new migration status for the selected assets</div>
@@ -96,17 +96,27 @@
             <div class="mb-4">
               <label class="form-label fw-bold">Assigned User</label>
               <%= form.select :assigned_user_id, 
-                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.map { |u| [u.title, u.id] }, ''), 
+                    options_for_select([['Unchanged', ''], ['Unassigned', 'unassigned']] + User.all.sort_by(&:title).map { |u| [u.title, u.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Assign or reassign the selected assets and folders to a user</div>
+            </div>
+
+            <!-- ContentDM Collection Update -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">ContentDM Collection</label>
+              <%= form.select :contentdm_collection_id,
+                    options_for_select([["Unchanged", ""], ["None", "none"]] + ContentdmCollection.order(:name).map { |cc| [cc.name, cc.id] }, ""),
+                    {},
+                    { class: "form-select" } %>
+              <div class="form-text">Set the ContentDM collection for the selected assets</div>
             </div>
             
             <!-- ASpace Collection Update -->
             <div class="mb-4">
               <label class="form-label fw-bold">ASpace Collection</label>
               <%= form.select :aspace_collection_id, 
-                    options_for_select([['Unchanged', ''], ['None', 'none']] + AspaceCollection.all.map { |ac| [ac.name, ac.id] }, ''), 
+                    options_for_select([['Unchanged', ''], ['None', 'none']] + AspaceCollection.order(:name).map { |ac| [ac.name, ac.id] }, ''), 
                     {}, 
                     { class: "form-select" } %>
               <div class="form-text">Set the ASpace collection for the selected assets</div>

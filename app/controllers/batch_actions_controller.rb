@@ -117,6 +117,18 @@ class BatchActionsController < ApplicationController
       end
     end
 
+    # Update ContentDM Collection
+    if params[:contentdm_collection_id].present?
+      if params[:contentdm_collection_id] == "none"
+        updates[:contentdm_collection_id] = nil
+        updates_applied << "ContentDM collection cleared"
+      else
+        contentdm_collection = ContentdmCollection.find(params[:contentdm_collection_id])
+        updates[:contentdm_collection_id] = contentdm_collection.id
+        updates_applied << "ContentDM collection to #{contentdm_collection.name}"
+      end
+    end
+
     # Update ASpace Collection
     if params[:aspace_collection_id].present?
       if params[:aspace_collection_id] == "none"

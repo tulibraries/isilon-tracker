@@ -1,15 +1,18 @@
 require 'rails_helper'
 
 RSpec.describe "Batch Actions", type: :system, js: true do
-  let(:volume) { FactoryBot.create(:volume, name: "Test Volume") }
-  let(:folder) { FactoryBot.create(:isilon_folder, volume: volume) }
-  let(:user) { FactoryBot.create(:user) }
-  let(:migration_status_1) { FactoryBot.create(:migration_status, name: "Needs Review") }
-  let(:migration_status_2) { FactoryBot.create(:migration_status, name: "In Progress") }
-  let(:aspace_collection_1) { FactoryBot.create(:aspace_collection, name: "Collection A") }
-  let(:aspace_collection_2) { FactoryBot.create(:aspace_collection, name: "Collection B") }
-  let(:asset_1) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
-  let(:asset_2) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
+  let!(:volume) { FactoryBot.create(:volume, name: "Test Volume") }
+  let!(:folder) { FactoryBot.create(:isilon_folder, volume: volume) }
+  let!(:user) { FactoryBot.create(:user) }
+  let!(:other_user) { FactoryBot.create(:user) }
+  let!(:migration_status_1) { FactoryBot.create(:migration_status, name: "Needs Review") }
+  let!(:migration_status_2) { FactoryBot.create(:migration_status, name: "In Progress") }
+  let!(:contentdm_collection_1) { FactoryBot.create(:contentdm_collection, name: "ContentDM A") }
+  let!(:contentdm_collection_2) { FactoryBot.create(:contentdm_collection, name: "ContentDM B") }
+  let!(:aspace_collection_1) { FactoryBot.create(:aspace_collection, name: "Collection A") }
+  let!(:aspace_collection_2) { FactoryBot.create(:aspace_collection, name: "Collection B") }
+  let!(:asset_1) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
+  let!(:asset_2) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
 
   before { driven_by :cuprite }
 
@@ -76,6 +79,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id")
         expect(page).to have_select("assigned_user_id")
+        expect(page).to have_select("contentdm_collection_id")
         expect(page).to have_select("aspace_collection_id")
         expect(page).to have_select(
           "notes_action",
@@ -115,8 +119,9 @@ RSpec.describe "Batch Actions", type: :system, js: true do
 
     it "allows selecting different options" do
       within "#assetBatchActionsModal" do
-        expect(page).to have_select("migration_status_id", with_options: [ "Unchanged", "Needs Review", "In Progress" ])
+        expect(page).to have_select("migration_status_id", with_options: [ "Unchanged", "In Progress", "Needs Review" ])
         expect(page).to have_select("assigned_user_id", with_options: [ "Unchanged", "Unassigned" ])
+        expect(page).to have_select("contentdm_collection_id", with_options: [ "Unchanged", "None", "ContentDM A", "ContentDM B" ])
         expect(page).to have_select("aspace_collection_id", with_options: [ "Unchanged", "None", "Collection A", "Collection B" ])
       end
     end
@@ -125,6 +130,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       within "#assetBatchActionsModal" do
         expect(page).to have_select("migration_status_id", selected: "Unchanged")
         expect(page).to have_select("assigned_user_id", selected: "Unchanged")
+        expect(page).to have_select("contentdm_collection_id", selected: "Unchanged")
         expect(page).to have_select("aspace_collection_id", selected: "Unchanged")
         expect(page).to have_checked_field("aspace_linking_unchanged")
       end
