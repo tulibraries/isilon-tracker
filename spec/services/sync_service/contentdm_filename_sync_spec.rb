@@ -170,4 +170,18 @@ RSpec.describe SyncService::ContentdmFilenameSync, type: :service do
       end
     end
   end
+
+  describe "#notes_update_sql" do
+    it "uses a database-compatible function when checking for an existing note" do
+      sql = described_class.new(csv_folder: FIXTURE_FOLDER).send(:notes_update_sql).to_s
+
+      if ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
+        expect(sql).to include("strpos(notes")
+        expect(sql).not_to include("instr(")
+      else
+        expect(sql).to include("instr(notes")
+        expect(sql).not_to include("strpos(")
+      end
+    end
+  end
 end

@@ -210,14 +210,23 @@ module SyncService
 
     def notes_update_sql
       quoted_note = ActiveRecord::Base.connection.quote(CONTENTDM_FILENAME_MATCH_NOTE)
+      contains_note_sql = note_contains_sql(quoted_note)
 
       Arel.sql(<<~SQL.squish)
         CASE
           WHEN notes IS NULL OR TRIM(notes) = '' THEN #{quoted_note}
-          WHEN instr(notes, #{quoted_note}) = 0 THEN notes || '; ' || #{quoted_note}
+          WHEN #{contains_note_sql} = 0 THEN notes || '; ' || #{quoted_note}
           ELSE notes
         END
       SQL
+    end
+
+    def note_contains_sql(quoted_note)
+      if ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
+        "strpos(notes, #{quoted_note})"
+      else
+        "instr(notes, #{quoted_note})"
+      end
     end
   end
 end
