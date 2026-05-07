@@ -11,6 +11,9 @@ RSpec.describe "Volumes batch actions", type: :request do
   let!(:migration_status_2) { FactoryBot.create(:migration_status, name: "In Progress") }
   let!(:migration_status_3) { FactoryBot.create(:migration_status, name: "Migrated") }
 
+  let!(:contentdm_collection_1) { FactoryBot.create(:contentdm_collection, name: "ContentDM A") }
+  let!(:contentdm_collection_2) { FactoryBot.create(:contentdm_collection, name: "ContentDM B") }
+
   let!(:aspace_collection_1) { FactoryBot.create(:aspace_collection, name: "Collection A") }
   let!(:aspace_collection_2) { FactoryBot.create(:aspace_collection, name: "Collection B") }
 
@@ -38,6 +41,7 @@ RSpec.describe "Volumes batch actions", type: :request do
       isilon_name: "asset1.txt",
       migration_status: migration_status_1,
       assigned_to: nil,
+      contentdm_collection: nil,
       aspace_collection: nil,
       aspace_linking_status: "false")
   end
@@ -48,6 +52,7 @@ RSpec.describe "Volumes batch actions", type: :request do
       isilon_name: "asset2.txt",
       migration_status: migration_status_1,
       assigned_to: nil,
+      contentdm_collection: nil,
       aspace_collection: nil,
       aspace_linking_status: "false")
   end
@@ -58,6 +63,7 @@ RSpec.describe "Volumes batch actions", type: :request do
       isilon_name: "asset3.txt",
       migration_status: migration_status_2,
       assigned_to: user,
+      contentdm_collection: contentdm_collection_1,
       aspace_collection: aspace_collection_1,
       aspace_linking_status: "true")
   end
@@ -123,6 +129,51 @@ RSpec.describe "Volumes batch actions", type: :request do
         expect(asset_3.assigned_to).to eq(user) # unchanged
 
         expect(flash[:notice]).to include("assigned user to Other User")
+      end
+    end
+
+    context "when updating ContentDM collection" do
+      it "updates ContentDM collection for selected assets" do
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: "#{asset_1.id},#{asset_2.id}",
+          contentdm_collection_id: contentdm_collection_2.id
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+
+        asset_1.reload
+        asset_2.reload
+        asset_3.reload
+
+        expect(asset_1.contentdm_collection).to eq(contentdm_collection_2)
+        expect(asset_2.contentdm_collection).to eq(contentdm_collection_2)
+        expect(asset_3.contentdm_collection).to eq(contentdm_collection_1)
+
+        expect(flash[:notice]).to include("ContentDM collection to ContentDM B")
+      end
+
+      it "clears ContentDM collection for selected assets" do
+        asset_1.update!(contentdm_collection: contentdm_collection_2)
+        asset_2.update!(contentdm_collection: contentdm_collection_2)
+
+        patch volume_batch_actions_path(volume), params: {
+          asset_ids: "#{asset_1.id},#{asset_2.id}",
+          contentdm_collection_id: "none"
+        }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).to redirect_to(volume_path(volume))
+
+        asset_1.reload
+        asset_2.reload
+        asset_3.reload
+
+        expect(asset_1.contentdm_collection).to be_nil
+        expect(asset_2.contentdm_collection).to be_nil
+        expect(asset_3.contentdm_collection).to eq(contentdm_collection_1)
+
+        expect(flash[:notice]).to include("ContentDM collection cleared")
       end
     end
 
@@ -346,6 +397,7 @@ RSpec.describe "Volumes batch actions", type: :request do
           asset_ids: "#{asset_1.id},#{asset_2.id}",
           migration_status_id: migration_status_3.id,
           assigned_user_id: other_user.id,
+          contentdm_collection_id: contentdm_collection_2.id,
           aspace_collection_id: aspace_collection_2.id,
           aspace_linking_status: "true"
         }
@@ -359,11 +411,13 @@ RSpec.describe "Volumes batch actions", type: :request do
         # Check all fields were updated
         expect(asset_1.migration_status).to eq(migration_status_3)
         expect(asset_1.assigned_to).to eq(other_user)
+        expect(asset_1.contentdm_collection).to eq(contentdm_collection_2)
         expect(asset_1.aspace_collection).to eq(aspace_collection_2)
         expect(asset_1.aspace_linking_status).to eq("true")
 
         expect(asset_2.migration_status).to eq(migration_status_3)
         expect(asset_2.assigned_to).to eq(other_user)
+        expect(asset_2.contentdm_collection).to eq(contentdm_collection_2)
         expect(asset_2.aspace_collection).to eq(aspace_collection_2)
         expect(asset_2.aspace_linking_status).to eq("true")
 
@@ -371,6 +425,7 @@ RSpec.describe "Volumes batch actions", type: :request do
         notice = flash[:notice]
         expect(notice).to include("migration status to Migrated")
         expect(notice).to include("assigned user to Other User")
+        expect(notice).to include("ContentDM collection to ContentDM B")
         expect(notice).to include("ASpace collection to Collection B")
         expect(notice).to include("ASpace linking status to linked")
       end
