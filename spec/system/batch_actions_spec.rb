@@ -11,8 +11,9 @@ RSpec.describe "Batch Actions", type: :system, js: true do
   let(:asset_1) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
   let(:asset_2) { FactoryBot.create(:isilon_asset, parent_folder: folder) }
 
+  before { driven_by :cuprite }
+
   def visit_volume_page
-    driven_by(RSpec.current_example.metadata[:js] ? :cuprite : :rack_test)
     sign_in user
     visit volume_path(volume)
     expect(page).to have_css("[data-controller*='batch-actions']", wait: 0.5)
@@ -34,7 +35,7 @@ RSpec.describe "Batch Actions", type: :system, js: true do
       visit_volume_page
     end
 
-    it "initially hides batch actions button", :aggregate_failures, js: false do
+    it "initially hides batch actions button", :aggregate_failures do
       button = find("#asset-batch-actions-btn", visible: :all, wait: 0.5)
 
       expect(button).not_to be_visible
