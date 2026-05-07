@@ -7,6 +7,19 @@ namespace :sync do
     SyncService::Assets.call(csv_path: args[:path])
   end
 
+  desc "Update existing Isilon assets whose filenames match ContentDM CSV filenames"
+  task :contentdm_filenames, [ :csv_folder ] => :environment do |_t, args|
+    args.with_defaults(csv_folder: nil)
+
+    result = SyncService::ContentdmFilenameSync.call(csv_folder: args[:csv_folder])
+
+    puts "CSV rows: #{result.rows_touched}"
+    puts "Asset(s) updated: #{result.updated_count}"
+    puts "Unique Assets Updated: #{result.rows_matched}"
+    puts "Ignored during dedupe/conflict resolution: #{result.rows_discarded}"
+    puts "Unmatched rows (not in db): #{result.rows_unmatched}"
+  end
+
   desc "Export TIFF rule matches without updating migration_status"
   task :tiffs_export, [ :output_path, :volume_name ] => :environment do |_t, args|
     args.with_defaults(output_path: nil, volume_name: nil)

@@ -11,6 +11,7 @@ RSpec.describe 'sync rake tasks', type: :task do
 
   before(:each) do
     Rake::Task['sync:assets'].reenable if Rake::Task.task_defined?('sync:assets')
+    Rake::Task['sync:contentdm_filenames'].reenable if Rake::Task.task_defined?('sync:contentdm_filenames')
   end
 
   describe 'sync:assets' do
@@ -28,6 +29,21 @@ RSpec.describe 'sync rake tasks', type: :task do
 
         Rake::Task['sync:assets'].invoke
       end
+    end
+  end
+
+  describe 'sync:contentdm_filenames' do
+    it 'calls SyncService::ContentdmFilenameSync with the configured csv paths' do
+      result = SyncService::ContentdmFilenameSync::SyncResult.new(
+        updated_count: 7,
+        rows_touched: 10,
+        rows_matched: 6,
+        rows_unmatched: 3,
+        rows_discarded: 1
+      )
+      expect(SyncService::ContentdmFilenameSync).to receive(:call).with(csv_folder: 'csv').and_return(result)
+
+      Rake::Task['sync:contentdm_filenames'].invoke('csv')
     end
   end
 end
