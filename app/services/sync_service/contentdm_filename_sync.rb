@@ -19,6 +19,7 @@ module SyncService
     COLLECTION_HEADER = "Collection"
     NON_MATCHES_CSV_PATH = Rails.root.join("tmp", "contentdm_filename_non_matches.csv")
     BATCH_SIZE = 500
+    EXCLUDED_SOURCE_FILES = [ "scrc_manuscripts_non-unique_filenames.csv" ]
     CONFLICT_WINNERS = {
       [ "ambler_filenames.csv", "scrc_photographs_filenames.csv" ] => "ambler_filenames.csv",
       [ "bulletin_photos_filenames.csv", "bulletin_photos_restricted_filenames.csv" ] => "bulletin_photos_filenames.csv",
@@ -38,7 +39,9 @@ module SyncService
 
     def sync
       validate_csv_folder!
-      csv_files = Dir.glob(File.join(@csv_folder, "*.csv")).sort
+      csv_files = Dir.glob(File.join(@csv_folder, "*.csv")).sort.reject do |csv_path|
+        EXCLUDED_SOURCE_FILES.include?(File.basename(csv_path))
+      end
       raise ArgumentError, "No CSV files found in #{@csv_folder}" if csv_files.empty?
 
       load_result = load_filename_map(csv_files)

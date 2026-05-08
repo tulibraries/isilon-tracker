@@ -96,6 +96,18 @@ RSpec.describe SyncService::ContentdmFilenameSync, type: :service do
       end
     end
 
+    it "ignores the non-unique SCRC filename csv" do
+      with_csv_folder(%w[single_match.csv scrc_manuscripts_non-unique_filenames.csv]) do |dir|
+        result = described_class.call(csv_folder: dir)
+
+        expect(result.updated_count).to eq(1)
+        expect(result.rows_touched).to eq(1)
+        expect(result.rows_matched).to eq(1)
+        expect(result.rows_unmatched).to eq(0)
+        expect(target_asset.reload.contentdm_collection).to eq(temple_photos_collection)
+      end
+    end
+
     it "quietly discards duplicate rows within the same csv when the collection is the same" do
       with_csv_folder(%w[duplicate_same_collection.csv]) do |dir|
         result = described_class.call(csv_folder: dir)

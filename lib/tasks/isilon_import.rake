@@ -20,6 +20,18 @@ namespace :sync do
     puts "Unmatched rows (not in db): #{result.rows_unmatched}"
   end
 
+  desc "Update existing Isilon assets whose non-unique SCRC ContentDM paths match parent-folder and filename pairs"
+  task :scrc_manuscripts, [ :file_path ] => :environment do |_t, args|
+    args.with_defaults(file_path: nil)
+
+    result = SyncService::ContentdmNonUniqueFilenameSync.call(file_path: args[:file_path])
+
+    puts "CSV rows: #{result.rows_touched}"
+    puts "Asset(s) updated: #{result.updated_count}"
+    puts "Matched rows: #{result.rows_matched}"
+    puts "Unmatched rows (not in db): #{result.rows_unmatched}"
+  end
+
   desc "Export TIFF rule matches without updating migration_status"
   task :tiffs_export, [ :output_path, :volume_name ] => :environment do |_t, args|
     args.with_defaults(output_path: nil, volume_name: nil)
