@@ -24,7 +24,7 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
     sign_in user
   end
 
-  it "renders folder and asset-specific affordances in Wunderbaum" do
+  it "renders only allowed interactions for folders" do
     visit volume_path(volume)
 
     folder_row = find(
