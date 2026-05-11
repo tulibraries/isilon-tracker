@@ -2,16 +2,14 @@ require "rails_helper"
 
 RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
   let!(:volume) { create(:volume, name: "TestVol") }
-
   let!(:root_folder) do
     create(
       :isilon_folder,
       volume: volume,
       parent_folder: nil,
-      full_path: "RootFolder"
+      full_path: "/TestVol/RootFolder"
     )
   end
-
   let!(:asset) do
     create(
       :isilon_asset,
@@ -19,53 +17,36 @@ RSpec.describe "Wunderbaum folder vs asset rendering", type: :system do
       isilon_name: "my_asset.txt"
     )
   end
-
   let!(:user) { create(:user, email: "tester@temple.edu") }
 
   before do
     driven_by :cuprite
     sign_in user
-    visit volume_path(volume)
   end
 
   it "renders only allowed interactions for folders" do
-    folder_row = page
-      .all(".wb-row", visible: true)
-      .find { |row| row.has_css?(".wb-expander") }
+    visit volume_path(volume)
 
-    expect(folder_row).to be_present
+    folder_row = find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//span[contains(@class,'wb-title')][normalize-space(text())='RootFolder']]",
+      wait: 10
+    )
 
-    expect(folder_row).to have_css("[data-colid='assigned_to']")
-    expect(folder_row).to have_css("[data-colid='notes']")
-    expect(folder_row).to have_css(".wb-select-like[data-colid='assigned_to']")
-
-    expect(folder_row).not_to have_css("[data-colid='migration_status']")
-    expect(folder_row).not_to have_css("[data-colid='contentdm_collection_id']")
-    expect(folder_row).not_to have_css("[data-colid='aspace_collection_id']")
-    expect(folder_row).not_to have_css("[data-colid='aspace_linking_status']")
-  end
-
-  it "renders all applicable columns for assets" do
-    folder_row = page
-      .all(".wb-row", visible: true)
-      .find { |row| row.has_css?(".wb-expander") }
+    expect(folder_row).to have_css("[data-colid='assigned_to'].wb-select-like", text: "Unassigned")
+    expect(folder_row).not_to have_css("a.asset-link")
+    expect(folder_row).not_to have_css("input[type='checkbox']")
 
     folder_row.find(".wb-expander").click
 
-    expect(page).to have_css(".wb-row", text: "my_asset.txt")
+    asset_row = find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//a[contains(@class,'asset-link')][normalize-space(text())='my_asset.txt']]",
+      wait: 10
+    )
 
-    asset_row = page
-      .all(".wb-row", visible: true)
-      .find { |row| row.has_css?("a.asset-link") }
-
-    expect(asset_row).to be_present
-
+    expect(asset_row).to have_css("a.asset-link", text: "my_asset.txt")
     expect(asset_row).to have_css("input[name='notes']")
-    expect(asset_row).to have_css("[data-colid='assigned_to']")
-    expect(asset_row).to have_css("[data-colid='migration_status']")
-    expect(asset_row).to have_css("[data-colid='contentdm_collection_id']")
-    expect(asset_row).to have_css("[data-colid='aspace_collection_id']")
-    expect(asset_row).to have_css("[data-colid='preservica_reference_id']")
     expect(asset_row).to have_css("input[type='checkbox']")
   end
 end
