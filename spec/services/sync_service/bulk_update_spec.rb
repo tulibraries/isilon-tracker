@@ -54,7 +54,9 @@ RSpec.describe SyncService::BulkUpdate, type: :service do
         }
       )
 
-      expect(result.updated_count).to eq(3)
+      expect(result.updated_count).to eq(6)
+      expect(result.asset_updated_count).to eq(3)
+      expect(result.folder_updated_count).to eq(3)
       expect(result.folder_count).to eq(3)
       expect(result.volume_id).to eq(volume.id)
       expect(result.full_path).to eq(root_folder.full_path)
@@ -66,13 +68,18 @@ RSpec.describe SyncService::BulkUpdate, type: :service do
       expect(root_asset.reload.assigned_to).to eq(user_two)
       expect(child_asset.reload.assigned_to).to eq(user_two)
       expect(grandchild_asset.reload.assigned_to).to eq(user_two)
+      expect(root_folder.reload.assigned_to).to eq(user_two)
+      expect(child_folder.reload.assigned_to).to eq(user_two)
+      expect(grandchild_folder.reload.assigned_to).to eq(user_two)
 
       expect(sibling_asset.reload.migration_status).to eq(status_one)
       expect(other_volume_asset.reload.migration_status).to eq(status_one)
+      expect(sibling_folder.reload.assigned_to).to be_nil
+      expect(same_path_other_volume.reload.assigned_to).to be_nil
     end
 
     it "updates only the requested field when one field is omitted" do
-      described_class.call(
+      result = described_class.call(
         volume_id: volume.id,
         full_path: root_folder.full_path,
         updates: {
@@ -80,9 +87,15 @@ RSpec.describe SyncService::BulkUpdate, type: :service do
         }
       )
 
+      expect(result.updated_count).to eq(6)
+      expect(result.asset_updated_count).to eq(3)
+      expect(result.folder_updated_count).to eq(3)
       expect(root_asset.reload.assigned_to).to eq(user_two)
       expect(child_asset.reload.assigned_to).to eq(user_two)
       expect(grandchild_asset.reload.assigned_to).to eq(user_two)
+      expect(root_folder.reload.assigned_to).to eq(user_two)
+      expect(child_folder.reload.assigned_to).to eq(user_two)
+      expect(grandchild_folder.reload.assigned_to).to eq(user_two)
 
       expect(root_asset.reload.migration_status).to eq(status_one)
       expect(child_asset.reload.migration_status).to eq(status_one)
@@ -93,7 +106,7 @@ RSpec.describe SyncService::BulkUpdate, type: :service do
       child_asset.update!(assigned_to: user_one)
       grandchild_asset.update!(assigned_to: user_one)
 
-      described_class.call(
+      result = described_class.call(
         volume_id: volume.id,
         full_path: root_folder.full_path,
         updates: {
@@ -101,9 +114,32 @@ RSpec.describe SyncService::BulkUpdate, type: :service do
         }
       )
 
+      expect(result.updated_count).to eq(6)
+      expect(result.asset_updated_count).to eq(3)
+      expect(result.folder_updated_count).to eq(3)
       expect(root_asset.reload.assigned_to).to be_nil
       expect(child_asset.reload.assigned_to).to be_nil
       expect(grandchild_asset.reload.assigned_to).to be_nil
+      expect(root_folder.reload.assigned_to).to be_nil
+      expect(child_folder.reload.assigned_to).to be_nil
+      expect(grandchild_folder.reload.assigned_to).to be_nil
+    end
+
+    it "does not update folders when only migration status is requested" do
+      result = described_class.call(
+        volume_id: volume.id,
+        full_path: root_folder.full_path,
+        updates: {
+          migration_status_id: status_two.id
+        }
+      )
+
+      expect(result.updated_count).to eq(3)
+      expect(result.asset_updated_count).to eq(3)
+      expect(result.folder_updated_count).to eq(0)
+      expect(root_folder.reload.assigned_to).to be_nil
+      expect(child_folder.reload.assigned_to).to be_nil
+      expect(grandchild_folder.reload.assigned_to).to be_nil
     end
 
     it "raises when the folder cannot be found within the selected volume" do
