@@ -54,7 +54,7 @@ group :test do
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
   gem "selenium-webdriver"
-  gem "shoulda-matchers", "~> 7.0"
+  gem "shoulda-matchers", "~> 8.0"
   gem "simplecov"
   gem "simplecov-lcov"
   gem "webdrivers", "5.3.1"
