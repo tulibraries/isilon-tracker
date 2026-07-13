@@ -52,6 +52,7 @@ class VolumesController < ApplicationController
     # Column filters
     scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
     scope = scope.where(assigned_to_id: params[:assigned_to]) if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+    scope = scope.where(file_type: params[:file_type]) if params[:file_type].present?
     scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
     scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
     scope = scope.where(aspace_linking_status: ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])) if params.key?(:aspace_linking_status)

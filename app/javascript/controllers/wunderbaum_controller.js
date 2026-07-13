@@ -41,6 +41,7 @@ export default class extends Controller {
   // Initializes option vocabularies, builds the Wunderbaum instance, and wires all UI behavior.
   async connect() {
     await Promise.all([
+      this._fetchOptions(`/file_types.json?volume_id=${this.volumeIdValue}`, "fileTypeOptions"),
       this._fetchOptions("/migration_statuses.json", "migrationStatusOptions"),
       this._fetchOptions("/aspace_collections.json", "aspaceCollectionOptions"),
       this._fetchOptions("/contentdm_collections.json", "contentdmCollectionOptions"),
@@ -122,8 +123,9 @@ export default class extends Controller {
           {
             id: "file_type",
             classes: "wb-helper-center",
+            filterable: true,
             title: "File type",
-            width: "150px"
+            width: "175px"
           },
           { id: "file_size", classes: "wb-helper-center", title: "File size", width: "150px" },
           { id: "isilon_date", classes: "wb-helper-center", title: "Isilon date created", width: "175px" },
@@ -570,13 +572,16 @@ export default class extends Controller {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.tree.clearFilter();
+      document.getElementById("tree-match-count")?.remove();
       this._setLoading(false);
       this._updateFilterModeButton();
       this._updateSelectAllButtonState();
       return;
     }
 
+    this._showMatchCountStatus("Searching…");
     this._setLoading(true, "Searching…");
+    await new Promise(requestAnimationFrame);
 
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -1002,6 +1007,8 @@ export default class extends Controller {
       options = this.contentdmCollectionOptions || [];
     } else if (colId === "aspace_collection_id") {
       options = this.aspaceCollectionOptions || [];
+    } else if (colId === "file_type") {
+      options = this.fileTypeOptions || [];
     } else if (colId === "aspace_linking_status") {
       options = [
         { value: "true", label: "True" },
@@ -1399,6 +1406,34 @@ export default class extends Controller {
     el.style.display = "block";
 
     el.textContent = `${count.toLocaleString()} matches`;
+  }
+
+  _showMatchCountStatus(text) {
+    const input = document.getElementById("tree-filter");
+    if (!input) return;
+
+    let el = document.getElementById("tree-match-count");
+    const toolbar = input.closest(".wb-toolbar") || input.parentElement;
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "tree-match-count";
+      el.className = "wb-match-count wb-loading-style";
+      el.style.position = "absolute";
+      el.style.pointerEvents = "none";
+
+      (toolbar || document.body).appendChild(el);
+    }
+
+    if (toolbar && getComputedStyle(toolbar).position === "static") {
+      toolbar.style.position = "relative";
+    }
+
+    const topOffset = (toolbar.offsetHeight || 0) + 8;
+    el.style.top = `${topOffset}px`;
+    el.style.left = "0";
+    el.style.display = "block";
+    el.textContent = text;
   }
 
   // Updates or creates the selection progress bar based on processed vs total nodes.

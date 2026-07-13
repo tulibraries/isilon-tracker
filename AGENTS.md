@@ -60,6 +60,7 @@
 - Single example by description: `bundle exec rspec spec/path/to/file_spec.rb -e "example name"`.
 - System specs use Capybara/Cuprite; precompile assets if packs missing.
 - Remove `:focus`/`fdescribe`/`fit`; ensure pending migrations are applied.
+- Do not run tests unless the user explicitly asks for it.
 
 ## Database and migrations
 - SQLite locations: `storage/development.sqlite3`, `storage/test.sqlite3`.

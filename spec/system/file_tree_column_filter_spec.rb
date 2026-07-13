@@ -12,6 +12,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     create(
       :isilon_asset,
       parent_folder: root_folder,
+      file_type: "PDF",
       migration_status: default_migration_status,
       isilon_name: "match_asset.txt",
       aspace_linking_status: true
@@ -21,6 +22,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     create(
       :isilon_asset,
       parent_folder: root_folder,
+      file_type: "TIFF",
       migration_status: migrated_status,
       isilon_name: "unrelated_document.txt",
       aspace_linking_status: false
@@ -174,5 +176,26 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: other_assigned_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: unassigned_asset.isilon_name, wait: 15)
+  end
+
+  it "filters assets by file type" do
+    find(".wb-row .wb-expander", match: :first).click
+    expect(page).to have_content(match_asset.isilon_name)
+    expect(page).to have_content(other_asset.isilon_name)
+
+    find(
+      :xpath,
+      "//span[contains(@class,'wb-col-title')][normalize-space()='File type']/parent::span[contains(@class,'wb-col')]/i[@data-command='filter']",
+      wait: 10
+    ).click
+
+    within(".wb-popup") do
+      find("option", text: "PDF").select_option
+    end
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
+    expect(page).to have_no_selector(".wb-row .wb-title", text: other_asset.isilon_name, wait: 15)
   end
 end
