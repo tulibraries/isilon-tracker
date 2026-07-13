@@ -599,7 +599,11 @@ export default class extends Controller {
 
       if (mySeq !== this._filterSeq) return;
 
-      await this._materializeSearchResults(folders, assets, mySeq);
+      if (!q && this.columnFilters.size > 0) {
+        await this._materializeColumnFilterResults(folders, assets, mySeq);
+      } else {
+        await this._materializeSearchResults(folders, assets, mySeq);
+      }
 
       this._applyPredicate(q);
     } finally {
@@ -810,8 +814,59 @@ export default class extends Controller {
     const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
     const toAdd = childFolders.filter((folder) => !existing.has(String(folder.key ?? folder.id)));
     if (toAdd.length) parentNode.addChildren?.(toAdd);
+    if (!toAdd.length && childFolders.length === 0 && parentNode.children == null) {
+      parentNode.children = [];
+    }
 
     this.loadedFolders.add(pid);
+  }
+
+  async _hydrateParentsBatch(parentKeys, mySeq) {
+    if (mySeq !== this._filterSeq) return;
+
+    const parentIds = [...new Set(parentKeys.map(String))]
+      .filter((pid) => pid && !this.loadedFolders.has(pid));
+
+    if (!parentIds.length) return;
+
+    const params = new URLSearchParams();
+    parentIds.forEach((pid) => params.append("parent_ids[]", pid));
+
+    const ctrl = this._beginFetchGroup();
+    let childFolders = [];
+    try {
+      childFolders = await this._fetchJson(
+        `/volumes/${this.volumeIdValue}/file_tree_folders.json?${params.toString()}`,
+        ctrl
+      ).catch(() => []);
+    } finally {
+      this.inflightControllers.delete(ctrl);
+    }
+
+    if (!Array.isArray(childFolders)) childFolders = [];
+
+    const grouped = childFolders.reduce((acc, folder) => {
+      const pid = String(folder.parent_folder_id ?? "");
+      if (!pid) return acc;
+      (acc[pid] ||= []).push(folder);
+      return acc;
+    }, {});
+
+    parentIds.forEach((pid) => {
+      const parentNode = this._findNodeByKey(pid);
+      if (!parentNode) return;
+
+      const children = grouped[pid] || [];
+      const existing = new Set((parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+      const toAdd = children.filter((folder) => !existing.has(String(folder.key ?? folder.id)));
+      if (toAdd.length) parentNode.addChildren?.(toAdd);
+      if (!toAdd.length && children.length === 0 && parentNode.children == null) {
+        parentNode.children = [];
+      }
+
+      this.folderCache.set(pid, children);
+      this.loadedFolders.add(pid);
+    });
   }
 
   // Loads assets for a folder with cancellation support.
@@ -846,6 +901,54 @@ export default class extends Controller {
     this.assetsLoadedFor.add(k);
   }
 
+  async _ensureAssetsForFoldersBatch(folderKeys, mySeq) {
+    if (mySeq !== this._filterSeq) return;
+
+    const folderIds = [...new Set(folderKeys.map(String))]
+      .filter((pid) => pid && !this.assetsLoadedFor.has(pid));
+
+    if (!folderIds.length) return;
+
+    const params = new URLSearchParams();
+    folderIds.forEach((pid) => params.append("parent_ids[]", pid));
+
+    const ctrl = this._beginFetchGroup();
+    let assets = [];
+    try {
+      assets = await this._fetchJson(
+        `/volumes/${this.volumeIdValue}/file_tree_assets.json?${params.toString()}`,
+        ctrl
+      ).catch(() => []);
+    } finally {
+      this.inflightControllers.delete(ctrl);
+    }
+
+    if (!Array.isArray(assets)) assets = [];
+
+    const grouped = assets.reduce((acc, asset) => {
+      const pid = String(asset.parent_folder_id ?? "");
+      if (!pid) return acc;
+      (acc[pid] ||= []).push(asset);
+      return acc;
+    }, {});
+
+    folderIds.forEach((pid) => {
+      const node = this._findNodeByKey(pid);
+      if (!node || node.data?.folder !== true) {
+        this.assetsLoadedFor.add(pid);
+        return;
+      }
+
+      const children = grouped[pid] || [];
+      const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
+      const toAdd = children.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
+      if (toAdd.length) node.addChildren?.(toAdd);
+
+      this.assetCache.set(pid, children);
+      this.assetsLoadedFor.add(pid);
+    });
+  }
+
   // Ensures all folder paths needed for search results exist.
   async _materializeSearchResults(folders, assets, seq) {
     const paths = new Set();
@@ -876,6 +979,61 @@ export default class extends Controller {
       if (seq !== this._filterSeq) return;
       await this._ensureAssetsForFolderCancellable(pid, seq);
     }
+  }
+
+  async _materializeColumnFilterResults(folders, assets, seq) {
+    const assetParentIds = new Set();
+    const pathArrays = [];
+
+    for (const folder of folders) {
+      if (Array.isArray(folder.path)) {
+        pathArrays.push([...folder.path, folder.id].map(String));
+      }
+    }
+
+    for (const asset of assets) {
+      if (Array.isArray(asset.path)) {
+        const pid = asset.parent_folder_id ?? asset.folder_id;
+        if (pid != null) {
+          pathArrays.push([...asset.path, pid].map(String));
+          assetParentIds.add(String(pid));
+        }
+      }
+    }
+
+    const maxDepth = pathArrays.reduce((max, path) => Math.max(max, path.length), 0);
+
+    for (let depth = 0; depth < maxDepth - 1; depth += 1) {
+      if (seq !== this._filterSeq) return;
+
+      const parentIds = [...new Set(
+        pathArrays
+          .filter((path) => path.length > depth + 1)
+          .map((path) => path[depth])
+      )];
+
+      await this._hydrateParentsBatch(parentIds, seq);
+
+      for (const pid of parentIds) {
+        const node = this._findNodeByKey(pid);
+        if (!node) continue;
+
+        const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+        if (node.expanded || this.expandingNodes.has(nodeKey)) continue;
+
+        this.expandingNodes.add(nodeKey);
+        try {
+          node.setExpanded(true);
+        } finally {
+          Promise.resolve().then(() => {
+            this.expandingNodes.delete(nodeKey);
+          });
+        }
+      }
+    }
+
+    if (seq !== this._filterSeq) return;
+    await this._ensureAssetsForFoldersBatch([...assetParentIds], seq);
   }
 
   // Expands and loads each folder along a given path.
