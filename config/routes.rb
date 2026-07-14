@@ -29,6 +29,7 @@ Rails.application.routes.draw do
   resources :isilon_folders
   resources :aspace_collections
   resources :contentdm_collections
+  resources :file_types, only: [ :index ]
   resources :migration_statuses, only: [ :index ]
   resources :users, only: [ :index ]
 

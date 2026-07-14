@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_15_191738) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_13_120000) do
   create_table "admins", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email", default: "", null: false
@@ -86,6 +86,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_191738) do
     t.index ["migration_status_id"], name: "index_isilon_assets_on_migration_status_id"
     t.index ["parent_folder_id", "migration_status_id"], name: "index_isilon_assets_on_parent_folder_and_migration_status"
     t.index ["parent_folder_id"], name: "index_isilon_assets_on_parent_folder_id"
+    t.index ["volume_id", "file_type"], name: "index_isilon_assets_on_volume_id_and_file_type"
     t.index ["volume_id", "isilon_path"], name: "index_isilon_assets_on_volume_id_and_isilon_path", unique: true
   end
 
