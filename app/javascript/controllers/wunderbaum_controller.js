@@ -15,6 +15,7 @@ export default class extends Controller {
   folderCache = new Map();
   assetCache = new Map();
   loadedFolders = new Set();
+  folderMatchCounts = new Map();
 
   inflightControllers = new Set();
   _filterTimer = null;
@@ -268,14 +269,34 @@ export default class extends Controller {
           if (isFolder) {
             titleElem.textContent = node.title || "";
 
-            const count = node.data?.descendant_assets_count;
-            if (count != null) {
-              const badge = document.createElement("span");
-              badge.className = "wb-badge";
-              badge.textContent = count;
-              badge.title = `${count} assets`;
-              badge.style.marginLeft = "6px";
-              titleElem.appendChild(badge);
+            const totalCount = node.data?.descendant_assets_count;
+
+            if (totalCount != null) {
+              const totalBadge = document.createElement("span");
+              totalBadge.className = "wb-badge";
+              totalBadge.textContent = totalCount;
+              totalBadge.title = `${totalCount} total assets`;
+              totalBadge.style.marginLeft = "6px";
+              titleElem.appendChild(totalBadge);
+            }
+
+            const folderKey = String(
+              node.key ??
+              node.data?.key ??
+              node.data?.id
+            );
+
+            const matchCount =
+              this.folderMatchCounts.get(folderKey) || 0;
+
+            if (this._hasActiveFilter() && matchCount > 0) {
+              const matchBadge = document.createElement("span");
+              matchBadge.className = "wb-badge wb-match-badge";
+              matchBadge.textContent = `${matchCount} matches`;
+              matchBadge.title =
+                `${matchCount} matching assets in this folder and its subfolders`;
+              matchBadge.style.marginLeft = "6px";
+              titleElem.appendChild(matchBadge);
             }
           } else {
             titleElem.innerHTML =
@@ -559,53 +580,134 @@ export default class extends Controller {
   async _runDeepFilter(raw) {
     this._cancelActiveSearch();
     this._cancelInflight();
+
     const mySeq = ++this._filterSeq;
+
     this.loadedFolders.clear();
     this.assetsLoadedFor.clear();
     this.assetCache.clear();
+    this.folderMatchCounts.clear();
 
     const q = (raw || "").trim().toLowerCase();
     this.currentQuery = q;
+
     const hasColumnFilters = this.columnFilters.size > 0;
 
     if (!q && !hasColumnFilters) {
       this.currentFilterPredicate = null;
       this.currentFilterOpts = null;
       this.tree.clearFilter();
+
       document.getElementById("tree-match-count")?.remove();
+
       this._setLoading(false);
       this._updateFilterModeButton();
       this._updateSelectAllButtonState();
+
       return;
     }
 
     this._showMatchCountStatus("Searching…");
     this._setLoading(true, "Searching…");
+
     await new Promise(requestAnimationFrame);
 
     const params = new URLSearchParams();
-    if (q) params.set("q", q);
+
+    if (q) {
+      params.set("q", q);
+    }
+
     for (const [col, val] of this.columnFilters.entries()) {
-      if (val !== "") params.set(col, val);
+      if (val !== "") {
+        params.set(col, val);
+      }
     }
 
     const searchCtrl = this._beginFetchGroup();
-    let folders = [], assets = [];
+
     try {
-      [folders, assets] = await Promise.all([
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`, searchCtrl).catch(() => []),
-        this._fetchJson(`/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`, searchCtrl).catch(() => []),
+      const [folderResponse, assetResponse] = await Promise.all([
+        this._fetchJson(
+          `/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`,
+          searchCtrl
+        ).catch(() => []),
+
+        this._fetchJson(
+          `/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`,
+          searchCtrl
+        ).catch(() => ({
+          results: [],
+          total_count: 0
+        }))
       ]);
 
-      if (mySeq !== this._filterSeq) return;
+      if (mySeq !== this._filterSeq) {
+        return;
+      }
+
+      let folders = [];
+
+      if (Array.isArray(folderResponse)) {
+        folders = folderResponse;
+      } else if (Array.isArray(folderResponse?.results)) {
+        folders = folderResponse.results;
+      }
+
+      let assets = [];
+
+      if (Array.isArray(assetResponse)) {
+        assets = assetResponse;
+      } else if (Array.isArray(assetResponse?.results)) {
+        assets = assetResponse.results;
+      }
+
+      this._buildFolderMatchCounts(assets);
+      const folderMatchCount = folders.length;
+
+      let backendAssetCount = assets.length;
+
+      if (
+        !Array.isArray(assetResponse) &&
+        assetResponse?.total_count != null
+      ) {
+        backendAssetCount = Number(assetResponse.total_count);
+      }
+
+      if (!Number.isFinite(backendAssetCount)) {
+        backendAssetCount = assets.length;
+      }
+
+      const hasFolderCapableFilters =
+        q.length > 0 ||
+        (this.columnFilters.has("assigned_to") &&
+          String(this.columnFilters.get("assigned_to") ?? "") !== "");
+
+      const backendMatchCount =
+        hasFolderCapableFilters
+          ? folderMatchCount + backendAssetCount
+          : backendAssetCount;
 
       if (!q && this.columnFilters.size > 0) {
-        await this._materializeColumnFilterResults(folders, assets, mySeq);
+        await this._materializeColumnFilterResults(
+          folders,
+          assets,
+          mySeq
+        );
       } else {
-        await this._materializeSearchResults(folders, assets, mySeq);
+        await this._materializeSearchResults(
+          folders,
+          assets,
+          mySeq
+        );
+      }
+
+      if (mySeq !== this._filterSeq) {
+        return;
       }
 
       this._applyPredicate(q);
+      this._updateMatchCount(backendMatchCount);
     } finally {
       this.inflightControllers.delete(searchCtrl);
       this._setLoading(false);
@@ -629,31 +731,32 @@ export default class extends Controller {
 
       for (const [colId, val] of this.columnFilters.entries()) {
         const normalizedValue = this._filterValueFor(colId, node.data);
-        const normalizedStr = normalizedValue == null ? "" : String(normalizedValue).toLowerCase();
+        const normalizedStr =
+          normalizedValue == null
+            ? ""
+            : String(normalizedValue).toLowerCase();
+
         const filterStr = String(val ?? "").toLowerCase();
 
         if (normalizedStr !== filterStr) return false;
       }
+
       return true;
     };
-    const opts = { leavesOnly: false, matchBranch: false, mode: this.filterMode };
+
+    const opts = {
+      leavesOnly: false,
+      matchBranch: false,
+      mode: this.filterMode
+    };
+
     this.currentFilterPredicate = predicate;
     this.currentFilterOpts = opts;
+
     this.tree.filterNodes(predicate, opts);
-    this._updateFilterModeButton();
-    this._updateSelectAllButtonState();
-
-    const count = this._countFilteredNodes();
-    this._updateMatchCount(count);
 
     this._updateFilterModeButton();
     this._updateSelectAllButtonState();
-
-    let debugCount = 0;
-    this.tree.visitRows((node) => {
-      if (node.statusNodeType) return;
-      debugCount += 1;
-    });
   }
 
   // Load and select all descendants for a folder node without blocking UI.
@@ -1521,21 +1624,6 @@ export default class extends Controller {
     }
   }
 
-  // Counts the number of matches
-  _countFilteredNodes() {
-    const predicate = this.currentFilterPredicate;
-    if (!predicate) return 0;
-
-    let count = 0;
-
-    this.tree.visit((node) => {
-      if (node.statusNodeType) return;
-      if (predicate(node)) count += 1;
-    });
-
-    return count;
-  }
-
   // Displays count for query search matches
   _updateMatchCount(count) {
     const input = document.getElementById("tree-filter");
@@ -1734,5 +1822,34 @@ export default class extends Controller {
     } catch (error) {
       console.error(`Failed to refresh assets for folder ${parentFolderId}:`, error);
     }
+  }
+
+  // Builds the number of selected assets that match each folder
+  _buildFolderMatchCounts(assets) {
+    const counts = new Map();
+
+    for (const asset of assets) {
+      const parentId =
+        asset.parent_folder_id ??
+        asset.folder_id;
+
+      const folderIds = new Set(
+        [
+          ...(Array.isArray(asset.path) ? asset.path : []),
+          parentId
+        ]
+          .filter((id) => id != null)
+          .map(String)
+      );
+
+      for (const folderId of folderIds) {
+        counts.set(
+          folderId,
+          (counts.get(folderId) || 0) + 1
+        );
+      }
+    }
+
+    this.folderMatchCounts = counts;
   }
 }

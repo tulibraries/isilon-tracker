@@ -160,6 +160,18 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parsed).to eq([])
     end
+
+    it "filters folders by assigned_to" do
+      folder_b.update!(assigned_to: assignee)
+
+      get "/volumes/#{volume.id}/file_tree_folders_search.json", params: { assigned_to: assignee.id }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body).to be_a(Array)
+      expect(body.map { |h| h["id"] }).to include(folder_b.id)
+      expect(body.map { |h| h["id"] }).not_to include(root.id)
+    end
   end
 
   describe "GET /volumes/:id/file_tree_assets_search" do
@@ -168,9 +180,13 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
 
       body = parsed
-      expect(body).to be_a(Array)
+      expect(body).to include(
+        "results" => be_a(Array),
+        "total_count" => 1,
+        "returned_count" => 1
+      )
 
-      match = body.find { |h| h["id"] == asset.id }
+      match = body.fetch("results").find { |h| h["id"] == asset.id }
 
       expect(match).to be_present
       expect(match["folder"]).to eq(false)
@@ -183,7 +199,11 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
     it "returns empty array when no assets match" do
       get "/volumes/#{volume.id}/file_tree_assets_search.json", params: { q: "zzz-not-found" }
       expect(response).to have_http_status(:ok)
-      expect(parsed).to eq([])
+      expect(parsed).to eq({
+        "results" => [],
+        "total_count" => 0,
+        "returned_count" => 0
+      })
     end
 
     it "filters assets by duplicate status" do
@@ -197,7 +217,10 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
 
       body = parsed
-      ids = body.map { |h| h["id"] }
+      expect(body["total_count"]).to eq(1)
+      expect(body["returned_count"]).to eq(1)
+
+      ids = body.fetch("results").map { |h| h["id"] }
       expect(ids).to include(duplicate_asset.id)
       expect(ids).not_to include(asset.id)
     end

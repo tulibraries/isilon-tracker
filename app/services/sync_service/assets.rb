@@ -36,6 +36,7 @@ module SyncService
         end
       end
 
+      backfill_descendant_asset_counts
       stdout_and_log("Imported #{imported} IsilonAsset records.")
     end
 
@@ -223,6 +224,23 @@ module SyncService
 
     def get_name(path)
       path.split("/").last
+    end
+
+    def backfill_descendant_asset_counts
+      folders = IsilonFolder.where(volume_id: @parent_volume.id)
+                            .select(:id, :parent_folder_id, :full_path)
+                            .order(Arel.sql("LENGTH(full_path) DESC"))
+
+      totals = IsilonAsset.where(volume_id: @parent_volume.id)
+                          .group(:parent_folder_id)
+                          .count
+                          .transform_keys { |key| key&.to_i }
+
+      folders.each do |folder|
+        total = totals.fetch(folder.id, 0)
+        totals[folder.parent_folder_id] = totals.fetch(folder.parent_folder_id, 0) + total if folder.parent_folder_id
+        folder.update_column(:descendant_assets_count, total)
+      end
     end
 
     def stdout_and_log(message, level: :info)

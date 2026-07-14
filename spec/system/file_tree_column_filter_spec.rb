@@ -62,6 +62,16 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     )
   end
 
+  let!(:assigned_folder) do
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: root_folder,
+      assigned_to: assignee_a,
+      full_path: "#{root_folder.full_path}/assigned-folder"
+    )
+  end
+
   before do
     driven_by :cuprite
     sign_in user
@@ -178,6 +188,24 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     expect(page).to have_no_selector(".wb-row .wb-title", text: unassigned_asset.isilon_name, wait: 15)
   end
 
+  it "counts folder matches when filtering by assigned_to" do
+    find(
+      :xpath,
+      "//span[contains(@class,'wb-col-title')][normalize-space()='Assigned To']/parent::span[contains(@class,'wb-col')]/i[@data-command='filter']",
+      wait: 10
+    ).click
+
+    within(".wb-popup") do
+      find("option", text: assignee_a.name).select_option
+    end
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
+    expect(page).to have_selector(".wb-row .wb-title", text: "assigned-folder", wait: 15)
+  end
+
   it "filters assets by file type" do
     find(".wb-row .wb-expander", match: :first).click
     expect(page).to have_content(match_asset.isilon_name)
@@ -195,6 +223,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
     expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: other_asset.isilon_name, wait: 15)
   end

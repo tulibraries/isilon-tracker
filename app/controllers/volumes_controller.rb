@@ -32,11 +32,18 @@ class VolumesController < ApplicationController
 
   def file_tree_folders_search
     q = params[:q].to_s.strip
-    return render(json: []) if q.blank?
+    assigned_to = params[:assigned_to].presence
+    return render(json: []) if q.blank? && assigned_to.blank?
 
-    folders = @volume.isilon_folders
-                    .where("LOWER(full_path) LIKE ?", "%#{q.downcase}%")
-                    .includes(:parent_folder)
+    folders = @volume.isilon_folders.includes(:parent_folder)
+
+    folders = folders.where("LOWER(full_path) LIKE ?", "%#{q.downcase}%") if q.present?
+
+    if assigned_to.present? && assigned_to != "unassigned"
+      folders = folders.where(assigned_to_id: assigned_to)
+    end
+
+    folders = folders.where(assigned_to_id: nil) if assigned_to == "unassigned"
 
     render json: folders.map { |folder| FileTreeSearchResultSerializer.new(folder).as_json }
   end
@@ -51,20 +58,53 @@ class VolumesController < ApplicationController
 
     # Column filters
     scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
-    scope = scope.where(assigned_to_id: params[:assigned_to]) if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
-    scope = scope.where(file_type: params[:file_type]) if params[:file_type].present?
-    scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
-    scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
-    scope = scope.where(aspace_linking_status: ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])) if params.key?(:aspace_linking_status)
-    scope = scope.where(has_duplicates: ActiveModel::Type::Boolean.new.cast(params[:is_duplicate])) if params.key?(:is_duplicate)
 
-    # Handle unassigned users (assigned_to = nil)
-    if params[:assigned_to] == "unassigned"
-      scope = scope.where(assigned_to_id: nil)
+    if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+      scope = scope.where(assigned_to_id: params[:assigned_to])
     end
 
-    assets = scope.includes(parent_folder: :parent_folder).limit(500)
-    render json: assets.map { |asset| FileTreeSearchResultSerializer.new(asset).as_json }
+    if params[:file_type].present?
+      normalized_file_type = params[:file_type].to_s.strip.downcase
+
+      scope = scope.where(
+        "LOWER(TRIM(isilon_assets.file_type)) = ?",
+        normalized_file_type
+      )
+    end
+
+    if params[:contentdm_collection_id].present?
+      scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id])
+    end
+
+    if params[:aspace_collection_id].present?
+      scope = scope.where(aspace_collection_id: params[:aspace_collection_id])
+    end
+
+    if params.key?(:aspace_linking_status)
+      value = ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])
+      scope = scope.where(aspace_linking_status: value)
+    end
+
+    if params.key?(:is_duplicate)
+      value = ActiveModel::Type::Boolean.new.cast(params[:is_duplicate])
+      scope = scope.where(has_duplicates: value)
+    end
+
+    # Handle unassigned users (assigned_to = nil)
+    scope = scope.where(assigned_to_id: nil) if params[:assigned_to] == "unassigned"
+    total_count = scope.count
+
+    assets = scope.includes(parent_folder: :parent_folder)
+
+    tree_nodes = assets.map do |asset|
+      FileTreeSearchResultSerializer.new(asset).as_json
+    end
+
+    render json: {
+      results: tree_nodes,
+      total_count: total_count,
+      returned_count: tree_nodes.size
+    }
   end
 
   def file_tree_updates
