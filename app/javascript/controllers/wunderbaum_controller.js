@@ -261,6 +261,10 @@ export default class extends Controller {
             }
 
             util.setValueToElem(colInfo.elem, displayValue);
+
+            if (colId === "notes") {
+              this._syncNotesHighlight(colInfo.elem, node, displayValue);
+            }
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
@@ -302,6 +306,8 @@ export default class extends Controller {
             titleElem.innerHTML =
               `<a href="${node.data.url}" class="asset-link" target="_blank" rel="noopener" data-turbo="false">${node.title}</a>`;
           }
+
+          this._syncTitleHighlight(titleElem, node);
         },
         
         buttonClick: (e) => {
@@ -638,7 +644,8 @@ export default class extends Controller {
           searchCtrl
         ).catch(() => ({
           results: [],
-          total_count: 0
+          total_count: 0,
+          notes_match_count: 0
         }))
       ]);
 
@@ -647,11 +654,16 @@ export default class extends Controller {
       }
 
       let folders = [];
+      let folderTotalCount = 0;
+      let folderNotesMatchCount = 0;
 
       if (Array.isArray(folderResponse)) {
         folders = folderResponse;
+        folderTotalCount = folders.length;
       } else if (Array.isArray(folderResponse?.results)) {
         folders = folderResponse.results;
+        folderTotalCount = Number(folderResponse.total_count ?? folders.length);
+        folderNotesMatchCount = Number(folderResponse.notes_match_count ?? 0);
       }
 
       let assets = [];
@@ -663,30 +675,33 @@ export default class extends Controller {
       }
 
       this._buildFolderMatchCounts(assets);
-      const folderMatchCount = folders.length;
+      const folderMatchCount = Number.isFinite(folderTotalCount) ? folderTotalCount : folders.length;
 
       let backendAssetCount = assets.length;
+      let backendNotesMatchCount = 0;
 
       if (
         !Array.isArray(assetResponse) &&
         assetResponse?.total_count != null
       ) {
         backendAssetCount = Number(assetResponse.total_count);
+        backendNotesMatchCount = Number(assetResponse.notes_match_count ?? 0);
       }
 
       if (!Number.isFinite(backendAssetCount)) {
         backendAssetCount = assets.length;
       }
 
-      const hasFolderCapableFilters =
-        q.length > 0 ||
-        (this.columnFilters.has("assigned_to") &&
-          String(this.columnFilters.get("assigned_to") ?? "") !== "");
+      if (!Number.isFinite(backendNotesMatchCount)) {
+        backendNotesMatchCount = 0;
+      }
 
-      const backendMatchCount =
-        hasFolderCapableFilters
-          ? folderMatchCount + backendAssetCount
-          : backendAssetCount;
+      if (!Number.isFinite(folderNotesMatchCount)) {
+        folderNotesMatchCount = 0;
+      }
+
+      const backendMatchCount = folderMatchCount + backendAssetCount;
+      const totalNotesMatchCount = folderNotesMatchCount + backendNotesMatchCount;
 
       if (!q && this.columnFilters.size > 0) {
         await this._materializeColumnFilterResults(
@@ -707,7 +722,7 @@ export default class extends Controller {
       }
 
       this._applyPredicate(q);
-      this._updateMatchCount(backendMatchCount);
+      this._updateMatchCount(backendMatchCount, totalNotesMatchCount);
     } finally {
       this.inflightControllers.delete(searchCtrl);
       this._setLoading(false);
@@ -726,7 +741,9 @@ export default class extends Controller {
           ""
         ).toLowerCase();
 
-        if (!text.includes(q)) return false;
+        const notes = String(node.data.notes ?? "").toLowerCase();
+
+        if (!text.includes(q) && !notes.includes(q)) return false;
       }
 
       for (const [colId, val] of this.columnFilters.entries()) {
@@ -1233,6 +1250,47 @@ export default class extends Controller {
     return label.trim().toLowerCase();
   }
 
+  // Applies notes-match highlighting without replacing the editable notes input.
+  _syncNotesHighlight(elem, node, value) {
+    const notes = String(value ?? "");
+    const query = String(this.currentQuery || "").trim();
+    const input = elem.querySelector("input[name='notes']");
+
+    elem.classList.remove("wb-custom-match");
+    input?.classList.remove("wb-custom-match");
+
+    if (!input || !notes || !query) {
+      return;
+    }
+
+    const predicate = this.currentFilterPredicate;
+    if (typeof predicate === "function" && !predicate(node)) {
+      return;
+    }
+
+    const title = String(node?.title || "").toLowerCase();
+    const normalizedQuery = query.toLowerCase();
+    const noteMatches = normalizedQuery && notes.toLowerCase().includes(normalizedQuery);
+    const titleMatches = normalizedQuery && title.includes(normalizedQuery);
+
+    if (noteMatches && !titleMatches) {
+      input.classList.add("wb-custom-match");
+    }
+  }
+
+  // Applies title highlighting only when the visible node title itself matches the query.
+  _syncTitleHighlight(titleElem, node) {
+    titleElem.classList.remove("wb-title-match");
+
+    const query = String(this.currentQuery || "").trim().toLowerCase();
+    if (!query) return;
+
+    const title = String(node?.title || "").toLowerCase();
+    if (!title.includes(query)) return;
+
+    titleElem.classList.add("wb-title-match");
+  }
+
   // Renders and positions the column filter dropdown.
   _showDropdownFilter(anchorEl, colId, colIdx, opts = {}) {
     const isInline = typeof opts.onSelect === "function";
@@ -1625,7 +1683,7 @@ export default class extends Controller {
   }
 
   // Displays count for query search matches
-  _updateMatchCount(count) {
+  _updateMatchCount(count, notesMatchCount = 0) {
     const input = document.getElementById("tree-filter");
     if (!input) return;
 
@@ -1651,7 +1709,12 @@ export default class extends Controller {
     el.style.left = "0";
     el.style.display = "block";
 
-    el.textContent = `${count.toLocaleString()} matches`;
+    let text = `${count.toLocaleString()} matches`;
+    if (notesMatchCount > 0) {
+      text += ` (${notesMatchCount.toLocaleString()} notes matches)`;
+    }
+
+    el.textContent = text;
   }
 
   _showMatchCountStatus(text) {

@@ -144,9 +144,10 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
 
       body = parsed
-      expect(body).to be_a(Array)
+      expect(body["total_count"]).to eq(1)
+      expect(body["notes_match_count"]).to eq(0)
 
-      match = body.find { |h| h["id"] == folder_b.id }
+      match = body.fetch("results").find { |h| h["id"] == folder_b.id }
 
       expect(match).to be_present
       expect(match["folder"]).to eq(true)
@@ -155,10 +156,23 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(match["path"]).to eq([ root.id, folder_a.id ])
     end
 
+    it "does not count descendant folders whose own title does not match" do
+      get "/volumes/#{volume.id}/file_tree_folders_search.json", params: { q: "librarybeta" }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body["total_count"]).to eq(1)
+      expect(body.fetch("results").map { |h| h["id"] }).to include(root.id, folder_a.id, folder_b.id, folder_c.id)
+    end
+
     it "returns empty array for no matches" do
       get "/volumes/#{volume.id}/file_tree_folders_search.json", params: { q: "nope-nope" }
       expect(response).to have_http_status(:ok)
-      expect(parsed).to eq([])
+      expect(parsed).to eq({
+        "results" => [],
+        "total_count" => 0,
+        "notes_match_count" => 0
+      })
     end
 
     it "filters folders by assigned_to" do
@@ -168,9 +182,22 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
 
       body = parsed
-      expect(body).to be_a(Array)
-      expect(body.map { |h| h["id"] }).to include(folder_b.id)
-      expect(body.map { |h| h["id"] }).not_to include(root.id)
+      results = body.fetch("results")
+      expect(results).to be_a(Array)
+      expect(results.map { |h| h["id"] }).to include(folder_b.id)
+      expect(results.map { |h| h["id"] }).not_to include(root.id)
+    end
+
+    it "finds a folder by notes content and reports notes match count" do
+      folder_b.update!(notes: "special archive note")
+
+      get "/volumes/#{volume.id}/file_tree_folders_search.json", params: { q: "archive note" }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body["total_count"]).to eq(1)
+      expect(body["notes_match_count"]).to eq(1)
+      expect(body.fetch("results").map { |h| h["id"] }).to include(folder_b.id)
     end
   end
 
@@ -196,10 +223,22 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(match["path"].length).to eq(4)
     end
 
+    it "finds an asset by notes content" do
+      get "/volumes/#{volume.id}/file_tree_assets_search.json", params: { q: "asset notes" }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body["total_count"]).to eq(1)
+      expect(body["notes_match_count"]).to eq(1)
+      expect(body["returned_count"]).to eq(1)
+      expect(body.fetch("results").pluck("id")).to include(asset.id)
+    end
+
     it "returns empty array when no assets match" do
       get "/volumes/#{volume.id}/file_tree_assets_search.json", params: { q: "zzz-not-found" }
       expect(response).to have_http_status(:ok)
       expect(parsed).to eq({
+        "notes_match_count" => 0,
         "results" => [],
         "total_count" => 0,
         "returned_count" => 0
