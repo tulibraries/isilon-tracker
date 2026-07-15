@@ -72,6 +72,35 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     )
   end
 
+  let!(:nested_match_folder) do
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: root_folder,
+      full_path: "#{root_folder.full_path}/nested-matches"
+    )
+  end
+
+  let!(:nested_unassigned_asset_one) do
+    create(
+      :isilon_asset,
+      parent_folder: nested_match_folder,
+      migration_status: migrated_status,
+      assigned_to: nil,
+      isilon_name: "nested_unassigned_one.txt"
+    )
+  end
+
+  let!(:nested_unassigned_asset_two) do
+    create(
+      :isilon_asset,
+      parent_folder: nested_match_folder,
+      migration_status: migrated_status,
+      assigned_to: nil,
+      isilon_name: "nested_unassigned_two.txt"
+    )
+  end
+
   before do
     driven_by :cuprite
     sign_in user
@@ -204,6 +233,26 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
     expect(page).to have_selector(".wb-row .wb-title", text: "assigned-folder", wait: 15)
+  end
+
+  it "expands matched asset folders so badge counts match visible assets" do
+    find(
+      :xpath,
+      "//span[contains(@class,'wb-col-title')][normalize-space()='Assigned To']/parent::span[contains(@class,'wb-col')]/i[@data-command='filter']",
+      wait: 10
+    ).click
+
+    within(".wb-popup") do
+      find("option", text: "Unassigned").select_option
+    end
+    page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
+
+    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
+
+    nested_row = find(".wb-row", text: "nested-matches", wait: 15)
+    expect(nested_row).to have_content("2 matches")
+    expect(page).to have_selector(".wb-row .wb-title", text: nested_unassigned_asset_one.isilon_name, wait: 15)
+    expect(page).to have_selector(".wb-row .wb-title", text: nested_unassigned_asset_two.isilon_name, wait: 15)
   end
 
   it "filters assets by file type" do

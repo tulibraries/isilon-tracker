@@ -78,6 +78,17 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 
+  it "loads assets when expanding a matched leaf folder" do
+    visit_volume_tree
+
+    fill_in "tree-filter", with: "scans"
+
+    scans_row = find(".wb-row", text: "Scans", wait: 12)
+    scans_row.find(".wb-expander", wait: 12).click
+
+    expect(page).to have_content("scan_beta_001.tif", wait: 12)
+  end
+
   it "matches folders by full path when filtering by an ancestor segment" do
     visit_volume_tree
 
