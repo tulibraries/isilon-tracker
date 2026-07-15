@@ -627,15 +627,21 @@ export default class extends Controller {
         return;
       }
 
-      const folders = payload.folders;
-      const assets = payload.assets;
-      const backendMatchCount = Number(payload?.totalCount);
-      const matchedKeys = Array.isArray(payload.matchedKeys) ? payload.matchedKeys : [];
-      const hidePayloadCount =
+      const hidePayload =
         options.signature &&
         this.hideFilterCache?.signature === options.signature
-          ? Number(this.hideFilterCache?.payload?.total_count)
-          : NaN;
+          ? this.hideFilterCache.payload
+          : null;
+
+      const folders = Array.isArray(hidePayload?.folders) ? hidePayload.folders : payload.folders;
+      const assets = payload.assets;
+      const backendMatchCount = Number(payload?.totalCount);
+      const matchedKeys = Array.isArray(hidePayload?.matched_keys)
+        ? hidePayload.matched_keys
+        : Array.isArray(payload.matchedKeys)
+          ? payload.matchedKeys
+          : [];
+      const hidePayloadCount = Number(hidePayload?.total_count);
       const resolvedMatchCount = Number.isFinite(hidePayloadCount)
         ? hidePayloadCount
         : Number.isFinite(backendMatchCount)
@@ -661,6 +667,7 @@ export default class extends Controller {
 
       if (this.filterMode === "dim") {
         await this._loadDimVisibleAssets(folders, assets, mySeq);
+        this._sortLiveTreeNodes();
       }
 
       if (mySeq !== this._filterSeq) {
@@ -1272,6 +1279,7 @@ export default class extends Controller {
         this.inflightControllers.delete(ctrl);
       }
       if (!Array.isArray(childFolders)) childFolders = [];
+      this._sortTreeItemsArray(childFolders);
       this.folderCache.set(pid, childFolders);
     }
 
@@ -1308,6 +1316,7 @@ export default class extends Controller {
     }
 
     if (!Array.isArray(childFolders)) childFolders = [];
+    this._sortTreeItemsArray(childFolders);
 
     const grouped = childFolders.reduce((acc, folder) => {
       const pid = String(folder.parent_folder_id ?? "");
@@ -1352,6 +1361,7 @@ export default class extends Controller {
         this.inflightControllers.delete(ctrl);
       }
       if (!Array.isArray(assets)) assets = [];
+      this._sortTreeItemsArray(assets);
       this.assetCache.set(k, assets);
     }
     if (mySeq !== this._filterSeq) return;
@@ -1388,6 +1398,7 @@ export default class extends Controller {
     }
 
     if (!Array.isArray(assets)) assets = [];
+    this._sortTreeItemsArray(assets);
 
     const grouped = assets.reduce((acc, asset) => {
       const pid = String(asset.parent_folder_id ?? "");
@@ -1592,15 +1603,55 @@ export default class extends Controller {
     nodes.forEach((node) => {
       if (!Array.isArray(node.children) || node.children.length === 0) return;
 
-      node.children.sort((left, right) => {
-        if (left.folder !== right.folder) return left.folder ? -1 : 1;
-        return String(left.title ?? left.full_path ?? "").localeCompare(
-          String(right.title ?? right.full_path ?? "")
-        );
-      });
+      this._sortTreeItemsArray(node.children);
 
       this._sortFilteredChildren(node.children.filter((child) => child.folder));
     });
+  }
+
+  _compareTreeItems(left, right) {
+    const leftFolder = left.folder ?? left.data?.folder;
+    const rightFolder = right.folder ?? right.data?.folder;
+
+    if (leftFolder !== rightFolder) return leftFolder ? -1 : 1;
+
+    return String(left.title ?? left.full_path ?? left.data?.title ?? left.data?.full_path ?? "").localeCompare(
+      String(right.title ?? right.full_path ?? right.data?.title ?? right.data?.full_path ?? "")
+    );
+  }
+
+  _sortTreeItemsArray(items) {
+    if (!Array.isArray(items) || items.length < 2) return items;
+    items.sort((left, right) => this._compareTreeItems(left, right));
+    return items;
+  }
+
+  _sortLiveTreeNodes() {
+    const sortNodeChildren = (node) => {
+      if (!Array.isArray(node?.children) || node.children.length === 0) return;
+
+      this._sortTreeItemsArray(node.children);
+      node.children.forEach((child) => {
+        if (child.data?.folder) {
+          sortNodeChildren(child);
+        }
+      });
+    };
+
+    const root = this.tree?.root;
+    if (!root) return;
+
+    sortNodeChildren(root);
+
+    try {
+      if (this.tree?.update) {
+        this.tree.update();
+      } else if (this.tree?.redraw) {
+        this.tree.redraw();
+      }
+    } catch (error) {
+      console.error("Failed to re-sort live tree nodes", error);
+    }
   }
 
   _replaceTreeContents(nodes) {
