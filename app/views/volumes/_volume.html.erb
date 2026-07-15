@@ -1,4 +1,4 @@
-<div id="<%= dom_id volume %>" data-controller="batch-actions">
+<div id="<%= dom_id volume %>" data-controller="batch-actions tree-filter">
 
   <h1 class="volume-name"><%= "Volume: #{volume.name}" %></h1>
 
@@ -16,6 +16,8 @@
       type="search"
       placeholder="Enter search pattern"
       autofocus
+      data-tree-filter-target="input"
+      data-action="input->tree-filter#inputChanged keydown->tree-filter#keyDown"
     />
 
     <button
@@ -23,11 +25,18 @@
       type="button"
       class="icon-button"
       title="Hide unmatched nodes"
+      data-tree-filter-target="modeButton"
+      data-action="click->tree-filter#toggleMode"
     >
       <i class="bi bi-filter-square search-icon"></i>
     </button>
 
-    <button id="clear-filters" class="btn btn-primary" type="button">
+    <button
+      id="clear-filters"
+      class="btn btn-primary"
+      type="button"
+      data-action="click->tree-filter#clearFilters"
+    >
       Clear All Filters
       <i class="bi bi-x-square ms-1"></i>
     </button>

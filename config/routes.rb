@@ -41,6 +41,7 @@ Rails.application.routes.draw do
     get :file_tree_assets, on: :member
     get :file_tree_folders_search, on: :member
     get :file_tree_assets_search, on: :member
+    get :file_tree_filter_results, on: :member
 
     patch :file_tree_updates, on: :member
   end
