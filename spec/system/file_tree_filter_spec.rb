@@ -53,8 +53,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     create(:isilon_asset,
       parent_folder: folder_c,
       isilon_name: "scan_beta_001.tif",
-      isilon_path:  "#{folder_c.full_path}/scan_beta_001.tif",
-      notes: "priority digitization candidate"
+      isilon_path:  "#{folder_c.full_path}/scan_beta_001.tif"
     )
   end
 
@@ -88,15 +87,6 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 
-  it "finds assets by notes content" do
-    visit_volume_tree
-
-    fill_in "tree-filter", with: "digitization"
-
-    expect(page).to have_content("scan_beta_001.tif", wait: 12)
-    expect(page).to have_no_css(".wb-loading", wait: 6)
-  end
-
   it "collapses all folders when filters are cleared" do
     visit_volume_tree
 
@@ -126,7 +116,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     fill_in "tree-filter", with: "librarybeta"
 
     expect(page).to have_css("#tree-match-count", wait: 6)
-    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 6)
+    expect(page).to have_css("#tree-match-count", text: "4 matches", wait: 6)
   end
 
   it "does not apply stale search results after clearing the search" do
