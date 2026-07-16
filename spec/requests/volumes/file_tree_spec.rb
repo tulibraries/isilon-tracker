@@ -225,4 +225,47 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(ids).not_to include(asset.id)
     end
   end
+
+  describe "GET /volumes/:id/file_tree_filter_results" do
+    it "returns visible folders, matched assets, and total count for text search" do
+      get "/volumes/#{volume.id}/file_tree_filter_results.json", params: { q: "beta" }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body["total_count"]).to eq(5)
+      expect(body["matched_folder_count"]).to eq(4)
+      expect(body["matched_asset_count"]).to eq(1)
+      expect(body["matched_keys"]).to include(
+        root.id.to_s,
+        folder_a.id.to_s,
+        folder_b.id.to_s,
+        folder_c.id.to_s,
+        "a-#{asset.id}"
+      )
+
+      folder_ids = body.fetch("folders").map { |folder| folder["id"] }
+      expect(folder_ids).to contain_exactly(root.id, folder_a.id, folder_b.id, folder_c.id)
+
+      asset_payload = body.fetch("assets").find { |node| node["key"] == "a-#{asset.id}" }
+      expect(asset_payload).to include(
+        "parent_folder_id" => folder_c.id,
+        "assigned_to_id" => assignee.id,
+        "migration_status_id" => migration_status.id
+      )
+      expect(asset_payload["path"]).to eq([ root.id, folder_a.id, folder_b.id, folder_c.id ])
+    end
+
+    it "counts folder and asset matches for assigned_to filtering" do
+      folder_b.update!(assigned_to: assignee)
+
+      get "/volumes/#{volume.id}/file_tree_filter_results.json", params: { assigned_to: assignee.id }
+      expect(response).to have_http_status(:ok)
+
+      body = parsed
+      expect(body["matched_folder_count"]).to eq(1)
+      expect(body["matched_asset_count"]).to eq(1)
+      expect(body["total_count"]).to eq(2)
+      expect(body["matched_keys"]).to include(folder_b.id.to_s, "a-#{asset.id}")
+    end
+  end
 end

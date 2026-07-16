@@ -940,6 +940,7 @@ export default class extends Controller {
 
     this._showMatchCountStatus("Searching…");
     this._setLoading(true, "Searching…");
+    this._enterPendingHideFilter(seq);
 
     return { seq, query: request.query, params: request.params, signature, empty: false };
   }
@@ -994,6 +995,30 @@ export default class extends Controller {
   finalizeFilterRequest(seq) {
     if (seq !== this._filterSeq) return;
     this._setLoading(false);
+  }
+
+  _enterPendingHideFilter(seq) {
+    if (seq !== this._filterSeq) return;
+
+    this.isFilteredTreeMode = true;
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree?.clearFilter?.();
+    this._replaceTreeContents([]);
+    this._updateSelectAllButtonState(0);
+  }
+
+  async _abortPendingHideFilter(seq) {
+    if (seq !== this._filterSeq) return;
+
+    this.isFilteredTreeMode = false;
+    this.currentMatchedKeys = new Set();
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree?.clearFilter?.();
+    await this._restoreFullTree();
+    this._syncMatchedNodeClasses();
+    this._updateSelectAllButtonState(0);
   }
 
   async clearAllFilters() {

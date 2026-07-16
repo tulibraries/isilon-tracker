@@ -138,15 +138,18 @@ RSpec.describe "File tree column filters", type: :system, js: true do
 
     fill_in "tree-filter", with: match_asset.isilon_name
 
-    expect(page).to have_selector("#tree.wb-ext-filter-hide")
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
 
     find("#filter-mode-toggle").click
     expect(page).to have_selector("#tree.wb-ext-filter-dim")
     expect(page).to have_no_selector("#filter-mode-toggle.active")
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 10)
 
     find("#filter-mode-toggle").click
-    expect(page).to have_selector("#tree.wb-ext-filter-hide")
     expect(page).to have_no_selector("#tree.wb-ext-filter-dim")
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 10)
+    expect(page).to have_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
   end
 
   it "clears column filter indicators when clearing all filters at once" do
@@ -187,8 +190,8 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
-    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
     expect(page).to have_no_content("No data", wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: other_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
   end
@@ -210,8 +213,8 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
-    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
     expect(page).to have_no_content("No data", wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: other_assigned_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: unassigned_asset.isilon_name, wait: 15)
@@ -229,7 +232,6 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
-    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
     expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: assigned_asset.isilon_name, wait: 15)
     expect(page).to have_selector(".wb-row .wb-title", text: "assigned-folder", wait: 15)
@@ -246,8 +248,6 @@ RSpec.describe "File tree column filters", type: :system, js: true do
       find("option", text: "Unassigned").select_option
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
-
-    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
 
     nested_row = find(".wb-row", text: "nested-matches", wait: 15)
     expect(nested_row).to have_content("2 matches")
@@ -271,7 +271,6 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
-    expect(page).to have_no_selector(".wb-loading", text: /Loading|Searching/i, wait: 10)
     expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 10)
     expect(page).to have_selector(".wb-row .wb-title", text: match_asset.isilon_name, wait: 15)
     expect(page).to have_no_selector(".wb-row .wb-title", text: other_asset.isilon_name, wait: 15)
