@@ -11,9 +11,18 @@ export default class extends Controller {
   currentFilterPredicate = null;
   currentFilterOpts = null;
   currentQuery = "";
+  currentMatchCount = 0;
+  currentMatchedKeys = new Set();
+  currentFilterSignature = null;
   filterMode = "hide";
   folderCache = new Map();
   assetCache = new Map();
+  fullTreeSource = [];
+  hideFilterCache = null;
+  dimFilterCache = null;
+  dimRenderedCache = null;
+  dimFilterAbortController = null;
+  isFilteredTreeMode = false;
   loadedFolders = new Set();
   folderMatchCounts = new Map();
 
@@ -59,6 +68,7 @@ export default class extends Controller {
         credentials: "same-origin"
       });
       const source = await res.json();
+      this.fullTreeSource = Array.isArray(source) ? source : [];
 
       this.tree = new Wunderbaum({
         element: this.element,
@@ -167,6 +177,7 @@ export default class extends Controller {
 
         lazyLoad: (e) => {
           if (!e.node?.data?.folder) return [];
+          if (this.isFilteredTreeMode) return [];
           const id = e.node.data.key ?? e.node.data.id;
           return {
             url: `/volumes/${this.volumeIdValue}/file_tree_folders.json?parent_folder_id=${encodeURIComponent(String(id))}`,
@@ -179,8 +190,23 @@ export default class extends Controller {
           if (!node?.data?.folder) return;
 
           const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+          const isProgrammaticExpand = this.expandingNodes.has(nodeKey);
 
-          if (this.expandingNodes.has(nodeKey)) {
+          if (this.isFilteredTreeMode) return;
+
+          if (this._hasActiveFilter()) {
+            if (this.filterMode === "dim") {
+              await this._ensureAssetsForFolderCancellable(
+                nodeKey,
+                this._filterSeq
+              );
+            }
+
+            if (!isProgrammaticExpand) {
+              this._reapplyFilterIfAny();
+            } else if (this.filterMode === "dim") {
+              this._reapplyFilterIfAny();
+            }
             return;
           }
 
@@ -189,7 +215,9 @@ export default class extends Controller {
             this._filterSeq
           );
 
-          this._reapplyFilterIfAny();
+          if (!isProgrammaticExpand || this._hasActiveFilter()) {
+            this._reapplyFilterIfAny();
+          }
         },
 
         postProcess: (e) => { e.result = e.response; },
@@ -204,6 +232,10 @@ export default class extends Controller {
           const util = e.util;
           const node = e.node;
           const isFolder = node.data.folder === true;
+          const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id ?? "");
+          const isMatchedNode = this.currentMatchedKeys.has(nodeKey);
+
+          node.setClass("wb-match", isMatchedNode);
 
           for (const colInfo of Object.values(e.renderColInfosById)) {
             const colId = colInfo.id;
@@ -363,10 +395,6 @@ export default class extends Controller {
         source
       });
 
-      this._setupInlineFilter();
-      this._setupClearFiltersButton();
-      this._setupFilterModeToggle();
-
       selectAllButton.addEventListener("click", () => {
         document.getElementById("tree-match-count")?.remove();
 
@@ -377,18 +405,25 @@ export default class extends Controller {
           return;
         }
 
-        const predicate = this.currentFilterPredicate;
-        if (!predicate) return;
-
         const matched = [];
         const selectedKeys = new Set(
           this.tree.getSelectedNodes().map(n => n.key)
         );
 
-        this.tree.visit((node) => {
-          if (node.statusNodeType) return;
-          if (predicate(node)) matched.push(node);
-        });
+        if (this.isFilteredTreeMode) {
+          this.tree.visit((node) => {
+            if (node.statusNodeType) return;
+            matched.push(node);
+          });
+        } else {
+          const predicate = this.currentFilterPredicate;
+          if (!predicate) return;
+
+          this.tree.visit((node) => {
+            if (node.statusNodeType) return;
+            if (predicate(node)) matched.push(node);
+          });
+        }
 
         const allSelected =
           matched.length > 0 &&
@@ -464,6 +499,7 @@ export default class extends Controller {
   disconnect() {
     clearTimeout(this._filterTimer);
     this._cancelInflight();
+    this._resetFilterCaches(null);
   }
 
   // Returns true when any text or column filter is active.
@@ -494,90 +530,28 @@ export default class extends Controller {
 
   // Reapply the current filter with stored options.
   _reapplyFilterIfAny() {
+    if (this.isFilteredTreeMode) {
+      this._updateSelectAllButtonState();
+      return;
+    }
     if (!this.currentFilterPredicate) return;
     const opts = { ...(this.currentFilterOpts || {}), mode: this.filterMode };
     this.currentFilterOpts = opts;
     this.tree.filterNodes(this.currentFilterPredicate, opts);
-    this._updateFilterModeButton();
     this._updateSelectAllButtonState();
   }
 
-  // Wires the text filter input and Escape key behavior.
-  _setupInlineFilter() {
-    const input = document.getElementById("tree-filter");
-    if (!input) return;
-
-    input.addEventListener("input", () => {
-      clearTimeout(this._filterTimer);
-      this._filterTimer = setTimeout(() => this._runDeepFilter(input.value || ""), 300);
-    });
-
-    input.addEventListener("keydown", (e) => {
-      
-      if (e.key === "Escape") {
-        this._filterSeq += 1;
-        this._cancelInflight();
-        this._cancelActiveSearch();
-        document.getElementById("tree-match-count")?.remove();
-        input.value = "";
-        this._setLoading(false);
-        this._runDeepFilter("");
-      }
-    });
-  }
-
-  // Wires the “Clear Filters” button to fully reset tree state.
-  _setupClearFiltersButton() {
-    const btn = document.getElementById("clear-filters");
-    if (!btn) return;
-
-    btn.addEventListener("click", () => {
-      const input = document.getElementById("tree-filter");
-      if (input) input.value = "";
-      document.getElementById("tree-match-count")?.remove();
-      this.columnFilters.clear();
-      this.currentFilterPredicate = null;
-      this.currentFilterOpts = null;
-      this.currentQuery = "";
-      this.loadedFolders.clear();
-      this.assetsLoadedFor.clear();
-      this.assetCache.clear();
-      if (this.tree?.columns) {
-        this.tree.columns.forEach((col) => {
-          col.filterActive = false;
-          this._setFilterIconState(col.id, false);
-        });
-      }
-
-      document.querySelectorAll(".wb-popup").forEach((el) => el.remove());
-
-      this.element.querySelectorAll(".wb-header select").forEach((select) => {
-        if (select.options.length > 0) select.selectedIndex = 0;
-      });
-
-      if (this.tree?.root) {
-        this.tree.root.visit((node) => {
-          if (node.expanded) {
-            node.setExpanded(false);
-          }
-        });
-      }
-
-      if (this.tree) {
-        this.tree.selectAll(false);
-      }
-
-      this._emitSelectionChange();
-      this.tree.clearFilter();
-      this.columnValueCache.clear();
-      this._setLoading(false);
-      this._updateFilterModeButton();
-      this._updateSelectAllButtonState(0);
+  _syncMatchedNodeClasses() {
+    const matchedKeys = this.currentMatchedKeys;
+    this.tree?.visit?.((node) => {
+      if (node.statusNodeType) return;
+      const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id ?? "");
+      node.setClass("wb-match", matchedKeys.has(nodeKey));
     });
   }
 
   // Executes backend-backed filtering and materializes matching paths.
-  async _runDeepFilter(raw) {
+  async _runDeepFilter(raw, options = {}) {
     this._cancelActiveSearch();
     this._cancelInflight();
 
@@ -624,69 +598,58 @@ export default class extends Controller {
       }
     }
 
-    const searchCtrl = this._beginFetchGroup();
+    const cachedPayload = options.payload || null;
+    const searchCtrl = cachedPayload ? null : this._beginFetchGroup();
 
     try {
-      const [folderResponse, assetResponse] = await Promise.all([
-        this._fetchJson(
-          `/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`,
-          searchCtrl
-        ).catch(() => []),
+      let payload = cachedPayload;
 
-        this._fetchJson(
-          `/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`,
-          searchCtrl
-        ).catch(() => ({
-          results: [],
-          total_count: 0
-        }))
-      ]);
+      if (!payload) {
+        const [folderResponse, assetResponse] = await Promise.all([
+          this._fetchJson(
+            `/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${params.toString()}`,
+            searchCtrl
+          ).catch(() => []),
+
+          this._fetchJson(
+            `/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${params.toString()}`,
+            searchCtrl
+          ).catch(() => ({
+            results: [],
+            total_count: 0
+          }))
+        ]);
+
+        payload = this._normalizeDimSearchPayload(folderResponse, assetResponse, q);
+      }
 
       if (mySeq !== this._filterSeq) {
         return;
       }
 
-      let folders = [];
+      const hidePayload =
+        options.signature &&
+        this.hideFilterCache?.signature === options.signature
+          ? this.hideFilterCache.payload
+          : null;
 
-      if (Array.isArray(folderResponse)) {
-        folders = folderResponse;
-      } else if (Array.isArray(folderResponse?.results)) {
-        folders = folderResponse.results;
-      }
+      const folders = Array.isArray(hidePayload?.folders) ? hidePayload.folders : payload.folders;
+      const assets = payload.assets;
+      const backendMatchCount = Number(payload?.totalCount);
+      const matchedKeys = Array.isArray(hidePayload?.matched_keys)
+        ? hidePayload.matched_keys
+        : Array.isArray(payload.matchedKeys)
+          ? payload.matchedKeys
+          : [];
+      const hidePayloadCount = Number(hidePayload?.total_count);
+      const resolvedMatchCount = Number.isFinite(hidePayloadCount)
+        ? hidePayloadCount
+        : Number.isFinite(backendMatchCount)
+          ? backendMatchCount
+          : matchedKeys.length;
 
-      let assets = [];
-
-      if (Array.isArray(assetResponse)) {
-        assets = assetResponse;
-      } else if (Array.isArray(assetResponse?.results)) {
-        assets = assetResponse.results;
-      }
-
-      this._buildFolderMatchCounts(assets);
-      const folderMatchCount = folders.length;
-
-      let backendAssetCount = assets.length;
-
-      if (
-        !Array.isArray(assetResponse) &&
-        assetResponse?.total_count != null
-      ) {
-        backendAssetCount = Number(assetResponse.total_count);
-      }
-
-      if (!Number.isFinite(backendAssetCount)) {
-        backendAssetCount = assets.length;
-      }
-
-      const hasFolderCapableFilters =
-        q.length > 0 ||
-        (this.columnFilters.has("assigned_to") &&
-          String(this.columnFilters.get("assigned_to") ?? "") !== "");
-
-      const backendMatchCount =
-        hasFolderCapableFilters
-          ? folderMatchCount + backendAssetCount
-          : backendAssetCount;
+      this.currentMatchedKeys = new Set(matchedKeys.map(String));
+      this._updateMatchCount(resolvedMatchCount);
 
       if (!q && this.columnFilters.size > 0) {
         await this._materializeColumnFilterResults(
@@ -702,20 +665,138 @@ export default class extends Controller {
         );
       }
 
+      if (this.filterMode === "dim") {
+        await this._loadDimVisibleAssets(folders, assets, mySeq);
+        this._sortLiveTreeNodes();
+      }
+
       if (mySeq !== this._filterSeq) {
         return;
       }
 
       this._applyPredicate(q);
-      this._updateMatchCount(backendMatchCount);
+      this._syncMatchedNodeClasses();
+      this._updateMatchCount(resolvedMatchCount);
+      if (this.filterMode === "dim" && options.signature) {
+        this.dimRenderedCache = this._captureDimRenderedCache(
+          options.signature,
+          resolvedMatchCount
+        );
+      }
     } finally {
-      this.inflightControllers.delete(searchCtrl);
+      if (searchCtrl) {
+        this.inflightControllers.delete(searchCtrl);
+      }
       this._setLoading(false);
+    }
+  }
+
+  _normalizeDimSearchPayload(folderResponse, assetResponse, q) {
+    let folders = [];
+
+    if (Array.isArray(folderResponse)) {
+      folders = folderResponse;
+    } else if (Array.isArray(folderResponse?.results)) {
+      folders = folderResponse.results;
+    }
+
+    let assets = [];
+
+    if (Array.isArray(assetResponse)) {
+      assets = assetResponse;
+    } else if (Array.isArray(assetResponse?.results)) {
+      assets = assetResponse.results;
+    }
+
+    this._buildFolderMatchCounts(assets);
+    const folderMatchCount = folders.length;
+
+    let backendAssetCount = assets.length;
+
+    if (!Array.isArray(assetResponse) && assetResponse?.total_count != null) {
+      backendAssetCount = Number(assetResponse.total_count);
+    }
+
+    if (!Number.isFinite(backendAssetCount)) {
+      backendAssetCount = assets.length;
+    }
+
+    const hasFolderCapableFilters =
+      q.length > 0 ||
+      (this.columnFilters.has("assigned_to") &&
+        String(this.columnFilters.get("assigned_to") ?? "") !== "");
+
+    return {
+      folders,
+      assets,
+      matchedKeys: [
+        ...folders.map((folder) => String(folder.key ?? folder.id)),
+        ...assets.map((asset) => String(asset.key ?? `a-${asset.id}`))
+      ],
+      totalCount: hasFolderCapableFilters ? folderMatchCount + backendAssetCount : backendAssetCount
+    };
+  }
+
+  async _loadDimVisibleAssets(folders, assets, seq) {
+    const folderIds = new Set();
+
+    for (const folder of folders) {
+      if (folder?.id != null) {
+        folderIds.add(String(folder.id));
+      }
+      if (Array.isArray(folder?.path)) {
+        folder.path.forEach((id) => {
+          if (id != null) folderIds.add(String(id));
+        });
+      }
+    }
+
+    for (const asset of assets) {
+      const parentId = asset?.parent_folder_id ?? asset?.folder_id;
+      if (parentId != null) {
+        folderIds.add(String(parentId));
+      }
+      if (Array.isArray(asset?.path)) {
+        asset.path.forEach((id) => {
+          if (id != null) folderIds.add(String(id));
+        });
+      }
+    }
+
+    if (!folderIds.size) return;
+    const orderedFolderIds = [ ...folderIds ];
+    await this._ensureAssetsForFoldersBatch(orderedFolderIds, seq);
+
+    for (const folderId of orderedFolderIds) {
+      if (seq !== this._filterSeq) return;
+      this._expandNodeByKey(folderId);
     }
   }
 
   // Applies the current filter predicate to the tree.
   _applyPredicate(q) {
+    if (this.isFilteredTreeMode && this.currentMatchedKeys.size > 0) {
+      const matchedKeys = new Set(this.currentMatchedKeys);
+      const predicate = (node) => {
+        const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id ?? "");
+        return matchedKeys.has(nodeKey);
+      };
+
+      const opts = {
+        autoExpand: true,
+        leavesOnly: false,
+        matchBranch: this.filterMode === "hide",
+        mode: this.filterMode
+      };
+
+      this.currentFilterPredicate = predicate;
+      this.currentFilterOpts = opts;
+
+      this.tree.filterNodes(predicate, opts);
+      this._updateSelectAllButtonState();
+      return;
+    }
+
     const predicate = (node) => {
       if (q) {
         const text = String(
@@ -779,18 +860,20 @@ export default class extends Controller {
         const key = String(current.key ?? current.data?.key ?? current.data?.id ?? "");
         if (!key) continue;
 
-        await this._hydrateSingleParentByKey(key, filterSeq);
+        if (!this.isFilteredTreeMode) {
+          await this._hydrateSingleParentByKey(key, filterSeq);
 
-        if (
-          filterSeq !== this._filterSeq) {
-          break;
-        }
+          if (
+            filterSeq !== this._filterSeq) {
+            break;
+          }
 
-        await this._ensureAssetsForFolderCancellable(key, filterSeq);
+          await this._ensureAssetsForFolderCancellable(key, filterSeq);
 
-        if (
-          filterSeq !== this._filterSeq) {
-          break;
+          if (
+            filterSeq !== this._filterSeq) {
+            break;
+          }
         }
 
         const children = current.children || [];
@@ -831,6 +914,315 @@ export default class extends Controller {
     return this.tree?.findKey?.(skey) ?? null;
   }
 
+  buildFilterRequest(raw = this.currentQuery) {
+    const request = this.getFilterRequestParams(raw);
+    const signature = request.params?.toString() || null;
+
+    if (this.currentFilterSignature !== signature) {
+      this._resetFilterCaches(signature);
+    }
+
+    this._cancelActiveSearch();
+    this._cancelInflight();
+
+    const seq = ++this._filterSeq;
+
+    this.loadedFolders.clear();
+    this.assetsLoadedFor.clear();
+    this.assetCache.clear();
+    this.folderMatchCounts.clear();
+    this.currentMatchedKeys = new Set();
+    this.currentQuery = request.query;
+
+    if (request.empty) {
+      return { seq, query: request.query, params: null, signature, empty: true };
+    }
+
+    this._showMatchCountStatus("Searching…");
+    this._setLoading(true, "Searching…");
+    this._enterPendingHideFilter(seq);
+
+    return { seq, query: request.query, params: request.params, signature, empty: false };
+  }
+
+  getFilterRequestParams(raw = this.currentQuery) {
+    const q = (raw || "").trim().toLowerCase();
+    const hasColumnFilters = this.columnFilters.size > 0;
+
+    if (!q && !hasColumnFilters) {
+      return { query: q, params: null, empty: true };
+    }
+
+    const params = new URLSearchParams();
+    if (q) {
+      params.set("q", q);
+    }
+
+    for (const [col, val] of this.columnFilters.entries()) {
+      if (val !== "") {
+        params.set(col, val);
+      }
+    }
+
+    return { query: q, params, empty: false };
+  }
+
+  async applyFilterResults(payload, seq) {
+    if (seq !== this._filterSeq) return;
+
+    const folders = Array.isArray(payload?.folders) ? payload.folders : [];
+    const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+    const matchedKeys = Array.isArray(payload?.matched_keys)
+      ? payload.matched_keys.map(String)
+      : [];
+
+    this._buildFolderMatchCounts(assets);
+    this.currentMatchedKeys = new Set(matchedKeys);
+    this.isFilteredTreeMode = true;
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree?.clearFilter?.();
+
+    await this._renderFilteredTree(folders, assets, seq);
+
+    if (seq !== this._filterSeq) return;
+
+    this._syncMatchedNodeClasses();
+    this._updateMatchCount(Number(payload?.total_count) || matchedKeys.length);
+    this._updateSelectAllButtonState();
+  }
+
+  finalizeFilterRequest(seq) {
+    if (seq !== this._filterSeq) return;
+    this._setLoading(false);
+  }
+
+  _enterPendingHideFilter(seq) {
+    if (seq !== this._filterSeq) return;
+
+    this.isFilteredTreeMode = true;
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree?.clearFilter?.();
+    this._replaceTreeContents([]);
+    this._updateSelectAllButtonState(0);
+  }
+
+  async _abortPendingHideFilter(seq) {
+    if (seq !== this._filterSeq) return;
+
+    this.isFilteredTreeMode = false;
+    this.currentMatchedKeys = new Set();
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.tree?.clearFilter?.();
+    await this._restoreFullTree();
+    this._syncMatchedNodeClasses();
+    this._updateSelectAllButtonState(0);
+  }
+
+  async clearAllFilters() {
+    this._cancelActiveSearch();
+    this._cancelInflight();
+
+    document.getElementById("tree-match-count")?.remove();
+    this.columnFilters.clear();
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+    this.currentQuery = "";
+    this.currentFilterSignature = null;
+    this.currentMatchedKeys = new Set();
+    this.isFilteredTreeMode = false;
+    this._resetFilterCaches(null);
+    this.loadedFolders.clear();
+    this.assetsLoadedFor.clear();
+    this.assetCache.clear();
+    this.folderMatchCounts.clear();
+
+    if (this.tree?.columns) {
+      this.tree.columns.forEach((col) => {
+        col.filterActive = false;
+        this._setFilterIconState(col.id, false);
+      });
+    }
+
+    document.querySelectorAll(".wb-popup").forEach((el) => el.remove());
+
+    this.element.querySelectorAll(".wb-header select").forEach((select) => {
+      if (select.options.length > 0) select.selectedIndex = 0;
+    });
+
+    if (this.tree) {
+      this.tree.selectAll(false);
+      this.tree.clearFilter();
+    }
+
+    await this._restoreFullTree();
+    this._syncMatchedNodeClasses();
+
+    this._emitSelectionChange();
+    this.columnValueCache.clear();
+    this._setLoading(false);
+    this._updateFilterModeButton();
+    this._updateSelectAllButtonState(0);
+  }
+
+  toggleFilterMode() {
+    if (
+      this.filterMode === "dim" &&
+      this.currentFilterSignature &&
+      this._hasActiveFilter()
+    ) {
+      this.dimRenderedCache = this._captureDimRenderedCache(
+        this.currentFilterSignature,
+        this.currentMatchCount
+      );
+    }
+
+    this.filterMode = this.filterMode === "hide" ? "dim" : "hide";
+    if (this.tree?.options?.filter) {
+      this.tree.options.filter.mode = this.filterMode;
+    }
+    if (this.currentFilterOpts) {
+      this.currentFilterOpts.mode = this.filterMode;
+    }
+    this._updateFilterModeButton();
+    return this.filterMode;
+  }
+
+  getFilterMode() {
+    return this.filterMode;
+  }
+
+  canToggleFilterMode() {
+    return true;
+  }
+
+  hasCachedHideFilter(signature = this.currentFilterSignature) {
+    return !!(signature && this.hideFilterCache?.signature === signature && this.hideFilterCache?.payload);
+  }
+
+  cacheHideFilterResults(signature, payload) {
+    if (!signature || !payload) return;
+    this.hideFilterCache = { signature, payload };
+  }
+
+  async applyCachedHideFilter(signature = this.currentFilterSignature) {
+    if (!this.hasCachedHideFilter(signature)) return false;
+
+    const seq = ++this._filterSeq;
+    this.currentFilterSignature = signature;
+    await this.applyFilterResults(this.hideFilterCache.payload, seq);
+    this.finalizeFilterRequest(seq);
+    return true;
+  }
+
+  prefetchDimFilter(raw = this.currentQuery, signature = this.currentFilterSignature) {
+    if (!signature) return Promise.resolve(null);
+    if (this.dimFilterCache?.signature === signature) {
+      if (this.dimFilterCache.payload) return Promise.resolve(this.dimFilterCache.payload);
+      if (this.dimFilterCache.promise) return this.dimFilterCache.promise;
+    }
+
+    if (this.dimFilterAbortController) {
+      try { this.dimFilterAbortController.abort(); } catch {}
+    }
+
+    const request = this.getFilterRequestParams(raw);
+    if (request.empty || !request.params) return Promise.resolve(null);
+
+    const ctrl = new AbortController();
+    this.dimFilterAbortController = ctrl;
+
+    const promise = Promise.all([
+      this._fetchJson(
+        `/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${request.params.toString()}`,
+        ctrl
+      ).catch(() => []),
+      this._fetchJson(
+        `/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${request.params.toString()}`,
+        ctrl
+      ).catch(() => ({
+        results: [],
+        total_count: 0
+      }))
+    ]).then(([folderResponse, assetResponse]) => {
+      if (ctrl.signal.aborted) return null;
+
+      const payload = this._normalizeDimSearchPayload(folderResponse, assetResponse, request.query);
+      if (this.currentFilterSignature === signature) {
+        this.dimFilterCache = { signature, payload, promise: null };
+      }
+      return payload;
+    }).catch((error) => {
+      if (ctrl.signal.aborted) return null;
+      console.error("Failed to prefetch dim filter results", error);
+      return null;
+    }).finally(() => {
+      if (this.dimFilterAbortController === ctrl) {
+        this.dimFilterAbortController = null;
+      }
+      if (this.dimFilterCache?.signature === signature && this.dimFilterCache?.promise === promise) {
+        this.dimFilterCache.promise = null;
+      }
+    });
+
+    this.dimFilterCache = { signature, payload: null, promise };
+    return promise;
+  }
+
+  async applyDimFilter(raw = this.currentQuery, signature = this.currentFilterSignature) {
+    const request = this.getFilterRequestParams(raw);
+    const effectiveSignature = signature || request.params?.toString() || null;
+    this.currentQuery = request.query;
+    this.currentFilterSignature = effectiveSignature;
+    this.currentMatchedKeys = new Set();
+    this.currentFilterPredicate = null;
+    this.currentFilterOpts = null;
+
+    if (
+      effectiveSignature &&
+      this.dimRenderedCache?.signature === effectiveSignature &&
+      this.dimRenderedCache?.nodes
+    ) {
+      this.isFilteredTreeMode = false;
+      this._restoreDimRenderedCache(this.dimRenderedCache);
+      return;
+    }
+
+    if (this.isFilteredTreeMode) {
+      this.isFilteredTreeMode = false;
+      this.tree?.clearFilter?.();
+      await this._restoreFullTree();
+    }
+
+    let payload = null;
+    if (effectiveSignature && this.dimFilterCache?.signature === effectiveSignature) {
+      payload = this.dimFilterCache.payload || null;
+    }
+
+    if (!payload && this.dimFilterAbortController) {
+      try { this.dimFilterAbortController.abort(); } catch {}
+      this.dimFilterAbortController = null;
+      if (this.dimFilterCache?.signature === effectiveSignature) {
+        this.dimFilterCache.promise = null;
+      }
+    }
+
+    await this._runDeepFilter(raw, payload ? { payload, signature: effectiveSignature } : { signature: effectiveSignature });
+  }
+
+  _resetFilterCaches(signature) {
+    if (this.dimFilterAbortController) {
+      try { this.dimFilterAbortController.abort(); } catch {}
+    }
+    this.dimFilterAbortController = null;
+    this.currentFilterSignature = signature;
+    this.hideFilterCache = null;
+    this.dimFilterCache = null;
+    this.dimRenderedCache = null;
+  }
+
   // Toggles between hide and dim filter modes.
   _setupFilterModeToggle() {
 
@@ -860,11 +1252,12 @@ export default class extends Controller {
     const isHideMode = this.filterMode === "hide";
 
     btn.classList.toggle("active", isHideMode);
+    btn.disabled = false;
     btn.setAttribute("title", isHideMode ? "Hide unmatched nodes" : "Dim unmatched nodes");
 
     if (icon) {
       icon.classList.remove("bi-filter-square", "bi-filter-square-fill");
-        icon.classList.add("bi-filter-square");
+      icon.classList.add(isHideMode ? "bi-filter-square-fill" : "bi-filter-square");
     }
   }
 
@@ -911,6 +1304,7 @@ export default class extends Controller {
         this.inflightControllers.delete(ctrl);
       }
       if (!Array.isArray(childFolders)) childFolders = [];
+      this._sortTreeItemsArray(childFolders);
       this.folderCache.set(pid, childFolders);
     }
 
@@ -947,6 +1341,7 @@ export default class extends Controller {
     }
 
     if (!Array.isArray(childFolders)) childFolders = [];
+    this._sortTreeItemsArray(childFolders);
 
     const grouped = childFolders.reduce((acc, folder) => {
       const pid = String(folder.parent_folder_id ?? "");
@@ -991,6 +1386,7 @@ export default class extends Controller {
         this.inflightControllers.delete(ctrl);
       }
       if (!Array.isArray(assets)) assets = [];
+      this._sortTreeItemsArray(assets);
       this.assetCache.set(k, assets);
     }
     if (mySeq !== this._filterSeq) return;
@@ -1027,6 +1423,7 @@ export default class extends Controller {
     }
 
     if (!Array.isArray(assets)) assets = [];
+    this._sortTreeItemsArray(assets);
 
     const grouped = assets.reduce((acc, asset) => {
       const pid = String(asset.parent_folder_id ?? "");
@@ -1037,10 +1434,7 @@ export default class extends Controller {
 
     folderIds.forEach((pid) => {
       const node = this._findNodeByKey(pid);
-      if (!node || node.data?.folder !== true) {
-        this.assetsLoadedFor.add(pid);
-        return;
-      }
+      if (!node || node.data?.folder !== true) return;
 
       const children = grouped[pid] || [];
       const existing = new Set((node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id)));
@@ -1086,11 +1480,15 @@ export default class extends Controller {
 
   async _materializeColumnFilterResults(folders, assets, seq) {
     const assetParentIds = new Set();
+    const matchedFolderIds = new Set();
     const pathArrays = [];
 
     for (const folder of folders) {
       if (Array.isArray(folder.path)) {
         pathArrays.push([...folder.path, folder.id].map(String));
+      }
+      if (folder?.id != null) {
+        matchedFolderIds.add(String(folder.id));
       }
     }
 
@@ -1136,7 +1534,395 @@ export default class extends Controller {
     }
 
     if (seq !== this._filterSeq) return;
-    await this._ensureAssetsForFoldersBatch([...assetParentIds], seq);
+    await this._appendMatchedAssets(assets, seq);
+
+    for (const folderId of matchedFolderIds) {
+      if (seq !== this._filterSeq) return;
+      this._expandNodeByKey(folderId);
+    }
+
+    for (const pid of assetParentIds) {
+      if (seq !== this._filterSeq) return;
+      this._expandNodeByKey(pid);
+    }
+  }
+
+  async _mergeFilterResults(folders, assets, seq) {
+    const sortedFolders = [...folders].sort((left, right) => {
+      const leftDepth = Array.isArray(left.path) ? left.path.length : 0;
+      const rightDepth = Array.isArray(right.path) ? right.path.length : 0;
+
+      if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+
+      return String(left.full_path ?? left.title ?? "").localeCompare(
+        String(right.full_path ?? right.title ?? "")
+      );
+    });
+
+    await this._mergeFolders(sortedFolders, seq);
+
+    if (seq !== this._filterSeq) return;
+    await this._appendMatchedAssets(assets, seq);
+  }
+
+  async _renderFilteredTree(folders, assets, seq) {
+    const nodes = this._buildFilteredTreeData(folders, assets);
+    if (seq !== this._filterSeq) return;
+
+    this._replaceTreeContents(nodes);
+    await this._expandAllFilteredFolders(seq);
+  }
+
+  _buildFilteredTreeData(folders, assets) {
+    const folderNodes = new Map();
+
+    const sortedFolders = [...folders].sort((left, right) => {
+      const leftDepth = Array.isArray(left.path) ? left.path.length : 0;
+      const rightDepth = Array.isArray(right.path) ? right.path.length : 0;
+
+      if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+
+      return String(left.full_path ?? left.title ?? "").localeCompare(
+        String(right.full_path ?? right.title ?? "")
+      );
+    });
+
+    sortedFolders.forEach((folder) => {
+      folderNodes.set(String(folder.key ?? folder.id), {
+        ...folder,
+        lazy: false,
+        children: []
+      });
+    });
+
+    const roots = [];
+
+    sortedFolders.forEach((folder) => {
+      const key = String(folder.key ?? folder.id);
+      const node = folderNodes.get(key);
+      const parentId = folder.parent_folder_id == null ? null : String(folder.parent_folder_id);
+
+      if (parentId == null) {
+        roots.push(node);
+        return;
+      }
+
+      const parent = folderNodes.get(parentId);
+      if (parent) {
+        parent.children.push(node);
+      }
+    });
+
+    assets.forEach((asset) => {
+      const parent = folderNodes.get(String(asset.parent_folder_id ?? ""));
+      if (parent) {
+        parent.children.push({ ...asset, lazy: false });
+      }
+    });
+
+    this._sortFilteredChildren(roots);
+    return roots;
+  }
+
+  _sortFilteredChildren(nodes) {
+    nodes.forEach((node) => {
+      if (!Array.isArray(node.children) || node.children.length === 0) return;
+
+      this._sortTreeItemsArray(node.children);
+
+      this._sortFilteredChildren(node.children.filter((child) => child.folder));
+    });
+  }
+
+  _compareTreeItems(left, right) {
+    const leftFolder = left.folder ?? left.data?.folder;
+    const rightFolder = right.folder ?? right.data?.folder;
+
+    if (leftFolder !== rightFolder) return leftFolder ? -1 : 1;
+
+    return String(left.title ?? left.full_path ?? left.data?.title ?? left.data?.full_path ?? "").localeCompare(
+      String(right.title ?? right.full_path ?? right.data?.title ?? right.data?.full_path ?? "")
+    );
+  }
+
+  _sortTreeItemsArray(items) {
+    if (!Array.isArray(items) || items.length < 2) return items;
+    items.sort((left, right) => this._compareTreeItems(left, right));
+    return items;
+  }
+
+  _sortLiveTreeNodes() {
+    const sortNodeChildren = (node) => {
+      if (!Array.isArray(node?.children) || node.children.length === 0) return;
+
+      this._sortTreeItemsArray(node.children);
+      node.children.forEach((child) => {
+        if (child.data?.folder) {
+          sortNodeChildren(child);
+        }
+      });
+    };
+
+    const root = this.tree?.root;
+    if (!root) return;
+
+    sortNodeChildren(root);
+
+    try {
+      if (this.tree?.update) {
+        this.tree.update();
+      } else if (this.tree?.redraw) {
+        this.tree.redraw();
+      }
+    } catch (error) {
+      console.error("Failed to re-sort live tree nodes", error);
+    }
+  }
+
+  _replaceTreeContents(nodes) {
+    const rootNode = this.tree?.root;
+    if (!rootNode) return;
+
+    if (typeof rootNode.removeChildren === "function") {
+      rootNode.removeChildren();
+    } else {
+      for (const child of [ ...(rootNode.children || []) ]) {
+        child.remove?.();
+      }
+    }
+
+    if (nodes.length) {
+      rootNode.addChildren?.(nodes);
+    }
+  }
+
+  _captureDimRenderedCache(signature, matchCount) {
+    const rootChildren = this.tree?.root?.children || [];
+
+    return {
+      signature,
+      count: matchCount,
+      matchedKeys: [ ...this.currentMatchedKeys ],
+      loadedFolders: [ ...this.loadedFolders ],
+      assetsLoadedFor: [ ...this.assetsLoadedFor ],
+      expandedKeys: this._captureExpandedKeys(),
+      nodes: rootChildren
+        .filter((node) => !node.statusNodeType)
+        .map((node) => this._snapshotTreeNode(node))
+    };
+  }
+
+  _captureExpandedKeys() {
+    const keys = [];
+
+    this.tree?.visit?.((node) => {
+      if (node.statusNodeType || !node.expanded) return;
+      const key = String(node.key ?? node.data?.key ?? node.data?.id ?? "");
+      if (key) keys.push(key);
+    });
+
+    return keys;
+  }
+
+  _snapshotTreeNode(node) {
+    const data = {
+      ...(node.data || {}),
+      key: String(node.key ?? node.data?.key ?? node.data?.id ?? ""),
+      title: node.title
+    };
+
+    if (node.data?.folder) {
+      data.lazy = false;
+    }
+
+    const children = (node.children || [])
+      .filter((child) => !child.statusNodeType)
+      .map((child) => this._snapshotTreeNode(child));
+
+    if (children.length > 0 || node.data?.folder) {
+      data.children = children;
+    }
+
+    return data;
+  }
+
+  _cloneCachedNode(node) {
+    const copy = { ...node };
+    if (Array.isArray(node.path)) {
+      copy.path = [ ...node.path ];
+    }
+    if (Array.isArray(node.children)) {
+      copy.children = node.children.map((child) => this._cloneCachedNode(child));
+    }
+    return copy;
+  }
+
+  _restoreDimRenderedCache(cache) {
+    const nodes = (cache.nodes || []).map((node) => this._cloneCachedNode(node));
+
+    this.loadedFolders = new Set(cache.loadedFolders || []);
+    this.assetsLoadedFor = new Set(cache.assetsLoadedFor || []);
+    this.currentMatchedKeys = new Set((cache.matchedKeys || []).map(String));
+
+    this.tree?.clearFilter?.();
+    this._replaceTreeContents(nodes);
+
+    for (const key of cache.expandedKeys || []) {
+      this._expandNodeByKey(key);
+    }
+
+    this._applyPredicate(this.currentQuery);
+    this._syncMatchedNodeClasses();
+    this._updateMatchCount(cache.count || 0);
+    this._updateSelectAllButtonState();
+    this._setLoading(false);
+  }
+
+  async _expandAllFilteredFolders(seq) {
+    const folders = [];
+
+    this.tree?.visit?.((node) => {
+      if (node.statusNodeType) return;
+      if (node.data?.folder && (node.children || []).length > 0) {
+        folders.push(node);
+      }
+    });
+
+    let index = 0;
+    for (const node of folders) {
+      if (seq !== this._filterSeq) return;
+      if (!node.expanded) {
+        node.setExpanded(true);
+      }
+      index += 1;
+      if ((index & 63) === 0) {
+        await new Promise(requestAnimationFrame);
+      }
+    }
+  }
+
+  async _restoreFullTree() {
+    const nodes = this.fullTreeSource.map((node) => ({ ...node }));
+    this._replaceTreeContents(nodes);
+  }
+
+  async _mergeFolders(folders, seq) {
+    const rootNodes = [];
+    const pendingByParent = new Map();
+    let processed = 0;
+
+    for (const folder of folders) {
+      if (seq !== this._filterSeq) return;
+
+      const key = String(folder.key ?? folder.id);
+      const existingNode = this._findNodeByKey(key);
+
+      if (existingNode) {
+        Object.assign(existingNode.data, folder);
+        if (folder.title) {
+          existingNode.setTitle(folder.title);
+        }
+        continue;
+      }
+
+      const parentId = folder.parent_folder_id == null ? null : String(folder.parent_folder_id);
+      if (parentId == null) {
+        rootNodes.push(folder);
+        processed += 1;
+        continue;
+      }
+
+      if (!pendingByParent.has(parentId)) {
+        pendingByParent.set(parentId, []);
+      }
+      pendingByParent.get(parentId).push(folder);
+
+      processed += 1;
+      if ((processed & 255) === 0) {
+        await new Promise(requestAnimationFrame);
+      }
+    }
+
+    if (rootNodes.length) {
+      const existingRootKeys = new Set(
+        (this.tree?.root?.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id))
+      );
+      const toAdd = rootNodes.filter((folder) => !existingRootKeys.has(String(folder.key ?? folder.id)));
+      if (toAdd.length) {
+        this.tree?.root?.addChildren?.(toAdd);
+      }
+    }
+
+    let parentIndex = 0;
+    for (const [parentId, children] of pendingByParent.entries()) {
+      if (seq !== this._filterSeq) return;
+
+      const parentNode = this._findNodeByKey(parentId);
+      if (!parentNode) continue;
+
+      const childKeys = new Set(
+        (parentNode.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id))
+      );
+      const toAdd = children.filter((folder) => !childKeys.has(String(folder.key ?? folder.id)));
+
+      if (toAdd.length) {
+        parentNode.addChildren?.(toAdd);
+      }
+
+      parentIndex += 1;
+      if ((parentIndex & 63) === 0) {
+        await new Promise(requestAnimationFrame);
+      }
+    }
+  }
+
+  async _appendMatchedAssets(assets, seq = this._filterSeq) {
+    const grouped = assets.reduce((acc, asset) => {
+      const pid = String(asset.parent_folder_id ?? asset.folder_id ?? "");
+      if (!pid) return acc;
+      (acc[pid] ||= []).push(asset);
+      return acc;
+    }, {});
+
+    let parentIndex = 0;
+
+    for (const [ pid, children ] of Object.entries(grouped)) {
+      if (seq !== this._filterSeq) return;
+
+      const node = this._findNodeByKey(pid);
+      if (!node || node.data?.folder !== true) continue;
+
+      const existing = new Set(
+        (node.children || []).map(ch => String(ch.key ?? ch.data?.key ?? ch.data?.id))
+      );
+      const toAdd = children.filter((asset) => !existing.has(String(asset.key ?? asset.id)));
+      if (toAdd.length) node.addChildren?.(toAdd);
+
+      this.assetCache.set(pid, children);
+      this.assetsLoadedFor.add(pid);
+
+      parentIndex += 1;
+      if ((parentIndex & 63) === 0) {
+        await new Promise(requestAnimationFrame);
+      }
+    }
+  }
+
+  _expandNodeByKey(key) {
+    const node = this._findNodeByKey(key);
+    if (!node) return;
+
+    const nodeKey = String(node.key ?? node.data?.key ?? node.data?.id);
+    if (node.expanded || this.expandingNodes.has(nodeKey)) return;
+
+    this.expandingNodes.add(nodeKey);
+    try {
+      node.setExpanded(true);
+    } finally {
+      Promise.resolve().then(() => {
+        this.expandingNodes.delete(nodeKey);
+      });
+    }
   }
 
   // Expands and loads each folder along a given path.
@@ -1342,7 +2128,7 @@ export default class extends Controller {
       if (colDef) colDef.filterActive = isActive;
 
       this._setFilterIconState(colId, isActive);
-      this._runDeepFilter(this.currentQuery);
+      document.dispatchEvent(new CustomEvent("wunderbaum:filtersChanged"));
     });
 
     popup.appendChild(select);
@@ -1629,6 +2415,10 @@ export default class extends Controller {
     const input = document.getElementById("tree-filter");
     if (!input) return;
 
+    const normalizedCount = Number(count);
+    const resolvedCount = Number.isFinite(normalizedCount) ? normalizedCount : 0;
+    this.currentMatchCount = resolvedCount;
+
     let el = document.getElementById("tree-match-count");
     const toolbar = input.closest(".wb-toolbar") || input.parentElement;
 
@@ -1638,6 +2428,7 @@ export default class extends Controller {
       el.className = "wb-match-count wb-loading-style";
       el.style.position = "absolute";
       el.style.pointerEvents = "none";
+      el.style.zIndex = "10";
 
       (toolbar || document.body).appendChild(el);
     }
@@ -1646,12 +2437,11 @@ export default class extends Controller {
       toolbar.style.position = "relative";
     }
 
-    const topOffset = (toolbar.offsetHeight || 0) + 8;
+    const topOffset = (toolbar?.offsetHeight || 0) + 8;
     el.style.top = `${topOffset}px`;
     el.style.left = "0";
     el.style.display = "block";
-
-    el.textContent = `${count.toLocaleString()} matches`;
+    el.textContent = `${resolvedCount.toLocaleString()} matches`;
   }
 
   _showMatchCountStatus(text) {
@@ -1667,6 +2457,7 @@ export default class extends Controller {
       el.className = "wb-match-count wb-loading-style";
       el.style.position = "absolute";
       el.style.pointerEvents = "none";
+      el.style.zIndex = "10";
 
       (toolbar || document.body).appendChild(el);
     }
@@ -1675,7 +2466,7 @@ export default class extends Controller {
       toolbar.style.position = "relative";
     }
 
-    const topOffset = (toolbar.offsetHeight || 0) + 8;
+    const topOffset = (toolbar?.offsetHeight || 0) + 8;
     el.style.top = `${topOffset}px`;
     el.style.left = "0";
     el.style.display = "block";

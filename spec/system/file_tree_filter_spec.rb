@@ -67,7 +67,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    expect(page).to have_css(".wb-loading", text: /Loading|Searching/i)
+    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
 
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
@@ -76,6 +76,22 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_content("Scans")
 
     expect(page).to have_no_css(".wb-loading", wait: 6)
+  end
+
+  it "keeps the matched leaf folder visible when switching to dim mode" do
+    visit_volume_tree
+
+    fill_in "tree-filter", with: "scans"
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 12)
+
+    find("#filter-mode-toggle").click
+    expect(page).to have_selector("#tree.wb-ext-filter-dim", wait: 12)
+
+    scans_row = find(".wb-row", text: "Scans", wait: 12)
+    scans_row.find(".wb-expander", wait: 12).click
+
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 12)
+    expect(page).to have_selector(".wb-row .wb-title", text: "Scans", wait: 12)
   end
 
   it "matches folders by full path when filtering by an ancestor segment" do
@@ -117,6 +133,26 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     expect(page).to have_css("#tree-match-count", wait: 6)
     expect(page).to have_css("#tree-match-count", text: "4 matches", wait: 6)
+  end
+
+  it "keeps the match count visible when switching between hide and dim modes" do
+    visit_volume_tree
+
+    fill_in "tree-filter", with: "beta"
+
+    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
+
+    find("#filter-mode-toggle").click
+
+    expect(page).to have_selector("#tree.wb-ext-filter-dim", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+
+    find("#filter-mode-toggle").click
+
+    expect(page).to have_no_selector("#tree.wb-ext-filter-dim", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
   end
 
   it "does not apply stale search results after clearing the search" do
