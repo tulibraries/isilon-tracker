@@ -231,14 +231,7 @@ div.wunderbaum div.wb-header span.wb-col.wb-active {
   margin-top: 40px !important;
 }
 
-.wunderbaum .wb-title.wb-title-match {
-  background-color: #fffd75;
-  font-weight: bold;
-  border-radius: 3px;
-  padding: 1px 4px;
-}
-
-.wunderbaum .wb-custom-match {
+.wunderbaum .wb-row.wb-match > span.wb-col .wb-title {
   background-color: #fffd75;
   font-weight: bold;
   border-radius: 3px;
