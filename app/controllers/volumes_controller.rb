@@ -73,7 +73,12 @@ class VolumesController < ApplicationController
 
     return render(json: empty_filter_results) if q.blank? && filter_params_blank?
 
-    matched_folders = filtered_folder_scope(q, assigned_to).to_a
+    matched_folders =
+      if folder_filters_applicable?(q, assigned_to)
+        filtered_folder_scope(q, assigned_to).to_a
+      else
+        []
+      end
     matched_assets_scope = filtered_asset_scope(q.downcase)
     matched_assets = matched_assets_scope.includes(
       :assigned_to,
@@ -350,6 +355,10 @@ class VolumesController < ApplicationController
         params[:aspace_collection_id].blank? &&
         !params.key?(:aspace_linking_status) &&
         !params.key?(:is_duplicate)
+    end
+
+    def folder_filters_applicable?(q, assigned_to)
+      q.present? || assigned_to.present?
     end
 
     def empty_filter_results

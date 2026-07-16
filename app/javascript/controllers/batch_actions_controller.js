@@ -4,20 +4,22 @@ export default class extends Controller {
   static targets = ["selectedAssetCount", "form", "assetIds", "folderIds"]
 
   connect() {
+    this.boundHandleSelectionChange ||= this.handleSelectionChange.bind(this)
+    this.boundHandleFormSubmitEnd ||= this.handleFormSubmitEnd.bind(this)
     this.selectedAssets = new Set()
     this.selectedFolders = new Set()
     this.updateButtonVisibility()
-    
+
     // Listen for tree selection changes from wunderbaum controller
-    document.addEventListener("wunderbaum:selectionChanged", this.handleSelectionChange.bind(this))
-    
+    document.addEventListener("wunderbaum:selectionChanged", this.boundHandleSelectionChange)
+
     // Listen for turbo:submit-end to close modal after successful submission
-    document.addEventListener("turbo:submit-end", this.handleFormSubmitEnd.bind(this))
+    document.addEventListener("turbo:submit-end", this.boundHandleFormSubmitEnd)
   }
 
   disconnect() {
-    document.removeEventListener("wunderbaum:selectionChanged", this.handleSelectionChange.bind(this))
-    document.removeEventListener("turbo:submit-end", this.handleFormSubmitEnd.bind(this))
+    document.removeEventListener("wunderbaum:selectionChanged", this.boundHandleSelectionChange)
+    document.removeEventListener("turbo:submit-end", this.boundHandleFormSubmitEnd)
   }
 
   handleSelectionChange(event) {
@@ -29,11 +31,10 @@ export default class extends Controller {
 
   updateButtonVisibility() {
     const assetButton = document.getElementById("asset-batch-actions-btn")
-    
     const hasAssets = this.selectedAssets.size > 0
     const hasFolders = this.selectedFolders.size > 0
     const totalSelected = this.selectedAssets.size + this.selectedFolders.size
-    
+
     // Show batch actions button if any assets or folders are selected
     if (totalSelected > 0) {
       if (assetButton) assetButton.style.display = "inline-block"
@@ -61,7 +62,7 @@ export default class extends Controller {
     if (this.hasAssetIdsTarget) {
       this.assetIdsTarget.value = Array.from(this.selectedAssets).join(',')
     }
-    
+
     // Update folder IDs field (create it if it doesn't exist)
     let folderIdsInput = document.querySelector('#assetBatchActionsModal input[name="folder_ids"]')
     if (!folderIdsInput) {
@@ -82,7 +83,7 @@ export default class extends Controller {
 
   resetAssetFormToUnchanged() {
     const modal = document.getElementById('assetBatchActionsModal')
-    
+
     // Reset all select dropdowns to empty value (which shows "Unchanged")
     modal.querySelectorAll('select').forEach(select => {
       select.value = ''
@@ -105,14 +106,14 @@ export default class extends Controller {
     if (this.hasAssetIdsTarget) {
       this.assetIdsTarget.value = Array.from(this.selectedAssets).join(',')
     }
-    
+
     // Let the form submit naturally with Turbo handling the response
     // The form already has the correct action and method
   }
 
   handleFormSubmitEnd(event) {
     // Check if this is our batch actions form and if it was successful
-    if (event.target.classList.contains('batch-actions-form') && 
+    if (event.target.classList.contains('batch-actions-form') &&
         event.detail.success) {
       const updatedAssetIds = Array.from(this.selectedAssets)
       const updatedFolderIds = Array.from(this.selectedFolders)
@@ -124,10 +125,10 @@ export default class extends Controller {
   refreshWunderbaumTree(updatedAssetIds = [], updatedFolderIds = []) {
     // Find the wunderbaum controller and trigger a refresh
     const wunderbaumElement = document.querySelector('[data-controller*="wunderbaum"]')
-    
+
     if (wunderbaumElement) {
       const wunderbaumController = this.application.getControllerForElementAndIdentifier(wunderbaumElement, 'wunderbaum')
-      
+
       if (wunderbaumController && wunderbaumController.refreshTreeDisplay) {
         wunderbaumController.refreshTreeDisplay(updatedAssetIds, updatedFolderIds)
       }
