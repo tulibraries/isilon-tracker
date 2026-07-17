@@ -69,8 +69,6 @@ export default class extends Controller {
         } else {
           if (!(await wunderbaum.applyCachedHideFilter?.(signature))) {
             await this.requestFilter({ force: true })
-          } else {
-            wunderbaum.prefetchDimFilter?.(raw, signature)
           }
         }
       }
@@ -109,7 +107,6 @@ export default class extends Controller {
 
     if (wunderbaum.hasCachedHideFilter?.(signature)) {
       await wunderbaum.applyCachedHideFilter(signature)
-      wunderbaum.prefetchDimFilter?.(raw, signature)
       this.syncModeButton()
       return
     }

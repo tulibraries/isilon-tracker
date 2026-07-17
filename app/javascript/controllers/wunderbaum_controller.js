@@ -1246,61 +1246,6 @@ export default class extends Controller {
     return true;
   }
 
-  prefetchDimFilter(raw = this.currentQuery, signature = this.currentFilterSignature) {
-    if (!signature) return Promise.resolve(null);
-    if (this.dimFilterCache?.signature === signature) {
-      if (this.dimFilterCache.payload) return Promise.resolve(this.dimFilterCache.payload);
-      if (this.dimFilterCache.promise) return this.dimFilterCache.promise;
-    }
-
-    if (this.dimFilterAbortController) {
-      try { this.dimFilterAbortController.abort(); } catch {}
-    }
-
-    const request = this.getFilterRequestParams(raw);
-    if (request.empty || !request.params) return Promise.resolve(null);
-
-    const ctrl = new AbortController();
-    this.dimFilterAbortController = ctrl;
-
-    const promise = Promise.all([
-      this._fetchJson(
-        `/volumes/${this.volumeIdValue}/file_tree_folders_search.json?${request.params.toString()}`,
-        ctrl
-      ).catch(() => []),
-      this._fetchJson(
-        `/volumes/${this.volumeIdValue}/file_tree_assets_search.json?${request.params.toString()}`,
-        ctrl
-      ).catch(() => ({
-        results: [],
-        total_count: 0,
-        notes_match_count: 0
-      }))
-    ]).then(([folderResponse, assetResponse]) => {
-      if (ctrl.signal.aborted) return null;
-
-      const payload = this._normalizeDimSearchPayload(folderResponse, assetResponse, request.query);
-      if (this.currentFilterSignature === signature) {
-        this.dimFilterCache = { signature, payload, promise: null };
-      }
-      return payload;
-    }).catch((error) => {
-      if (ctrl.signal.aborted) return null;
-      console.error("Failed to prefetch dim filter results", error);
-      return null;
-    }).finally(() => {
-      if (this.dimFilterAbortController === ctrl) {
-        this.dimFilterAbortController = null;
-      }
-      if (this.dimFilterCache?.signature === signature && this.dimFilterCache?.promise === promise) {
-        this.dimFilterCache.promise = null;
-      }
-    });
-
-    this.dimFilterCache = { signature, payload: null, promise };
-    return promise;
-  }
-
   async applyDimFilter(raw = this.currentQuery, signature = this.currentFilterSignature) {
     const request = this.getFilterRequestParams(raw);
     const effectiveSignature = signature || request.params?.toString() || null;
