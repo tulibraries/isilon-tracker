@@ -271,15 +271,18 @@ RSpec.describe "Volumes file tree endpoints", type: :request do
       expect(response).to have_http_status(:ok)
 
       body = parsed
-      expect(body["total_count"]).to eq(5)
-      expect(body["matched_folder_count"]).to eq(4)
+      expect(body["matched_folder_count"]).to eq(1)
       expect(body["matched_asset_count"]).to eq(1)
+      expect(body["total_count"]).to eq(2)
       expect(body["matched_keys"]).to include(
         root.id.to_s,
-        folder_a.id.to_s,
-        folder_b.id.to_s,
-        folder_c.id.to_s,
         "a-#{asset.id}"
+      )
+      expect(body["folders"].map { |folder| folder["id"] }).to include(
+        root.id,
+        folder_a.id,
+        folder_b.id,
+        folder_c.id
       )
 
       folder_ids = body.fetch("folders").map { |folder| folder["id"] }

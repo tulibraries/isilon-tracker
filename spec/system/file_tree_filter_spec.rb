@@ -68,7 +68,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
 
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
@@ -150,18 +150,18 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
     expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
 
     find("#filter-mode-toggle").click
 
     expect(page).to have_selector("#tree.wb-ext-filter-dim", wait: 12)
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
 
     find("#filter-mode-toggle").click
 
     expect(page).to have_no_selector("#tree.wb-ext-filter-dim", wait: 12)
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
     expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
   end
 

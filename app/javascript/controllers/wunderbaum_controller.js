@@ -12,6 +12,7 @@ export default class extends Controller {
   currentFilterOpts = null;
   currentQuery = "";
   currentMatchCount = 0;
+  currentNotesMatchCount = 0;
   currentMatchedKeys = new Set();
   currentFilterSignature = null;
   filterMode = "hide";
@@ -293,6 +294,10 @@ export default class extends Controller {
             }
 
             util.setValueToElem(colInfo.elem, displayValue);
+
+            if (colId === "notes") {
+              this._syncNotesHighlight(colInfo.elem, node, displayValue);
+            }
           }
 
           const titleElem = e.nodeElem.querySelector("span.wb-title");
@@ -334,6 +339,8 @@ export default class extends Controller {
             titleElem.innerHTML =
               `<a href="${node.data.url}" class="asset-link" target="_blank" rel="noopener" data-turbo="false">${node.title}</a>`;
           }
+
+          this._syncTitleHighlight(titleElem, node);
         },
         
         buttonClick: (e) => {
@@ -573,6 +580,8 @@ export default class extends Controller {
       this.tree.clearFilter();
 
       document.getElementById("tree-match-count")?.remove();
+      this.currentMatchCount = 0;
+      this.currentNotesMatchCount = 0;
 
       this._setLoading(false);
       this._updateFilterModeButton();
@@ -616,7 +625,8 @@ export default class extends Controller {
             searchCtrl
           ).catch(() => ({
             results: [],
-            total_count: 0
+            total_count: 0,
+            notes_match_count: 0
           }))
         ]);
 
@@ -636,20 +646,27 @@ export default class extends Controller {
       const folders = Array.isArray(hidePayload?.folders) ? hidePayload.folders : payload.folders;
       const assets = payload.assets;
       const backendMatchCount = Number(payload?.totalCount);
+      const backendNotesMatchCount = Number(payload?.notesMatchCount);
       const matchedKeys = Array.isArray(hidePayload?.matched_keys)
         ? hidePayload.matched_keys
         : Array.isArray(payload.matchedKeys)
           ? payload.matchedKeys
           : [];
       const hidePayloadCount = Number(hidePayload?.total_count);
+      const hidePayloadNotesMatchCount = Number(hidePayload?.notes_match_count);
       const resolvedMatchCount = Number.isFinite(hidePayloadCount)
         ? hidePayloadCount
         : Number.isFinite(backendMatchCount)
           ? backendMatchCount
           : matchedKeys.length;
+      const resolvedNotesMatchCount = Number.isFinite(hidePayloadNotesMatchCount)
+        ? hidePayloadNotesMatchCount
+        : Number.isFinite(backendNotesMatchCount)
+          ? backendNotesMatchCount
+          : 0;
 
       this.currentMatchedKeys = new Set(matchedKeys.map(String));
-      this._updateMatchCount(resolvedMatchCount);
+      this._updateMatchCount(resolvedMatchCount, resolvedNotesMatchCount);
 
       if (!q && this.columnFilters.size > 0) {
         await this._materializeColumnFilterResults(
@@ -676,7 +693,7 @@ export default class extends Controller {
 
       this._applyPredicate(q);
       this._syncMatchedNodeClasses();
-      this._updateMatchCount(resolvedMatchCount);
+      this._updateMatchCount(resolvedMatchCount, resolvedNotesMatchCount);
       if (this.filterMode === "dim" && options.signature) {
         this.dimRenderedCache = this._captureDimRenderedCache(
           options.signature,
@@ -693,11 +710,16 @@ export default class extends Controller {
 
   _normalizeDimSearchPayload(folderResponse, assetResponse, q) {
     let folders = [];
+    let folderTotalCount = 0;
+    let folderNotesMatchCount = 0;
 
     if (Array.isArray(folderResponse)) {
       folders = folderResponse;
+      folderTotalCount = folders.length;
     } else if (Array.isArray(folderResponse?.results)) {
       folders = folderResponse.results;
+      folderTotalCount = Number(folderResponse.total_count ?? folders.length);
+      folderNotesMatchCount = Number(folderResponse.notes_match_count ?? 0);
     }
 
     let assets = [];
@@ -709,22 +731,35 @@ export default class extends Controller {
     }
 
     this._buildFolderMatchCounts(assets);
-    const folderMatchCount = folders.length;
+    const folderMatchCount = Number.isFinite(folderTotalCount) ? folderTotalCount : folders.length;
 
     let backendAssetCount = assets.length;
+    let backendNotesMatchCount = 0;
 
     if (!Array.isArray(assetResponse) && assetResponse?.total_count != null) {
       backendAssetCount = Number(assetResponse.total_count);
+      backendNotesMatchCount = Number(assetResponse.notes_match_count ?? 0);
     }
 
     if (!Number.isFinite(backendAssetCount)) {
       backendAssetCount = assets.length;
     }
 
+    if (!Number.isFinite(backendNotesMatchCount)) {
+      backendNotesMatchCount = 0;
+    }
+
+    if (!Number.isFinite(folderNotesMatchCount)) {
+      folderNotesMatchCount = 0;
+    }
+
     const hasFolderCapableFilters =
       q.length > 0 ||
       (this.columnFilters.has("assigned_to") &&
         String(this.columnFilters.get("assigned_to") ?? "") !== "");
+
+    const backendMatchCount = hasFolderCapableFilters ? folderMatchCount + backendAssetCount : backendAssetCount;
+    const totalNotesMatchCount = folderNotesMatchCount + backendNotesMatchCount;
 
     return {
       folders,
@@ -733,7 +768,8 @@ export default class extends Controller {
         ...folders.map((folder) => String(folder.key ?? folder.id)),
         ...assets.map((asset) => String(asset.key ?? `a-${asset.id}`))
       ],
-      totalCount: hasFolderCapableFilters ? folderMatchCount + backendAssetCount : backendAssetCount
+      totalCount: backendMatchCount,
+      notesMatchCount: totalNotesMatchCount
     };
   }
 
@@ -807,7 +843,9 @@ export default class extends Controller {
           ""
         ).toLowerCase();
 
-        if (!text.includes(q)) return false;
+        const notes = String(node.data.notes ?? "").toLowerCase();
+
+        if (!text.includes(q) && !notes.includes(q)) return false;
       }
 
       for (const [colId, val] of this.columnFilters.entries()) {
@@ -970,11 +1008,37 @@ export default class extends Controller {
   async applyFilterResults(payload, seq) {
     if (seq !== this._filterSeq) return;
 
-    const folders = Array.isArray(payload?.folders) ? payload.folders : [];
-    const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+    const folders = Array.isArray(payload?.folders)
+      ? payload.folders
+      : [];
+
+    const assets = Array.isArray(payload?.assets)
+      ? payload.assets
+      : [];
+
     const matchedKeys = Array.isArray(payload?.matched_keys)
       ? payload.matched_keys.map(String)
       : [];
+
+    const backendTotalCount =
+      payload?.total_count == null
+        ? NaN
+        : Number(payload.total_count);
+
+    const backendNotesMatchCount =
+      payload?.notes_match_count == null
+        ? 0
+        : Number(payload.notes_match_count);
+
+    const resolvedTotalCount =
+      Number.isFinite(backendTotalCount)
+        ? backendTotalCount
+        : matchedKeys.length;
+
+    const resolvedNotesMatchCount =
+      Number.isFinite(backendNotesMatchCount)
+        ? backendNotesMatchCount
+        : 0;
 
     this._buildFolderMatchCounts(assets);
     this.currentMatchedKeys = new Set(matchedKeys);
@@ -983,12 +1047,22 @@ export default class extends Controller {
     this.currentFilterOpts = null;
     this.tree?.clearFilter?.();
 
+    this._updateMatchCount(
+      resolvedTotalCount,
+      resolvedNotesMatchCount
+    );
+
     await this._renderFilteredTree(folders, assets, seq);
 
     if (seq !== this._filterSeq) return;
 
     this._syncMatchedNodeClasses();
-    this._updateMatchCount(Number(payload?.total_count) || matchedKeys.length);
+
+    this._updateMatchCount(
+      resolvedTotalCount,
+      resolvedNotesMatchCount
+    );
+
     this._updateSelectAllButtonState();
   }
 
@@ -1030,6 +1104,8 @@ export default class extends Controller {
     this.currentFilterPredicate = null;
     this.currentFilterOpts = null;
     this.currentQuery = "";
+    this.currentMatchCount = 0;
+    this.currentNotesMatchCount = 0;
     this.currentFilterSignature = null;
     this.currentMatchedKeys = new Set();
     this.isFilteredTreeMode = false;
@@ -1144,7 +1220,8 @@ export default class extends Controller {
         ctrl
       ).catch(() => ({
         results: [],
-        total_count: 0
+        total_count: 0,
+        notes_match_count: 0
       }))
     ]).then(([folderResponse, assetResponse]) => {
       if (ctrl.signal.aborted) return null;
@@ -1630,7 +1707,9 @@ export default class extends Controller {
 
       this._sortTreeItemsArray(node.children);
 
-      this._sortFilteredChildren(node.children.filter((child) => child.folder));
+      this._sortFilteredChildren(
+        node.children.filter((child) => child.folder)
+      );
     });
   }
 
@@ -1652,31 +1731,13 @@ export default class extends Controller {
   }
 
   _sortLiveTreeNodes() {
-    const sortNodeChildren = (node) => {
-      if (!Array.isArray(node?.children) || node.children.length === 0) return;
-
-      this._sortTreeItemsArray(node.children);
-      node.children.forEach((child) => {
-        if (child.data?.folder) {
-          sortNodeChildren(child);
-        }
-      });
-    };
-
     const root = this.tree?.root;
     if (!root) return;
 
-    sortNodeChildren(root);
-
-    try {
-      if (this.tree?.update) {
-        this.tree.update();
-      } else if (this.tree?.redraw) {
-        this.tree.redraw();
-      }
-    } catch (error) {
-      console.error("Failed to re-sort live tree nodes", error);
-    }
+    root.sortChildren(
+      (left, right) => this._compareTreeItems(left, right),
+      true
+    );
   }
 
   _replaceTreeContents(nodes) {
@@ -1696,12 +1757,17 @@ export default class extends Controller {
     }
   }
 
-  _captureDimRenderedCache(signature, matchCount) {
+  _captureDimRenderedCache(
+    signature,
+    matchCount,
+    notesMatchCount = this.currentNotesMatchCount
+  ) {
     const rootChildren = this.tree?.root?.children || [];
 
     return {
       signature,
       count: matchCount,
+      notesCount: notesMatchCount,
       matchedKeys: [ ...this.currentMatchedKeys ],
       loadedFolders: [ ...this.loadedFolders ],
       assetsLoadedFor: [ ...this.assetsLoadedFor ],
@@ -1773,7 +1839,7 @@ export default class extends Controller {
 
     this._applyPredicate(this.currentQuery);
     this._syncMatchedNodeClasses();
-    this._updateMatchCount(cache.count || 0);
+    this._updateMatchCount(cache.count || 0, cache.notesCount || 0);
     this._updateSelectAllButtonState();
     this._setLoading(false);
   }
@@ -2017,6 +2083,47 @@ export default class extends Controller {
     const labelField = node?.data?.[`${colId}_label`];
     const label = labelField || this._optionLabelFor(colId, node?.data?.[colId] ?? "") || "";
     return label.trim().toLowerCase();
+  }
+
+  // Applies notes-match highlighting without replacing the editable notes input.
+  _syncNotesHighlight(elem, node, value) {
+    const notes = String(value ?? "");
+    const query = String(this.currentQuery || "").trim();
+    const input = elem.querySelector("input[name='notes']");
+
+    elem.classList.remove("wb-custom-match");
+    input?.classList.remove("wb-custom-match");
+
+    if (!input || !notes || !query) {
+      return;
+    }
+
+    const predicate = this.currentFilterPredicate;
+    if (typeof predicate === "function" && !predicate(node)) {
+      return;
+    }
+
+    const title = String(node?.title || "").toLowerCase();
+    const normalizedQuery = query.toLowerCase();
+    const noteMatches = notes.toLowerCase().includes(normalizedQuery);
+    const titleMatches = title.includes(normalizedQuery);
+
+    if (noteMatches && !titleMatches) {
+      input.classList.add("wb-custom-match");
+    }
+  }
+
+  // Applies title highlighting only when the visible node title itself matches the query.
+  _syncTitleHighlight(titleElem, node) {
+    titleElem.classList.remove("wb-title-match");
+
+    const query = String(this.currentQuery || "").trim().toLowerCase();
+    if (!query) return;
+
+    const title = String(node?.title || "").toLowerCase();
+    if (!title.includes(query)) return;
+
+    titleElem.classList.add("wb-title-match");
   }
 
   // Renders and positions the column filter dropdown.
@@ -2411,13 +2518,19 @@ export default class extends Controller {
   }
 
   // Displays count for query search matches
-  _updateMatchCount(count) {
+  _updateMatchCount(count, notesMatchCount = 0) {
     const input = document.getElementById("tree-filter");
     if (!input) return;
 
     const normalizedCount = Number(count);
     const resolvedCount = Number.isFinite(normalizedCount) ? normalizedCount : 0;
+    const normalizedNotesCount = Number(notesMatchCount);
+    const resolvedNotesCount = Number.isFinite(normalizedNotesCount)
+      ? normalizedNotesCount
+      : 0;
+
     this.currentMatchCount = resolvedCount;
+    this.currentNotesMatchCount = resolvedNotesCount;
 
     let el = document.getElementById("tree-match-count");
     const toolbar = input.closest(".wb-toolbar") || input.parentElement;
@@ -2441,7 +2554,13 @@ export default class extends Controller {
     el.style.top = `${topOffset}px`;
     el.style.left = "0";
     el.style.display = "block";
-    el.textContent = `${resolvedCount.toLocaleString()} matches`;
+
+    let text = `${resolvedCount.toLocaleString()} matches`;
+    if (resolvedNotesCount > 0) {
+      text += ` (${resolvedNotesCount.toLocaleString()} notes matches)`;
+    }
+
+    el.textContent = text;
   }
 
   _showMatchCountStatus(text) {
