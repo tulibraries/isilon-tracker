@@ -780,13 +780,17 @@ export default class extends Controller {
 
     const backendMatchCount = hasFolderCapableFilters ? folderMatchCount + backendAssetCount : backendAssetCount;
     const totalNotesMatchCount = folderNotesMatchCount + backendNotesMatchCount;
+    const folderMatchedKeys = Array.isArray(folderResponse?.matched_keys) ? folderResponse.matched_keys.map(String) : [];
+
+    const assetMatchedKeys = Array.isArray(assetResponse?.matched_keys) ? assetResponse.matched_keys.map(String) : assets.map((asset) =>
+      String(asset.key ?? `a-${asset.id}`));
 
     return {
       folders,
       assets,
       matchedKeys: [
-        ...folders.map((folder) => String(folder.key ?? folder.id)),
-        ...assets.map((asset) => String(asset.key ?? `a-${asset.id}`))
+        ...folderMatchedKeys,
+        ...assetMatchedKeys
       ],
       totalCount: backendMatchCount,
       notesMatchCount: totalNotesMatchCount
@@ -831,6 +835,35 @@ export default class extends Controller {
 
   // Applies the current filter predicate to the tree.
   _applyPredicate(q) {
+    if (this.filterMode === "dim" && this._hasActiveFilter()) {
+      const matchedKeys = this.currentMatchedKeys;
+
+      const predicate = (node) => {
+        const nodeKey = String(
+          node.key ??
+          node.data?.key ??
+          node.data?.id ??
+          ""
+        );
+
+        return matchedKeys.has(nodeKey);
+      };
+
+      const opts = {
+        leavesOnly: false,
+        matchBranch: false,
+        mode: "dim"
+      };
+
+      this.currentFilterPredicate = predicate;
+      this.currentFilterOpts = opts;
+
+      this.tree.filterNodes(predicate, opts);
+      this._updateFilterModeButton();
+      this._updateSelectAllButtonState();
+      return;
+    }
+
     if (this.isFilteredTreeMode && this.currentMatchedKeys.size > 0) {
       const matchedKeys = new Set(this.currentMatchedKeys);
       const predicate = (node) => {
