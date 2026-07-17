@@ -115,4 +115,22 @@ RSpec.describe User, type: :model do
       expect(user.password).to eq("custompass")
     end
   end
+
+  describe "#active_for_authentication?" do
+    it "allows an active user to authenticate" do
+      user = build(:user, status: :active)
+
+      expect(
+        user.active_for_authentication?
+      ).to be(true)
+    end
+
+    it "prevents an inactive user from authenticating" do
+      user = build(:user, status: :inactive)
+
+      expect(
+        user.active_for_authentication?
+      ).to be(false)
+    end
+  end
 end
