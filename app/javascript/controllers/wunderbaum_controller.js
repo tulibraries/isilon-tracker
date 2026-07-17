@@ -247,24 +247,38 @@ export default class extends Controller {
 
             if (isFolder && colId !== "assigned_to" && this.selectLikeColumns.has(colId)) {
               colInfo.elem.replaceChildren();
-              colInfo.elem.classList.remove("wb-select-like");
+              colInfo.elem.classList.remove(
+                "wb-select-like",
+                "wb-custom-match"
+              );
               continue;
             }
 
             if (colId === "is_duplicate") {
               colInfo.elem.replaceChildren();
+
               if (!isFolder && rawValue) {
                 const tag = document.createElement("span");
                 tag.className = "duplicate-tag";
                 tag.textContent = "Duplicate";
                 colInfo.elem.appendChild(tag);
               }
+
+              this._syncColumnFilterHighlight(
+                colInfo.elem,
+                node,
+                colId
+              );
+
               continue;
             }
 
             if (colId === "aspace_linking_status" && isFolder) {
               colInfo.elem.replaceChildren();
-              colInfo.elem.classList.remove("wb-select-like");
+              colInfo.elem.classList.remove(
+                "wb-select-like",
+                "wb-custom-match"
+              );
               continue;
             }
 
@@ -294,6 +308,12 @@ export default class extends Controller {
             }
 
             util.setValueToElem(colInfo.elem, displayValue);
+
+            this._syncColumnFilterHighlight(
+              colInfo.elem,
+              node,
+              colId
+            );
 
             if (colId === "notes") {
               this._syncNotesHighlight(colInfo.elem, node, displayValue);
@@ -2124,6 +2144,31 @@ export default class extends Controller {
     if (!title.includes(query)) return;
 
     titleElem.classList.add("wb-title-match");
+  }
+
+  // Applies highlighting to column filter matches
+  _syncColumnFilterHighlight(elem, node, colId) {
+    elem.classList.remove("wb-custom-match");
+
+    if (!this.columnFilters.has(colId)) return;
+
+    const filterValue = String(
+      this.columnFilters.get(colId) ?? ""
+    ).toLowerCase();
+
+    const nodeValue = this._filterValueFor(
+      colId,
+      node.data
+    );
+
+    const normalizedNodeValue =
+      nodeValue == null
+        ? ""
+        : String(nodeValue).toLowerCase();
+
+    if (normalizedNodeValue === filterValue) {
+      elem.classList.add("wb-custom-match");
+    }
   }
 
   // Renders and positions the column filter dropdown.
