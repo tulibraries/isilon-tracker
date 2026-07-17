@@ -53,7 +53,8 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     create(:isilon_asset,
       parent_folder: folder_c,
       isilon_name: "scan_beta_001.tif",
-      isilon_path:  "#{folder_c.full_path}/scan_beta_001.tif"
+      isilon_path:  "#{folder_c.full_path}/scan_beta_001.tif",
+      notes: "priority digitization candidate"
     )
   end
 
@@ -67,7 +68,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
 
     expect(page).to have_content("scan_beta_001.tif", wait: 12)
 
@@ -94,12 +95,67 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     expect(page).to have_selector(".wb-row .wb-title", text: "Scans", wait: 12)
   end
 
-  it "matches folders by full path when filtering by an ancestor segment" do
+  it "keeps path-only folders visible without treating them as dim-mode matches" do
     visit_volume_tree
 
     fill_in "tree-filter", with: "librarybeta"
 
-    expect(page).to have_content("LibDigital", wait: 12)
+    expect(page).to have_css(
+      "#tree-match-count",
+      text: "1 matches",
+      wait: 12
+    )
+
+    expect(page).to have_css(".wb-row", text: "LibraryBeta", wait: 12)
+    expect(page).to have_css(".wb-row", text: "LibDigital", wait: 12)
+    expect(page).to have_css(".wb-row", text: "TUL_OHIST", wait: 12)
+    expect(page).to have_css(".wb-row", text: "Scans", wait: 12)
+
+    find("#filter-mode-toggle").click
+
+    expect(page).to have_selector(
+      "#tree.wb-ext-filter-dim",
+      wait: 12
+    )
+
+    expect(page).to have_css(
+      ".wb-row.wb-match",
+      count: 1,
+      wait: 12
+    )
+
+    expect(page).to have_css(
+      ".wb-row.wb-match",
+      text: "LibraryBeta"
+    )
+
+    expect(page).to have_no_css(
+      ".wb-row.wb-match",
+      text: "LibDigital"
+    )
+
+    expect(page).to have_no_css(
+      ".wb-row.wb-match",
+      text: "TUL_OHIST"
+    )
+
+    expect(page).to have_no_css(
+      ".wb-row.wb-match",
+      text: "Scans"
+    )
+
+    expect(page).to have_css(
+      "#tree-match-count",
+      text: "1 matches"
+    )
+  end
+
+  it "finds assets by notes content" do
+    visit_volume_tree
+
+    fill_in "tree-filter", with: "digitization"
+
+    expect(page).to have_content("scan_beta_001.tif", wait: 12)
     expect(page).to have_no_css(".wb-loading", wait: 6)
   end
 
@@ -132,7 +188,7 @@ RSpec.describe "file tree filtering", type: :system, js: true do
     fill_in "tree-filter", with: "librarybeta"
 
     expect(page).to have_css("#tree-match-count", wait: 6)
-    expect(page).to have_css("#tree-match-count", text: "4 matches", wait: 6)
+    expect(page).to have_css("#tree-match-count", text: "1 matches", wait: 6)
   end
 
   it "keeps the match count visible when switching between hide and dim modes" do
@@ -140,18 +196,18 @@ RSpec.describe "file tree filtering", type: :system, js: true do
 
     fill_in "tree-filter", with: "beta"
 
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
     expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
 
     find("#filter-mode-toggle").click
 
     expect(page).to have_selector("#tree.wb-ext-filter-dim", wait: 12)
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
 
     find("#filter-mode-toggle").click
 
     expect(page).to have_no_selector("#tree.wb-ext-filter-dim", wait: 12)
-    expect(page).to have_css("#tree-match-count", text: "5 matches", wait: 12)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 12)
     expect(page).to have_selector(".wb-row .wb-title", text: asset.isilon_name, wait: 12)
   end
 

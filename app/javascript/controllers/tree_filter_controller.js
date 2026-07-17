@@ -138,11 +138,14 @@ export default class extends Controller {
       await wunderbaum.applyFilterResults(payload, built.seq)
       wunderbaum.prefetchDimFilter?.(raw, built.signature)
     } catch (error) {
-      console.error("Failed to fetch filtered tree results", error)
-      await wunderbaum._abortPendingHideFilter?.(built.seq)
+      console.error("Failed to fetch filtered tree results", error);
+
+      wunderbaum._showMatchCountStatus?.("Search failed");
+
+      await wunderbaum._abortPendingHideFilter?.(built.seq);
     } finally {
-      wunderbaum.finalizeFilterRequest(built.seq)
-      this.syncModeButton()
+      wunderbaum.finalizeFilterRequest(built.seq);
+      this.syncModeButton();
     }
   }
 

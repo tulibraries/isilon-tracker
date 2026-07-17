@@ -50,7 +50,7 @@ RSpec.describe "Volume file tree select all", type: :system do
 
   it "selects only filtered matches and not all nodes" do
     fill_in "tree-filter", with: "beta"
-    expect(page).to have_css("#tree-match-count", text: "3 matches", wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_css(".wb-row.wb-match", text: "scan_beta_001.tif", wait: 10)
     expect(page).to have_no_css(".wb-row.wb-match", text: "scan_gamma_001.tif", wait: 10)
 
@@ -87,7 +87,7 @@ RSpec.describe "Volume file tree select all", type: :system do
 
   it "shows and hides the loading banner during selection" do
     fill_in "tree-filter", with: "beta"
-    expect(page).to have_css("#tree-match-count", text: "3 matches", wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_css(".wb-row.wb-match", text: "scan_beta_001.tif", wait: 10)
     button = find("#select-all")
     button.click
@@ -97,7 +97,7 @@ RSpec.describe "Volume file tree select all", type: :system do
 
   it "updates tooltip text based on selection state" do
     fill_in "tree-filter", with: "beta"
-    expect(page).to have_css("#tree-match-count", text: "3 matches", wait: 10)
+    expect(page).to have_css("#tree-match-count", text: "2 matches", wait: 10)
     expect(page).to have_css(".wb-row.wb-match", text: "scan_beta_001.tif", wait: 10)
 
     button = find("#select-all")

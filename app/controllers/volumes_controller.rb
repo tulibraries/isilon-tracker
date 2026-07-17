@@ -35,24 +35,27 @@ class VolumesController < ApplicationController
     assigned_to = params[:assigned_to].presence
     return render(json: []) if q.blank? && assigned_to.blank?
 
-    folders = @volume.isilon_folders.includes(:parent_folder)
+    base_scope = filtered_folder_scope
+    folders = q.present? ? apply_folder_text_search(base_scope, q.downcase) : base_scope
+    folder_records = folders.to_a
+    matched_folder_count = q.present? ? folder_records.count { |folder| folder_title_or_notes_match?(folder, q) } : folder_records.size
+    notes_match_count = q.present? ? folder_records.count { |folder| folder_notes_match?(folder, q) } : 0
 
-    folders = folders.where("LOWER(full_path) LIKE ?", "%#{q.downcase}%") if q.present?
-
-    if assigned_to.present? && assigned_to != "unassigned"
-      folders = folders.where(assigned_to_id: assigned_to)
-    end
-
-    folders = folders.where(assigned_to_id: nil) if assigned_to == "unassigned"
-
-    render json: folders.map { |folder| FileTreeSearchResultSerializer.new(folder).as_json }
+    render json: {
+      results: folder_records.map { |folder| FileTreeSearchResultSerializer.new(folder).as_json },
+      total_count: matched_folder_count,
+      notes_match_count: notes_match_count
+    }
   end
 
   def file_tree_assets_search
     q = params[:q].to_s.strip.downcase
 
-    scope = filtered_asset_scope(q)
+    base_scope = filtered_asset_scope
+    scope = q.present? ? apply_asset_text_search(base_scope, q) : base_scope
+
     total_count = scope.count
+    notes_match_count = q.present? ? apply_asset_notes_search(base_scope, q).count : 0
 
     assets = scope.includes(parent_folder: :parent_folder)
 
@@ -63,23 +66,30 @@ class VolumesController < ApplicationController
     render json: {
       results: tree_nodes,
       total_count: total_count,
+      notes_match_count: notes_match_count,
       returned_count: tree_nodes.size
     }
   end
 
   def file_tree_filter_results
     q = params[:q].to_s.strip
+    normalized_q = q.downcase
     assigned_to = params[:assigned_to].presence
 
     return render(json: empty_filter_results) if q.blank? && filter_params_blank?
 
+    base_folder_scope = filtered_folder_scope
     matched_folders =
       if folder_filters_applicable?(q, assigned_to)
-        filtered_folder_scope(q, assigned_to).to_a
+        q.present? ? apply_folder_text_search(base_folder_scope, normalized_q).to_a : base_folder_scope.to_a
       else
         []
       end
-    matched_assets_scope = filtered_asset_scope(q.downcase)
+
+    base_asset_scope = filtered_asset_scope
+    matched_assets_scope =
+      q.present? ? apply_asset_text_search(base_asset_scope, normalized_q) : base_asset_scope
+
     matched_assets = matched_assets_scope.includes(
       :assigned_to,
       :migration_status,
@@ -87,6 +97,19 @@ class VolumesController < ApplicationController
       :aspace_collection,
       :parent_folder
     ).to_a
+
+    direct_matched_folders =
+      if q.present?
+        matched_folders.select { |folder| folder_title_or_notes_match?(folder, normalized_q) }
+      else
+        matched_folders
+      end
+
+    folder_notes_match_count =
+      q.present? ? matched_folders.count { |folder| folder_notes_match?(folder, normalized_q) } : 0
+
+    asset_notes_match_count =
+      q.present? ? apply_asset_notes_search(base_asset_scope, normalized_q).count : 0
 
     visible_folder_ids = collect_visible_folder_ids(
       matched_folders.map(&:id) + matched_assets.map(&:parent_folder_id)
@@ -100,14 +123,18 @@ class VolumesController < ApplicationController
     path_cache = build_visible_path_cache(visible_folders)
     folders_by_id = visible_folders.index_by(&:id)
 
+    matched_folder_count = direct_matched_folders.size
+    matched_asset_count = matched_assets.size
+
     render json: {
       folders: serialize_filter_folders(visible_folders, path_cache),
       assets: serialize_filter_assets(matched_assets, folders_by_id, path_cache),
-      matched_keys: matched_folders.map { |folder| folder.id.to_s } +
+      matched_keys: direct_matched_folders.map { |folder| folder.id.to_s } +
         matched_assets.map { |asset| "a-#{asset.id}" },
-      matched_folder_count: matched_folders.size,
-      matched_asset_count: matched_assets_scope.count,
-      total_count: matched_folders.size + matched_assets_scope.count
+      matched_folder_count: matched_folder_count,
+      matched_asset_count: matched_asset_count,
+      total_count: matched_folder_count + matched_asset_count,
+      notes_match_count: folder_notes_match_count + asset_notes_match_count
     }
   end
 
@@ -200,50 +227,6 @@ class VolumesController < ApplicationController
   end
 
   private
-    def filtered_folder_scope(q, assigned_to = params[:assigned_to].presence)
-      folders = @volume.isilon_folders.includes(:parent_folder)
-
-      folders = folders.where("LOWER(full_path) LIKE ?", "%#{q.to_s.downcase}%") if q.present?
-
-      if assigned_to.present? && assigned_to != "unassigned"
-        folders = folders.where(assigned_to_id: assigned_to)
-      end
-
-      folders = folders.where(assigned_to_id: nil) if assigned_to == "unassigned"
-      folders
-    end
-
-    def filtered_asset_scope(q = params[:q].to_s.strip.downcase)
-      scope = @volume.isilon_assets.includes(:parent_folder)
-
-      scope = scope.where("LOWER(isilon_name) LIKE ?", "%#{q}%") if q.present?
-      scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
-
-      if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
-        scope = scope.where(assigned_to_id: params[:assigned_to])
-      end
-
-      if params[:file_type].present?
-        normalized_file_type = params[:file_type].to_s.strip.downcase
-        scope = scope.where("LOWER(TRIM(isilon_assets.file_type)) = ?", normalized_file_type)
-      end
-
-      scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id]) if params[:contentdm_collection_id].present?
-      scope = scope.where(aspace_collection_id: params[:aspace_collection_id]) if params[:aspace_collection_id].present?
-
-      if params.key?(:aspace_linking_status)
-        value = ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])
-        scope = scope.where(aspace_linking_status: value)
-      end
-
-      if params.key?(:is_duplicate)
-        value = ActiveModel::Type::Boolean.new.cast(params[:is_duplicate])
-        scope = scope.where(has_duplicates: value)
-      end
-
-      scope = scope.where(assigned_to_id: nil) if params[:assigned_to] == "unassigned"
-      scope
-    end
 
     def collect_visible_folder_ids(seed_ids)
       visible_ids = {}
@@ -368,12 +351,99 @@ class VolumesController < ApplicationController
         matched_keys: [],
         matched_folder_count: 0,
         matched_asset_count: 0,
-        total_count: 0
+        total_count: 0,
+        notes_match_count: 0
       }
     end
 
     def set_volume
       @volume = Volume.find(params[:id])
+    end
+
+    def apply_asset_text_search(scope, query)
+      pattern = "%#{query}%"
+
+      scope.where(
+        "LOWER(isilon_assets.isilon_name) LIKE :pattern OR LOWER(COALESCE(isilon_assets.notes, '')) LIKE :pattern",
+        pattern: pattern
+      )
+    end
+
+    def apply_asset_notes_search(scope, query)
+      pattern = "%#{query}%"
+
+      scope.where(
+        "LOWER(COALESCE(isilon_assets.notes, '')) LIKE ?",
+        pattern
+      )
+    end
+
+    def apply_folder_text_search(scope, query)
+      pattern = "%#{query}%"
+
+      scope.where(
+        "LOWER(isilon_folders.full_path) LIKE :pattern OR LOWER(COALESCE(isilon_folders.notes, '')) LIKE :pattern",
+        pattern: pattern
+      )
+    end
+
+    def filtered_folder_scope
+      scope = @volume.isilon_folders.includes(:parent_folder)
+
+      if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+        scope = scope.where(assigned_to_id: params[:assigned_to])
+      end
+
+      scope = scope.where(assigned_to_id: nil) if params[:assigned_to] == "unassigned"
+      scope
+    end
+
+    def folder_title_or_notes_match?(folder, query)
+      title = folder.full_path.to_s.split("/").reject(&:blank?).last.to_s.downcase
+      title.include?(query.downcase) || folder_notes_match?(folder, query)
+    end
+
+    def folder_notes_match?(folder, query)
+      folder.notes.to_s.downcase.include?(query.downcase)
+    end
+
+    def filtered_asset_scope
+      scope = @volume.isilon_assets.includes(:parent_folder)
+      scope = scope.where(migration_status: params[:migration_status]) if params[:migration_status].present?
+
+      if params[:assigned_to].present? && params[:assigned_to] != "unassigned"
+        scope = scope.where(assigned_to_id: params[:assigned_to])
+      end
+
+      if params[:file_type].present?
+        normalized_file_type = params[:file_type].to_s.strip.downcase
+
+        scope = scope.where(
+          "LOWER(TRIM(isilon_assets.file_type)) = ?",
+          normalized_file_type
+        )
+      end
+
+      if params[:contentdm_collection_id].present?
+        scope = scope.where(contentdm_collection_id: params[:contentdm_collection_id])
+      end
+
+      if params[:aspace_collection_id].present?
+        scope = scope.where(aspace_collection_id: params[:aspace_collection_id])
+      end
+
+      if params.key?(:aspace_linking_status)
+        value = ActiveModel::Type::Boolean.new.cast(params[:aspace_linking_status])
+        scope = scope.where(aspace_linking_status: value)
+      end
+
+      if params.key?(:is_duplicate)
+        value = ActiveModel::Type::Boolean.new.cast(params[:is_duplicate])
+        scope = scope.where(has_duplicates: value)
+      end
+
+      scope = scope.where(assigned_to_id: nil) if params[:assigned_to] == "unassigned"
+      scope
     end
 
     def volume_params
