@@ -1,6 +1,6 @@
 class UsersController < ApplicationController
   def index
-    users = User.all
+    users = User.active_status.order(:name)
     render json: users.each_with_object({}) { |user, h| h[user.id] = user.name.presence || user.email }
   end
 end

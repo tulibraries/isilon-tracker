@@ -34,6 +34,14 @@ class User < ApplicationRecord
     end
   end
 
+  def active_for_authentication?
+    super && active_status?
+  end
+
+  def inactive_message
+    :inactive
+  end
+
   protected
 
   def assign_names_from_name_field
