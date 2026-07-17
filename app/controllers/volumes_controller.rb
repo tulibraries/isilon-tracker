@@ -416,11 +416,9 @@ class VolumesController < ApplicationController
       end
 
       if params[:file_type].present?
-        normalized_file_type = params[:file_type].to_s.strip.downcase
-
-        scope = scope.where(
-          "LOWER(TRIM(isilon_assets.file_type)) = ?",
-          normalized_file_type
+        scope = apply_file_type_filter(
+          scope,
+          params[:file_type]
         )
       end
 
@@ -444,6 +442,29 @@ class VolumesController < ApplicationController
 
       scope = scope.where(assigned_to_id: nil) if params[:assigned_to] == "unassigned"
       scope
+    end
+
+    def apply_file_type_filter(scope, selected_type)
+      canonical_type =
+        FileTypeNormalizer.canonical(selected_type)
+
+      return scope.none if canonical_type.blank?
+
+      matching_raw_values =
+        @volume.isilon_assets
+          .where.not(file_type: [ nil, "" ])
+          .distinct
+          .pluck(:file_type)
+          .select do |stored_type|
+            FileTypeNormalizer.canonical(stored_type) ==
+              canonical_type
+          end
+
+      scope.where(
+        isilon_assets: {
+          file_type: matching_raw_values
+        }
+      )
     end
 
     def volume_params

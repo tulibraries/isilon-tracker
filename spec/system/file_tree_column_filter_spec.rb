@@ -267,7 +267,7 @@ RSpec.describe "File tree column filters", type: :system, js: true do
     ).click
 
     within(".wb-popup") do
-      find("option", text: "PDF").select_option
+      find("option", text: "pdf").select_option
     end
     page.execute_script("document.querySelector('.wb-popup select')?.dispatchEvent(new Event('change', { bubbles: true }))")
 
