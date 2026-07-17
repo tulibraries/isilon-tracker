@@ -2179,29 +2179,23 @@ export default class extends Controller {
     titleElem.classList.add("wb-title-match");
   }
 
-  // Applies highlighting to column filter matches
+    // Applies highlighting to active column-filter cells
   _syncColumnFilterHighlight(elem, node, colId) {
-    elem.classList.remove("wb-custom-match");
-
-    if (!this.columnFilters.has(colId)) return;
-
-    const filterValue = String(
-      this.columnFilters.get(colId) ?? ""
-    ).toLowerCase();
-
-    const nodeValue = this._filterValueFor(
-      colId,
-      node.data
+    const nodeKey = String(
+      node.key ??
+      node.data?.key ??
+      node.data?.id ??
+      ""
     );
 
-    const normalizedNodeValue =
-      nodeValue == null
-        ? ""
-        : String(nodeValue).toLowerCase();
+    const shouldHighlight =
+      this.columnFilters.has(colId) &&
+      this.currentMatchedKeys.has(nodeKey);
 
-    if (normalizedNodeValue === filterValue) {
-      elem.classList.add("wb-custom-match");
-    }
+    elem.classList.toggle(
+      "wb-custom-match",
+      shouldHighlight
+    );
   }
 
   // Renders and positions the column filter dropdown.
