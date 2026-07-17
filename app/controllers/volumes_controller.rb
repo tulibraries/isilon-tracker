@@ -452,7 +452,7 @@ class VolumesController < ApplicationController
 
       matching_raw_values =
         @volume.isilon_assets
-          .where.not(file_type: [nil, ""])
+          .where.not(file_type: [ nil, "" ])
           .distinct
           .pluck(:file_type)
           .select do |stored_type|

@@ -6,7 +6,7 @@ class FileTypesController < ApplicationController
     scope = scope.where(volume_id: params[:volume_id]) if params[:volume_id].present?
 
     file_types = scope
-      .where.not(file_type: [nil, ""])
+      .where.not(file_type: [ nil, "" ])
       .distinct
       .pluck(:file_type)
       .filter_map { |value| FileTypeNormalizer.canonical(value) }
