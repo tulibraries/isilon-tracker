@@ -6,9 +6,12 @@ class FileTypesController < ApplicationController
     scope = scope.where(volume_id: params[:volume_id]) if params[:volume_id].present?
 
     file_types = scope
-                           .distinct
-                           .order(:file_type)
-                           .pluck(:file_type)
+      .where.not(file_type: [nil, ""])
+      .distinct
+      .pluck(:file_type)
+      .filter_map { |value| FileTypeNormalizer.canonical(value) }
+      .uniq
+      .sort
 
     render json: file_types.index_with { |file_type| file_type }
   end
