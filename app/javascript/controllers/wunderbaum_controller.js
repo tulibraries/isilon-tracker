@@ -69,7 +69,9 @@ export default class extends Controller {
         credentials: "same-origin"
       });
       const source = await res.json();
+
       this.fullTreeSource = Array.isArray(source) ? source : [];
+      this._sortTreeItemsArray(this.fullTreeSource);
 
       this.tree = new Wunderbaum({
         element: this.element,
@@ -221,7 +223,11 @@ export default class extends Controller {
           }
         },
 
-        postProcess: (e) => { e.result = e.response; },
+        postProcess: (e) => {
+          const result = Array.isArray(e.response) ? e.response : [];
+          this._sortTreeItemsArray(result);
+          e.result = result;
+        },
 
         renderHeaderCell: (e) => {
           const { colDef, cellElem } = e.info;
@@ -1389,6 +1395,10 @@ export default class extends Controller {
     if (!toAdd.length && childFolders.length === 0 && parentNode.children == null) {
       parentNode.children = [];
     }
+    parentNode.sortChildren?.(
+      (left, right) => this._compareTreeItems(left, right),
+      false
+    );
 
     this.loadedFolders.add(pid);
   }
@@ -1436,6 +1446,10 @@ export default class extends Controller {
       if (!toAdd.length && children.length === 0 && parentNode.children == null) {
         parentNode.children = [];
       }
+      parentNode.sortChildren?.(
+        (left, right) => this._compareTreeItems(left, right),
+        false
+      );
 
       this.folderCache.set(pid, children);
       this.loadedFolders.add(pid);

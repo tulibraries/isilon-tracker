@@ -102,13 +102,27 @@ RSpec.describe "Wunderbaum select-like columns", type: :system do
   end
 
   it "renders aspace_linking_status checkbox for asset nodes" do
-      visit volume_path(volume)
+    visit volume_path(volume)
 
-      expander = find("i.wb-expander", match: :first)
-      expander.click
+    folder_title = File.basename(root_folder.full_path)
+    folder_title_element = find(
+      ".wb-row .wb-title",
+      text: /\A#{Regexp.escape(folder_title)}\d*\z/,
+      wait: 10
+    )
 
-      expect(page).to have_css("input[type='checkbox']", wait: 10)
-    end
+    folder_row = folder_title_element.find(
+      :xpath,
+      "ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' wb-row ')][1]"
+    )
+
+    folder_row.find("i.wb-expander").click
+
+    asset_row = find(".wb-row", text: match_asset.isilon_name, wait: 10)
+    linking_status_checkbox = asset_row.find("[data-colid='aspace_linking_status'] input[type='checkbox']")
+
+    expect(linking_status_checkbox).to be_checked
+  end
 
   it "does not reintroduce static select elements after interaction" do
     visit volume_path(volume)

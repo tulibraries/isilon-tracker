@@ -3,6 +3,18 @@
 require "rails_helper"
 
 RSpec.describe "Volume File Tree", type: :system, js: true do
+  def title_row(title_pattern)
+    find(
+      :xpath,
+      "//div[contains(@class,'wb-row')][.//span[contains(@class,'wb-title')][#{title_pattern}]]",
+      wait: 10
+    )
+  end
+
+  def normalized_title_text(element)
+    element.text.strip.sub(/\d+\z/, "")
+  end
+
   before do
     driven_by :cuprite
     sign_in user
@@ -75,5 +87,87 @@ RSpec.describe "Volume File Tree", type: :system, js: true do
       checkbox.check
       expect(checkbox).to be_checked
     end
+  end
+
+  it "displays root and nested folders alphabetically" do
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: nil,
+      full_path: "Zulu Root"
+    )
+
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: nil,
+      full_path: "Alpha Root"
+    )
+
+    parent = create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: nil,
+      full_path: "Middle Parent"
+    )
+
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: parent,
+      full_path: "Middle Parent/Zulu Child"
+    )
+
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: parent,
+      full_path: "Middle Parent/Alpha Child"
+    )
+
+    create(
+      :isilon_folder,
+      volume: volume,
+      parent_folder: parent,
+      full_path: "Middle Parent/Middle Child"
+    )
+
+    visit volume_path(volume)
+
+    expect(page).to have_css(
+      "#tree .wb-row .wb-title",
+      text: "Alpha Root",
+      wait: 10
+    )
+
+    root_titles = all("#tree .wb-row .wb-title", wait: 10).map do |element|
+      normalized_title_text(element)
+    end.select do |title|
+      [ "Alpha Root", "Middle Parent", "Zulu Root" ].any? do |name|
+        title.start_with?(name)
+      end
+    end
+
+    expect(root_titles).to eq([ "Alpha Root", "Middle Parent", "Zulu Root" ])
+
+    middle_parent_row = title_row("starts-with(normalize-space(.), 'Middle Parent')")
+
+    middle_parent_row.find("i.wb-expander").click
+
+    expect(page).to have_css(
+      "#tree .wb-row .wb-title",
+      text: "Alpha Child",
+      wait: 10
+    )
+
+    child_titles = all("#tree .wb-row .wb-title", wait: 10).map do |element|
+      normalized_title_text(element)
+    end.select do |title|
+      [ "Alpha Child", "Middle Child", "Zulu Child" ].any? do |name|
+        title.start_with?(name)
+      end
+    end
+
+    expect(child_titles).to eq([ "Alpha Child", "Middle Child", "Zulu Child" ])
   end
 end

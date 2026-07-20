@@ -4,7 +4,9 @@ class VolumesController < ApplicationController
     file_tree_updates ]
 
   def file_tree
-    root_folders = @volume.isilon_folders.where(parent_folder_id: nil)
+    root_folders = @volume.isilon_folders
+      .where(parent_folder_id: nil)
+      .order(Arel.sql("LOWER(isilon_folders.full_path) ASC"))
     render json: root_folders, each_serializer: IsilonFolderSerializer
   end
 
@@ -15,6 +17,7 @@ class VolumesController < ApplicationController
     scope = @volume.isilon_folders
     scope = scope.where(parent_folder_id: ids) if ids.present?
     scope = scope.where(parent_folder_id: pid) if pid
+    scope = scope.order(Arel.sql("LOWER(isilon_folders.full_path) ASC"))
 
     render json: scope, each_serializer: IsilonFolderSerializer
   end
