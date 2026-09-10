@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class IsilonFoldersController < ApplicationController
   def index
     @isilon_folders = IsilonFolder.all

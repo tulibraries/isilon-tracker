@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file should ensure the existence of records required to run the application in every environment (production,
 # development, test). The code here should be idempotent so that it can be executed at any point in every environment.
 # The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
@@ -29,11 +31,11 @@ migration_statuses.each do |status_attrs|
 end
 puts "Seeded #{MigrationStatus.count} MigrationStatuses."
 
-require 'csv'
-require 'rake'
+require "csv"
+require "rake"
 
 puts "Seeding AspaceCollections..."
-file_path = Rails.root.join("db", "data", "aspace-collection.csv")
+file_path = Rails.root.join("db/data/aspace-collection.csv")
 
 CSV.foreach(file_path) do |row|
   name = row[0].strip
@@ -48,7 +50,7 @@ puts
 
 
 puts "Seeding ContentdmCollections..."
-csv_path = Rails.root.join("db", "data", "contentdm_collection.csv")
+csv_path = Rails.root.join("db/data/contentdm_collection.csv")
 
 CSV.foreach(csv_path, headers: true, col_sep: "\t") do |row|
   name = row["Collection"].to_s.strip

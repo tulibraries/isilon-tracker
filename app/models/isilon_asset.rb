@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 class IsilonAsset < ApplicationRecord
-  belongs_to :parent_folder, class_name: "IsilonFolder", foreign_key: "parent_folder_id", optional: true
+  belongs_to :parent_folder, class_name: "IsilonFolder", optional: true
   belongs_to :volume, optional: true
   belongs_to :migration_status, optional: true  # optional: true if some records are still NULL
   belongs_to :aspace_collection, optional: true
@@ -52,13 +54,13 @@ class IsilonAsset < ApplicationRecord
 
   private
 
-  def set_default_migration_status
-    self.migration_status ||= MigrationStatus.find_by(default: true)
-  end
+    def set_default_migration_status
+      self.migration_status ||= MigrationStatus.find_by(default: true)
+    end
 
-  def sync_volume_from_parent
-    return unless parent_folder
+    def sync_volume_from_parent
+      return unless parent_folder
 
-    self.volume_id = parent_folder.volume_id
-  end
+      self.volume_id = parent_folder.volume_id
+    end
 end

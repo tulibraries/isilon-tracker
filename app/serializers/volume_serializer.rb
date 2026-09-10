@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class VolumeSerializer < ActiveModel::Serializer
   attributes :id, :name, :tree, :migration_statuses
 

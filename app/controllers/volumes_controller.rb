@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class VolumesController < ApplicationController
   before_action :set_volume, only: %i[ show file_tree file_tree_folders file_tree_assets
     file_tree_folders_search file_tree_assets_search file_tree_filter_results

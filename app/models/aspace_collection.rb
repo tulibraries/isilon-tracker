@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class AspaceCollection < ApplicationRecord
   validates :name, presence: true, uniqueness: true
   scope :active, -> { where(active: true) }
