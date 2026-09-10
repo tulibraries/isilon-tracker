@@ -7,10 +7,9 @@ RSpec.describe ContentdmCollection, type: :model do
     it "prevents deletion if referenced by isilon assets" do
       collection = ContentdmCollection.create!(name: "Test Collection")
       IsilonAsset.create!(
-      isilon_name: "Example File",
-      contentdm_collection: collection,
-      isilon_path: "/foo/bar",
-
+        isilon_name: "Example File",
+        contentdm_collection: collection,
+        isilon_path: "/foo/bar",
     )
 
       expect(collection.destroy).to be_falsey

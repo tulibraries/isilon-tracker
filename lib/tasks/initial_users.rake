@@ -41,17 +41,17 @@ namespace :users do
 
   private
 
-  def initial_users
-    emails = []
-    # Parse environment variables into user configs
-    parse_env_emails("INITIAL_ADMIN_EMAILS").each { |email| emails << { email: email, status: "active" } }
-    emails
-  end
+    def initial_users
+      emails = []
+      # Parse environment variables into user configs
+      parse_env_emails("INITIAL_ADMIN_EMAILS").each { |email| emails << { email: email, status: "active" } }
+      emails
+    end
 
-  def parse_env_emails(env_var)
-    ENV.fetch(env_var, "")
-        .split(",")
-        .map(&:strip)
-        .reject(&:blank?)
-  end
+    def parse_env_emails(env_var)
+      ENV.fetch(env_var, "")
+          .split(",")
+          .map(&:strip)
+          .reject(&:blank?)
+    end
 end

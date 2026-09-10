@@ -38,17 +38,17 @@ class FileTreeSearchResultSerializer < ActiveModel::Serializer
 
   private
 
-  def folder?
-    object.is_a?(IsilonFolder)
-  end
-
-  def ancestor_ids(folder)
-    ids = []
-    current = folder
-    while current&.parent_folder
-      current = current.parent_folder
-      ids.unshift(current.id)
+    def folder?
+      object.is_a?(IsilonFolder)
     end
-    ids
-  end
+
+    def ancestor_ids(folder)
+      ids = []
+      current = folder
+      while current&.parent_folder
+        current = current.parent_folder
+        ids.unshift(current.id)
+      end
+      ids
+    end
 end

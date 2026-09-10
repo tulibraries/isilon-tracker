@@ -13,14 +13,14 @@ class LastUpdatedByField < Administrate::Field::Base
 
   private
 
-  def find_user(value)
-    return if value.blank?
+    def find_user(value)
+      return if value.blank?
 
-    if value.match?(/\A\d+\z/)
-      user = User.find_by(id: value.to_i)
-      return user if user
+      if value.match?(/\A\d+\z/)
+        user = User.find_by(id: value.to_i)
+        return user if user
+      end
+
+      User.find_by(email: value) || User.find_by(name: value)
     end
-
-    User.find_by(email: value) || User.find_by(name: value)
-  end
 end

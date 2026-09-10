@@ -53,10 +53,10 @@ class AspaceCollectionDashboard < Administrate::BaseDashboard
   #   }.freeze
   COLLECTION_FILTERS = {}.freeze
 
-   # Overwrite this method to customize how aspace collections are displayed
-   # across all pages of the admin dashboard.
-   #
-   def display_resource(aspace_collection)
-     "#{aspace_collection.name}"
-   end
+  # Overwrite this method to customize how aspace collections are displayed
+  # across all pages of the admin dashboard.
+  #
+  def display_resource(aspace_collection)
+    "#{aspace_collection.name}"
+  end
 end

@@ -10,15 +10,15 @@ class ApplicationController < ActionController::Base
 
   private
 
-  def ensure_active_user!
-    return unless user_signed_in?
-    return if current_user.active_status?
+    def ensure_active_user!
+      return unless user_signed_in?
+      return if current_user.active_status?
 
-    sign_out current_user
+      sign_out current_user
 
-    redirect_to(
-      new_user_session_path,
-      alert: "Your account is inactive."
-    )
-  end
+      redirect_to(
+        new_user_session_path,
+        alert: "Your account is inactive."
+      )
+    end
 end

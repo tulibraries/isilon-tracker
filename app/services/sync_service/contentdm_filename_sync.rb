@@ -72,164 +72,164 @@ module SyncService
 
     private
 
-    def load_filename_map(csv_files)
-      filename_entries = Hash.new { |hash, key| hash[key] = [] }
-      rows_touched = 0
+      def load_filename_map(csv_files)
+        filename_entries = Hash.new { |hash, key| hash[key] = [] }
+        rows_touched = 0
 
-      csv_files.each do |csv_path|
-        raise ArgumentError, "CSV file not found: #{csv_path}" unless File.exist?(csv_path)
+        csv_files.each do |csv_path|
+          raise ArgumentError, "CSV file not found: #{csv_path}" unless File.exist?(csv_path)
 
-        source_file = File.basename(csv_path)
-        CSV.foreach(csv_path, headers: true, liberal_parsing: true) do |row|
-          original_filename = row[FILENAME_HEADER].to_s.strip
-          filename = normalize_filename(original_filename)
-          collection_name = normalize_collection_name(row[COLLECTION_HEADER])
-          next if filename.blank? || collection_name.blank?
-          rows_touched += 1
+          source_file = File.basename(csv_path)
+          CSV.foreach(csv_path, headers: true, liberal_parsing: true) do |row|
+            original_filename = row[FILENAME_HEADER].to_s.strip
+            filename = normalize_filename(original_filename)
+            collection_name = normalize_collection_name(row[COLLECTION_HEADER])
+            next if filename.blank? || collection_name.blank?
+            rows_touched += 1
 
-          filename_entries[filename] << {
-            collection_name: collection_name,
-            original_filename: original_filename,
-            source_file: source_file
+            filename_entries[filename] << {
+              collection_name: collection_name,
+              original_filename: original_filename,
+              source_file: source_file
+            }
+          end
+        end
+
+        rows_discarded = 0
+        filename_to_collection = filename_entries.each_with_object({}) do |(filename, entries), resolved|
+          winner = entries.first
+          entries.drop(1).each do |candidate_entry|
+            winner = preferred_entry(filename, winner, candidate_entry)
+          end
+          rows_discarded += entries.size - 1
+          resolved[filename] = winner
+        end
+
+        filename_map = filename_to_collection.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(filename, entry), grouped|
+          grouped[entry[:collection_name]] << {
+            normalized_filename: filename,
+            original_filename: entry[:original_filename]
           }
         end
-      end
 
-      rows_discarded = 0
-      filename_to_collection = filename_entries.each_with_object({}) do |(filename, entries), resolved|
-        winner = entries.first
-        entries.drop(1).each do |candidate_entry|
-          winner = preferred_entry(filename, winner, candidate_entry)
-        end
-        rows_discarded += entries.size - 1
-        resolved[filename] = winner
-      end
-
-      filename_map = filename_to_collection.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(filename, entry), grouped|
-        grouped[entry[:collection_name]] << {
-          normalized_filename: filename,
-          original_filename: entry[:original_filename]
+        {
+          filename_map: filename_map,
+          rows_touched: rows_touched,
+          rows_discarded: rows_discarded
         }
       end
 
-      {
-        filename_map: filename_map,
-        rows_touched: rows_touched,
-        rows_discarded: rows_discarded
-      }
-    end
+      def validate_csv_folder!
+        raise ArgumentError, "csv_folder is required" if @csv_folder.blank?
 
-    def validate_csv_folder!
-      raise ArgumentError, "csv_folder is required" if @csv_folder.blank?
-
-      raise ArgumentError, "CSV folder not found: #{@csv_folder}" unless Dir.exist?(@csv_folder)
-    end
-
-    def normalize_filename(filename)
-      filename.to_s.strip.downcase.presence
-    end
-
-    def normalize_collection_name(collection_name)
-      collection_name.to_s.strip.presence
-    end
-
-    def preferred_entry(filename, existing_entry, candidate_entry)
-      return existing_entry if existing_entry[:collection_name] == candidate_entry[:collection_name]
-
-      if existing_entry[:source_file] == candidate_entry[:source_file]
-        raise ArgumentError,
-              "Conflicting collections for filename '#{filename}' within #{existing_entry[:source_file]}: " \
-              "'#{existing_entry[:collection_name]}' and '#{candidate_entry[:collection_name]}'"
+        raise ArgumentError, "CSV folder not found: #{@csv_folder}" unless Dir.exist?(@csv_folder)
       end
 
-      winning_file = CONFLICT_WINNERS[[ existing_entry[:source_file], candidate_entry[:source_file] ].sort]
-      if winning_file.blank?
-        raise ArgumentError,
-              "Conflicting collections for filename '#{filename}': '#{existing_entry[:collection_name]}' " \
-              "(#{existing_entry[:source_file]}) and '#{candidate_entry[:collection_name]}' " \
-              "(#{candidate_entry[:source_file]})"
+      def normalize_filename(filename)
+        filename.to_s.strip.downcase.presence
       end
 
-      winning_file == candidate_entry[:source_file] ? candidate_entry : existing_entry
-    end
+      def normalize_collection_name(collection_name)
+        collection_name.to_s.strip.presence
+      end
 
-    def update_matching_assets(collection_name, filenames, non_matches)
-      collection = find_collection!(collection_name)
-      updated_count = 0
-      rows_matched = 0
-      rows_unmatched = 0
+      def preferred_entry(filename, existing_entry, candidate_entry)
+        return existing_entry if existing_entry[:collection_name] == candidate_entry[:collection_name]
 
-      filenames.each_slice(BATCH_SIZE) do |filename_batch|
-        normalized_filenames = filename_batch.map { |entry| entry[:normalized_filename] }
-        matched_filenames = matching_assets_scope(normalized_filenames)
-          .distinct
-          .pluck(Arel.sql("LOWER(TRIM(isilon_name))"))
-        rows_matched += matched_filenames.size
+        if existing_entry[:source_file] == candidate_entry[:source_file]
+          raise ArgumentError,
+                "Conflicting collections for filename '#{filename}' within #{existing_entry[:source_file]}: " \
+                "'#{existing_entry[:collection_name]}' and '#{candidate_entry[:collection_name]}'"
+        end
 
-        unmatched_entries = filename_batch.reject { |entry| matched_filenames.include?(entry[:normalized_filename]) }
-        rows_unmatched += unmatched_entries.size
-        non_matches.concat(
-          unmatched_entries.map do |entry|
-            {
-              original_filename: entry[:original_filename],
-              collection_name: collection_name
-            }
+        winning_file = CONFLICT_WINNERS[[ existing_entry[:source_file], candidate_entry[:source_file] ].sort]
+        if winning_file.blank?
+          raise ArgumentError,
+                "Conflicting collections for filename '#{filename}': '#{existing_entry[:collection_name]}' " \
+                "(#{existing_entry[:source_file]}) and '#{candidate_entry[:collection_name]}' " \
+                "(#{candidate_entry[:source_file]})"
+        end
+
+        winning_file == candidate_entry[:source_file] ? candidate_entry : existing_entry
+      end
+
+      def update_matching_assets(collection_name, filenames, non_matches)
+        collection = find_collection!(collection_name)
+        updated_count = 0
+        rows_matched = 0
+        rows_unmatched = 0
+
+        filenames.each_slice(BATCH_SIZE) do |filename_batch|
+          normalized_filenames = filename_batch.map { |entry| entry[:normalized_filename] }
+          matched_filenames = matching_assets_scope(normalized_filenames)
+            .distinct
+            .pluck(Arel.sql("LOWER(TRIM(isilon_name))"))
+          rows_matched += matched_filenames.size
+
+          unmatched_entries = filename_batch.reject { |entry| matched_filenames.include?(entry[:normalized_filename]) }
+          rows_unmatched += unmatched_entries.size
+          non_matches.concat(
+            unmatched_entries.map do |entry|
+              {
+                original_filename: entry[:original_filename],
+                collection_name: collection_name
+              }
+            end
+          )
+
+          updated_count += matching_assets_scope(normalized_filenames).update_all(
+            contentdm_collection_id: collection.id,
+            notes: notes_update_sql,
+            updated_at: Time.current
+          )
+        end
+
+        {
+          updated_count: updated_count,
+          rows_matched: rows_matched,
+          rows_unmatched: rows_unmatched
+        }
+      end
+
+      def find_collection!(collection_name)
+        ContentdmCollection.find_by!(name: collection_name)
+      end
+
+      def matching_assets_scope(filename_batch)
+        IsilonAsset.where("LOWER(TRIM(isilon_name)) IN (?)", filename_batch)
+      end
+
+      def write_non_matches_csv(non_matches)
+        FileUtils.mkdir_p(NON_MATCHES_CSV_PATH.dirname)
+
+        CSV.open(NON_MATCHES_CSV_PATH, "w") do |csv|
+          csv << [ FILENAME_HEADER, COLLECTION_HEADER ]
+
+          non_matches.each do |entry|
+            csv << [ entry[:original_filename], entry[:collection_name] ]
           end
-        )
-
-        updated_count += matching_assets_scope(normalized_filenames).update_all(
-          contentdm_collection_id: collection.id,
-          notes: notes_update_sql,
-          updated_at: Time.current
-        )
-      end
-
-      {
-        updated_count: updated_count,
-        rows_matched: rows_matched,
-        rows_unmatched: rows_unmatched
-      }
-    end
-
-    def find_collection!(collection_name)
-      ContentdmCollection.find_by!(name: collection_name)
-    end
-
-    def matching_assets_scope(filename_batch)
-      IsilonAsset.where("LOWER(TRIM(isilon_name)) IN (?)", filename_batch)
-    end
-
-    def write_non_matches_csv(non_matches)
-      FileUtils.mkdir_p(NON_MATCHES_CSV_PATH.dirname)
-
-      CSV.open(NON_MATCHES_CSV_PATH, "w") do |csv|
-        csv << [ FILENAME_HEADER, COLLECTION_HEADER ]
-
-        non_matches.each do |entry|
-          csv << [ entry[:original_filename], entry[:collection_name] ]
         end
       end
-    end
 
-    def notes_update_sql
-      quoted_note = ActiveRecord::Base.connection.quote(CONTENTDM_FILENAME_MATCH_NOTE)
-      contains_note_sql = note_contains_sql(quoted_note)
+      def notes_update_sql
+        quoted_note = ActiveRecord::Base.connection.quote(CONTENTDM_FILENAME_MATCH_NOTE)
+        contains_note_sql = note_contains_sql(quoted_note)
 
-      Arel.sql(<<~SQL.squish)
-        CASE
-          WHEN notes IS NULL OR TRIM(notes) = '' THEN #{quoted_note}
-          WHEN #{contains_note_sql} = 0 THEN notes || '; ' || #{quoted_note}
-          ELSE notes
-        END
-      SQL
-    end
-
-    def note_contains_sql(quoted_note)
-      if ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
-        "strpos(notes, #{quoted_note})"
-      else
-        "instr(notes, #{quoted_note})"
+        Arel.sql(<<~SQL.squish)
+          CASE
+            WHEN notes IS NULL OR TRIM(notes) = '' THEN #{quoted_note}
+            WHEN #{contains_note_sql} = 0 THEN notes || '; ' || #{quoted_note}
+            ELSE notes
+          END
+        SQL
       end
-    end
+
+      def note_contains_sql(quoted_note)
+        if ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
+          "strpos(notes, #{quoted_note})"
+        else
+          "instr(notes, #{quoted_note})"
+        end
+      end
   end
 end

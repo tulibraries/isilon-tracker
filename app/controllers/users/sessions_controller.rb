@@ -14,13 +14,13 @@ module Users
 
     private
 
-    def redirect_signed_in_users
-      return unless user_signed_in?
+      def redirect_signed_in_users
+        return unless user_signed_in?
 
-      respond_to do |format|
-        format.html { redirect_to after_sign_in_path_for(current_user) }
-        format.any  { head :no_content }
+        respond_to do |format|
+          format.html { redirect_to after_sign_in_path_for(current_user) }
+          format.any  { head :no_content }
+        end
       end
-    end
   end
 end

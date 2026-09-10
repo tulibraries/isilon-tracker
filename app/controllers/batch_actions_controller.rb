@@ -92,196 +92,196 @@ class BatchActionsController < ApplicationController
 
   private
 
-  def set_volume
-    @volume = Volume.find(params[:volume_id])
-  end
-
-  def process_asset_updates(assets, updates_applied)
-    updates = {}
-    notes_assignment = nil
-
-    # Update Migration Status
-    if params[:migration_status_id].present?
-      migration_status = MigrationStatus.find(params[:migration_status_id])
-      updates[:migration_status_id] = migration_status.id
-      updates_applied << "migration status to #{migration_status.name}"
+    def set_volume
+      @volume = Volume.find(params[:volume_id])
     end
 
-    # Update Assigned User
-    if params[:assigned_user_id].present?
-      if params[:assigned_user_id] == "unassigned"
-        updates[:assigned_to_id] = nil
-        updates_applied << "assigned user to unassigned"
-      else
-        user = User.find(params[:assigned_user_id])
-        updates[:assigned_to_id] = user.id
-        updates_applied << "assigned user to #{user.title}"
+    def process_asset_updates(assets, updates_applied)
+      updates = {}
+      notes_assignment = nil
+
+      # Update Migration Status
+      if params[:migration_status_id].present?
+        migration_status = MigrationStatus.find(params[:migration_status_id])
+        updates[:migration_status_id] = migration_status.id
+        updates_applied << "migration status to #{migration_status.name}"
       end
-    end
 
-    # Update ContentDM Collection
-    if params[:contentdm_collection_id].present?
-      if params[:contentdm_collection_id] == "none"
-        updates[:contentdm_collection_id] = nil
-        updates_applied << "ContentDM collection cleared"
-      else
-        contentdm_collection = ContentdmCollection.find(params[:contentdm_collection_id])
-        updates[:contentdm_collection_id] = contentdm_collection.id
-        updates_applied << "ContentDM collection to #{contentdm_collection.name}"
+      # Update Assigned User
+      if params[:assigned_user_id].present?
+        if params[:assigned_user_id] == "unassigned"
+          updates[:assigned_to_id] = nil
+          updates_applied << "assigned user to unassigned"
+        else
+          user = User.find(params[:assigned_user_id])
+          updates[:assigned_to_id] = user.id
+          updates_applied << "assigned user to #{user.title}"
+        end
       end
-    end
 
-    # Update ASpace Collection
-    if params[:aspace_collection_id].present?
-      if params[:aspace_collection_id] == "none"
-        updates[:aspace_collection_id] = nil
-        updates_applied << "ASpace collection cleared"
-      else
-        aspace_collection = AspaceCollection.find(params[:aspace_collection_id])
-        updates[:aspace_collection_id] = aspace_collection.id
-        updates_applied << "ASpace collection to #{aspace_collection.name}"
+      # Update ContentDM Collection
+      if params[:contentdm_collection_id].present?
+        if params[:contentdm_collection_id] == "none"
+          updates[:contentdm_collection_id] = nil
+          updates_applied << "ContentDM collection cleared"
+        else
+          contentdm_collection = ContentdmCollection.find(params[:contentdm_collection_id])
+          updates[:contentdm_collection_id] = contentdm_collection.id
+          updates_applied << "ContentDM collection to #{contentdm_collection.name}"
+        end
       end
-    end
 
-    # Update ASpace Linking Status
-    if params[:aspace_linking_status].present? && params[:aspace_linking_status] != ""
-      linking_status = params[:aspace_linking_status]
-      updates[:aspace_linking_status] = linking_status
-      status_text = linking_status == "true" ? "linked" : "not linked"
-      updates_applied << "ASpace linking status to #{status_text}"
-    end
-
-    # Update Notes
-    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
-    if notes_updates
-      if notes_updates.is_a?(Hash)
-        updates.merge!(notes_updates)
-      else
-        notes_assignment = notes_updates
+      # Update ASpace Collection
+      if params[:aspace_collection_id].present?
+        if params[:aspace_collection_id] == "none"
+          updates[:aspace_collection_id] = nil
+          updates_applied << "ASpace collection cleared"
+        else
+          aspace_collection = AspaceCollection.find(params[:aspace_collection_id])
+          updates[:aspace_collection_id] = aspace_collection.id
+          updates_applied << "ASpace collection to #{aspace_collection.name}"
+        end
       end
+
+      # Update ASpace Linking Status
+      if params[:aspace_linking_status].present? && params[:aspace_linking_status] != ""
+        linking_status = params[:aspace_linking_status]
+        updates[:aspace_linking_status] = linking_status
+        status_text = linking_status == "true" ? "linked" : "not linked"
+        updates_applied << "ASpace linking status to #{status_text}"
+      end
+
+      # Update Notes
+      notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+      if notes_updates
+        if notes_updates.is_a?(Hash)
+          updates.merge!(notes_updates)
+        else
+          notes_assignment = notes_updates
+        end
+        add_update_message(updates_applied, notes_message)
+      end
+
+      assets_count = assets.count
+      return 0 if assets_count == 0
+
+      if updates.any?
+        assets.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
+          batch.update_all(updates)
+        end
+      end
+
+      if notes_assignment
+        assets.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
+          batch.update_all(notes_assignment)
+        end
+      end
+
+      assets_count
+    end
+
+    def process_folder_updates(descendant_folder_ids, updates_applied)
+      updated_count = 0
+      updates = {}
+      notes_assignment = nil
+
+      if params[:assigned_user_id].present?
+        user = nil
+        if params[:assigned_user_id] != "unassigned"
+          user = User.find(params[:assigned_user_id])
+        end
+
+        updates[:assigned_to_id] = user&.id
+        add_update_message(updates_applied, "assigned folders to #{user ? user.title : 'unassigned'}")
+      end
+
+      notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+      if notes_updates
+        if notes_updates.is_a?(Hash)
+          updates.merge!(notes_updates)
+        else
+          notes_assignment = notes_updates
+        end
+        add_update_message(updates_applied, notes_message)
+      end
+
+      return 0 if updates.empty? && notes_assignment.nil?
+      return 0 if descendant_folder_ids.empty?
+
+      descendant_folder_ids.each_slice(BATCH_UPDATE_SIZE) do |batch_ids|
+        batch = IsilonFolder.where(id: batch_ids)
+        batch.update_all(updates) if updates.any?
+        batch.update_all(notes_assignment) if notes_assignment
+      end
+      updated_count += descendant_folder_ids.length
+
+      updated_count
+    end
+
+    def process_descendant_asset_notes(descendant_folder_ids, excluded_asset_ids, updates_applied)
+      notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
+      return 0 unless notes_updates
+      return 0 if descendant_folder_ids.empty?
+
+      scope = IsilonAsset.where(volume_id: @volume.id, parent_folder_id: descendant_folder_ids)
+      scope = scope.where.not(id: excluded_asset_ids) if excluded_asset_ids.any?
+
+      assets_count = scope.count
+      return 0 if assets_count == 0
+
+      scope.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
+        batch.update_all(notes_updates)
+      end
+
       add_update_message(updates_applied, notes_message)
+      assets_count
     end
 
-    assets_count = assets.count
-    return 0 if assets_count == 0
+    def notes_update_for_action(notes_action, notes_text)
+      case notes_action
+      when "append"
+        return nil if notes_text.strip.blank?
 
-    if updates.any?
-      assets.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
-        batch.update_all(updates)
-      end
-    end
-
-    if notes_assignment
-      assets.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
-        batch.update_all(notes_assignment)
-      end
-    end
-
-    assets_count
-  end
-
-  def process_folder_updates(descendant_folder_ids, updates_applied)
-    updated_count = 0
-    updates = {}
-    notes_assignment = nil
-
-    if params[:assigned_user_id].present?
-      user = nil
-      if params[:assigned_user_id] != "unassigned"
-        user = User.find(params[:assigned_user_id])
-      end
-
-      updates[:assigned_to_id] = user&.id
-      add_update_message(updates_applied, "assigned folders to #{user ? user.title : 'unassigned'}")
-    end
-
-    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
-    if notes_updates
-      if notes_updates.is_a?(Hash)
-        updates.merge!(notes_updates)
+        updates = [
+          "notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE notes || '; ' || ? END",
+          notes_text,
+          notes_text
+        ]
+        [ updates, "notes appended" ]
+      when "replace"
+        [ { notes: notes_text }, "notes replaced" ]
+      when "clear"
+        [ { notes: nil }, "notes cleared" ]
       else
-        notes_assignment = notes_updates
+        nil
       end
-      add_update_message(updates_applied, notes_message)
     end
 
-    return 0 if updates.empty? && notes_assignment.nil?
-    return 0 if descendant_folder_ids.empty?
+    def add_update_message(updates_applied, message)
+      return if message.blank?
+      return if updates_applied.include?(message)
 
-    descendant_folder_ids.each_slice(BATCH_UPDATE_SIZE) do |batch_ids|
-      batch = IsilonFolder.where(id: batch_ids)
-      batch.update_all(updates) if updates.any?
-      batch.update_all(notes_assignment) if notes_assignment
-    end
-    updated_count += descendant_folder_ids.length
-
-    updated_count
-  end
-
-  def process_descendant_asset_notes(descendant_folder_ids, excluded_asset_ids, updates_applied)
-    notes_updates, notes_message = notes_update_for_action(params[:notes_action].to_s, params[:notes].to_s)
-    return 0 unless notes_updates
-    return 0 if descendant_folder_ids.empty?
-
-    scope = IsilonAsset.where(volume_id: @volume.id, parent_folder_id: descendant_folder_ids)
-    scope = scope.where.not(id: excluded_asset_ids) if excluded_asset_ids.any?
-
-    assets_count = scope.count
-    return 0 if assets_count == 0
-
-    scope.in_batches(of: BATCH_UPDATE_SIZE) do |batch|
-      batch.update_all(notes_updates)
+      updates_applied << message
     end
 
-    add_update_message(updates_applied, notes_message)
-    assets_count
-  end
+    def folder_ids_with_descendants(folder_ids)
+      ids = folder_ids.map(&:to_i).reject(&:zero?).uniq
+      return [] if ids.empty?
 
-  def notes_update_for_action(notes_action, notes_text)
-    case notes_action
-    when "append"
-      return nil if notes_text.strip.blank?
+      volume_id = @volume.id
 
-      updates = [
-        "notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE notes || '; ' || ? END",
-        notes_text,
-        notes_text
-      ]
-      [ updates, "notes appended" ]
-    when "replace"
-      [ { notes: notes_text }, "notes replaced" ]
-    when "clear"
-      [ { notes: nil }, "notes cleared" ]
-    else
-      nil
+      sql = <<~SQL.squish
+        WITH RECURSIVE descendants AS (
+          SELECT id FROM isilon_folders
+          WHERE id IN (#{ids.join(",")}) AND volume_id = #{volume_id}
+          UNION ALL
+          SELECT f.id FROM isilon_folders f
+          INNER JOIN descendants d ON f.parent_folder_id = d.id
+          WHERE f.volume_id = #{volume_id}
+        )
+        SELECT id FROM descendants
+      SQL
+
+      ActiveRecord::Base.connection.exec_query(sql).rows.flatten.map(&:to_i).uniq
     end
-  end
-
-  def add_update_message(updates_applied, message)
-    return if message.blank?
-    return if updates_applied.include?(message)
-
-    updates_applied << message
-  end
-
-  def folder_ids_with_descendants(folder_ids)
-    ids = folder_ids.map(&:to_i).reject(&:zero?).uniq
-    return [] if ids.empty?
-
-    volume_id = @volume.id
-
-    sql = <<~SQL.squish
-      WITH RECURSIVE descendants AS (
-        SELECT id FROM isilon_folders
-        WHERE id IN (#{ids.join(",")}) AND volume_id = #{volume_id}
-        UNION ALL
-        SELECT f.id FROM isilon_folders f
-        INNER JOIN descendants d ON f.parent_folder_id = d.id
-        WHERE f.volume_id = #{volume_id}
-      )
-      SELECT id FROM descendants
-    SQL
-
-    ActiveRecord::Base.connection.exec_query(sql).rows.flatten.map(&:to_i).uniq
-  end
 end

@@ -54,13 +54,13 @@ class IsilonAsset < ApplicationRecord
 
   private
 
-  def set_default_migration_status
-    self.migration_status ||= MigrationStatus.find_by(default: true)
-  end
+    def set_default_migration_status
+      self.migration_status ||= MigrationStatus.find_by(default: true)
+    end
 
-  def sync_volume_from_parent
-    return unless parent_folder
+    def sync_volume_from_parent
+      return unless parent_folder
 
-    self.volume_id = parent_folder.volume_id
-  end
+      self.volume_id = parent_folder.volume_id
+    end
 end

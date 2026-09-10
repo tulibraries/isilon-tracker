@@ -7,10 +7,9 @@ RSpec.describe AspaceCollection, type: :model do
     it "prevents deletion if referenced by isilon assets" do
       collection = AspaceCollection.create!(name: "Test Collection")
       IsilonAsset.create!(
-      isilon_name: "Example File",
-      aspace_collection: collection,
-      isilon_path: "/foo/bar",
-
+        isilon_name: "Example File",
+        aspace_collection: collection,
+        isilon_path: "/foo/bar",
     )
 
       expect(collection.destroy).to be_falsey

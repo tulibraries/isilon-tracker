@@ -16,7 +16,7 @@ class MigrationStatus < ApplicationRecord
 
   private
 
-  def ensure_single_default
-    MigrationStatus.where.not(id: id).update_all(default: false)
-  end
+    def ensure_single_default
+      MigrationStatus.where.not(id: id).update_all(default: false)
+    end
 end
