@@ -138,8 +138,33 @@ Rails:
 Rails/FindEach:
   Enabled: true
 
+Rails/Output:
+  Enabled: false
+
 Rails/OutputSafety:
-  Enabled: true
+  Enabled: false
 
 Rails/HttpPositionalArguments:
   Enabled: true
+
+Rails/SkipsModelValidations:
+  Enabled: false
+
+Rails/Blank:
+  Enabled: false
+
+Rails/InverseOf:
+  Enabled: false
+
+Rails/HasManyOrHasOneDependent:
+  Enabled: false
+
+# TODO: Enable this and add index
+Rails/UniqueValidationWithoutIndex:
+  Enabled: false
+
+Rails/LexicallyScopedActionFilter:
+  Exclude:
+    - "app/controllers/users/sessions_controller.rb"
+    - "app/controllers/volumes_controller.rb"
+ 

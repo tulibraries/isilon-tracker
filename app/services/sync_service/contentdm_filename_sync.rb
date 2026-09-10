@@ -17,7 +17,7 @@ module SyncService
     CSV_FOLDER = nil
     FILENAME_HEADER = "File Name"
     COLLECTION_HEADER = "Collection"
-    NON_MATCHES_CSV_PATH = Rails.root.join("tmp", "contentdm_filename_non_matches.csv")
+    NON_MATCHES_CSV_PATH = Rails.root.join("tmp/contentdm_filename_non_matches.csv")
     BATCH_SIZE = 500
     EXCLUDED_SOURCE_FILES = [ "scrc_manuscripts_non-unique_filenames.csv" ]
     CONFLICT_WINNERS = {

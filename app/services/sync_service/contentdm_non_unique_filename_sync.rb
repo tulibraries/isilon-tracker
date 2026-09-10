@@ -18,7 +18,7 @@ module SyncService
     FILE_PATH = nil
     FILENAME_HEADER = "File Name"
     COLLECTION_HEADER = "Collection"
-    NON_MATCHES_CSV_PATH = Rails.root.join("tmp", "contentdm_non_unique_filename_non_matches.csv")
+    NON_MATCHES_CSV_PATH = Rails.root.join("tmp/contentdm_non_unique_filename_non_matches.csv")
     BATCH_SIZE = 500
 
     def self.call(file_path: FILE_PATH)

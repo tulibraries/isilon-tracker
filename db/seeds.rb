@@ -35,7 +35,7 @@ require "csv"
 require "rake"
 
 puts "Seeding AspaceCollections..."
-file_path = Rails.root.join("db", "data", "aspace-collection.csv")
+file_path = Rails.root.join("db/data/aspace-collection.csv")
 
 CSV.foreach(file_path) do |row|
   name = row[0].strip
@@ -50,7 +50,7 @@ puts
 
 
 puts "Seeding ContentdmCollections..."
-csv_path = Rails.root.join("db", "data", "contentdm_collection.csv")
+csv_path = Rails.root.join("db/data/contentdm_collection.csv")
 
 CSV.foreach(csv_path, headers: true, col_sep: "\t") do |row|
   name = row["Collection"].to_s.strip

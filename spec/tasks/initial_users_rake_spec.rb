@@ -33,7 +33,7 @@ RSpec.describe "users:sync_initial rake task", type: :task do
     it "sets all created users to active status" do
       Rake::Task["users:sync_initial"].invoke
 
-      User.all.each do |user|
+      User.all.find_each do |user|
         expect(user.status).to eq("active")
       end
     end
@@ -41,7 +41,7 @@ RSpec.describe "users:sync_initial rake task", type: :task do
     it "assigns random passwords to users" do
       Rake::Task["users:sync_initial"].invoke
 
-      User.all.each do |user|
+      User.all.find_each do |user|
         expect(user.encrypted_password).to be_present
         expect(user.encrypted_password).not_to be_blank
       end
