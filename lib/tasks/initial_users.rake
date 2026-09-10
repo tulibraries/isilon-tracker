@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 
 namespace :users do
   desc "Create or update initial user accounts from environment variables"

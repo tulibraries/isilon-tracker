@@ -1,4 +1,5 @@
-# spec/requests/admin/isilon_assets_spec.rb
+# frozen_string_literal: true
+
 require "rails_helper"
 
 RSpec.describe "Admin::IsilonAssets", type: :request do

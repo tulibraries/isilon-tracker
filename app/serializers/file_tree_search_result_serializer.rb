@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class FileTreeSearchResultSerializer < ActiveModel::Serializer
   attributes :id, :folder, :parent_folder_id, :path,
              :migration_status, :assigned_to_id, :assigned_to

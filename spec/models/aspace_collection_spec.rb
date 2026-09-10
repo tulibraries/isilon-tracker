@@ -1,4 +1,5 @@
-# spec/models/contentdm_collection_spec.rb
+# frozen_string_literal: true
+
 require "rails_helper"
 
 RSpec.describe AspaceCollection, type: :model do

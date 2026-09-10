@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class IsilonFolderSerializer < ActiveModel::Serializer
   attributes :title, :full_path, :folder, :id, :lazy,
              :assigned_to_id, :assigned_to, :descendant_assets_count,

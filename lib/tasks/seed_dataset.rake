@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 namespace :db do
   desc "Seed a dataset for reporting demos"
   task seed_dataset: :environment do

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class BatchActionsController < ApplicationController
   before_action :set_volume
   BATCH_UPDATE_SIZE = 10_000
