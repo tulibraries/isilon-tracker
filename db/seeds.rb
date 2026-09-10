@@ -29,8 +29,8 @@ migration_statuses.each do |status_attrs|
 end
 puts "Seeded #{MigrationStatus.count} MigrationStatuses."
 
-require 'csv'
-require 'rake'
+require "csv"
+require "rake"
 
 puts "Seeding AspaceCollections..."
 file_path = Rails.root.join("db", "data", "aspace-collection.csv")

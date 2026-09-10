@@ -1,4 +1,4 @@
-require 'rails_helper'
+require "rails_helper"
 
 RSpec.describe "Batch Actions", type: :system, js: true do
   let!(:volume) { FactoryBot.create(:volume, name: "Test Volume") }

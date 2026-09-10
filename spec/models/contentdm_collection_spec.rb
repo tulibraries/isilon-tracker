@@ -1,9 +1,9 @@
-require 'rails_helper'
+require "rails_helper"
 
 RSpec.describe ContentdmCollection, type: :model do
-  describe '#destroy' do
-    it 'prevents deletion if referenced by isilon assets' do
-      collection = ContentdmCollection.create!(name: 'Test Collection')
+  describe "#destroy" do
+    it "prevents deletion if referenced by isilon assets" do
+      collection = ContentdmCollection.create!(name: "Test Collection")
       IsilonAsset.create!(
       isilon_name: "Example File",
       contentdm_collection: collection,
@@ -15,8 +15,8 @@ RSpec.describe ContentdmCollection, type: :model do
       expect(collection.errors[:base]).to include("Cannot delete record because dependent isilon assets exist")
     end
 
-    it 'allows deletion if no referencing assets exist' do
-      collection = ContentdmCollection.create!(name: 'Test Collection')
+    it "allows deletion if no referencing assets exist" do
+      collection = ContentdmCollection.create!(name: "Test Collection")
 
       expect { collection.destroy }.to change { ContentdmCollection.count }.by(-1)
     end
