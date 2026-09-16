@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class IsilonAssetSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
 

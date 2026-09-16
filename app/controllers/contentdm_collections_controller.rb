@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ContentdmCollectionsController < ApplicationController
   def index
     @cdm_collections = ContentdmCollection.all

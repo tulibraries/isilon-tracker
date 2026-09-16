@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 namespace :folders do
   desc "Backfill descendant_assets_count"
   task backfill_counts: :environment do

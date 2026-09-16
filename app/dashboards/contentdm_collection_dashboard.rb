@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "administrate/base_dashboard"
 
 class ContentdmCollectionDashboard < Administrate::BaseDashboard
@@ -51,10 +53,10 @@ class ContentdmCollectionDashboard < Administrate::BaseDashboard
   #   }.freeze
   COLLECTION_FILTERS = {}.freeze
 
-   # Overwrite this method to customize how contentdm collections are displayed
-   # across all pages of the admin dashboard.
-   #
-   def display_resource(collection)
-     collection.name
-   end
+  # Overwrite this method to customize how contentdm collections are displayed
+  # across all pages of the admin dashboard.
+  #
+  def display_resource(collection)
+    collection.name
+  end
 end

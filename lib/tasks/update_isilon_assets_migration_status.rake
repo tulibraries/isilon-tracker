@@ -1,4 +1,4 @@
-# lib/tasks/update_isilon_assets_migration_status.rake
+# frozen_string_literal: true
 
 namespace :isilon_assets do
   desc "Assign default migration_status to IsilonAssets without one"

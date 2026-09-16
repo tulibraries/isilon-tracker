@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "administrate/base_dashboard"
 
 class MigrationStatusDashboard < Administrate::BaseDashboard
@@ -57,10 +59,10 @@ class MigrationStatusDashboard < Administrate::BaseDashboard
   #   }.freeze
   COLLECTION_FILTERS = {}.freeze
 
-   # Overwrite this method to customize how migration statuses are displayed
-   # across all pages of the admin dashboard.
-   #
-   def display_resource(migration_status)
-     "#{migration_status.name}"
+  # Overwrite this method to customize how migration statuses are displayed
+  # across all pages of the admin dashboard.
+  #
+  def display_resource(migration_status)
+    "#{migration_status.name}"
   end
 end

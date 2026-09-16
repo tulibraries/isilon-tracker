@@ -51,82 +51,82 @@ module SyncService
 
     private
 
-    def default_output_path
-      "log/isilon-asset-rules-export.csv"
-    end
-
-    def assets_scope
-      IsilonAsset.left_joins(parent_folder: :volume).preload(parent_folder: :volume)
-    end
-
-    def volume_name_from_parent(asset)
-      parent = asset.parent_folder
-      unless parent
-        log_missing_parent(asset, reason: "missing_parent_folder")
-        return nil
+      def default_output_path
+        "log/isilon-asset-rules-export.csv"
       end
 
-      volume = parent.volume
-      unless volume
-        log_missing_parent(asset, reason: "missing_parent_volume")
-        return nil
+      def assets_scope
+        IsilonAsset.left_joins(parent_folder: :volume).preload(parent_folder: :volume)
       end
 
-      volume.name
-    end
+      def volume_name_from_parent(asset)
+        parent = asset.parent_folder
+        unless parent
+          log_missing_parent(asset, reason: "missing_parent_folder")
+          return nil
+        end
 
-    def log_missing_parent(asset, reason:)
-      return unless file_with_extension?(asset.isilon_path)
+        volume = parent.volume
+        unless volume
+          log_missing_parent(asset, reason: "missing_parent_volume")
+          return nil
+        end
 
-      @missing_parent_log.info(
-        "Skipped volume lookup (#{reason}) for asset_id=#{asset.id} isilon_path=#{asset.isilon_path}"
-      )
-    end
+        volume.name
+      end
 
-    def build_full_path(volume_name, isilon_path)
-      return nil if volume_name.blank?
+      def log_missing_parent(asset, reason:)
+        return unless file_with_extension?(asset.isilon_path)
 
-      path = isilon_path.to_s
-      path = "/#{path}" unless path.start_with?("/")
-      "/#{volume_name}#{path}".gsub(%r{//+}, "/")
-    end
+        @missing_parent_log.info(
+          "Skipped volume lookup (#{reason}) for asset_id=#{asset.id} isilon_path=#{asset.isilon_path}"
+        )
+      end
 
-    def file_with_extension?(path)
-      basename = path.to_s.split("/").last.to_s
-      basename.match?(/\.[^.]+\z/)
-    end
+      def build_full_path(volume_name, isilon_path)
+        return nil if volume_name.blank?
 
-    def migration_status_for(asset_path, volume_name)
-      return [ "Migrated", 1 ] if rule_1_migrated_directory?(asset_path)
-      return [ "Don't migrate", 2 ] if rule_2_delete_directory?(asset_path, volume_name)
+        path = isilon_path.to_s
+        path = "/#{path}" unless path.start_with?("/")
+        "/#{volume_name}#{path}".gsub(%r{//+}, "/")
+      end
 
-      nil
-    end
+      def file_with_extension?(path)
+        basename = path.to_s.split("/").last.to_s
+        basename.match?(/\.[^.]+\z/)
+      end
 
-    def rule_1_migrated_directory?(asset_path)
-      return false unless asset_path.downcase.include?("/deposit/")
-      return false if asset_path.downcase.include?("/deposit/scrc accessions")
+      def migration_status_for(asset_path, volume_name)
+        return [ "Migrated", 1 ] if rule_1_migrated_directory?(asset_path)
+        return [ "Don't migrate", 2 ] if rule_2_delete_directory?(asset_path, volume_name)
 
-      path_segments = asset_path.split("/")
-      path_segments.any? { |segment| segment.downcase.include?("- migrated") }
-    end
+        nil
+      end
 
-    def rule_2_delete_directory?(asset_path, volume_name)
-      return false unless volume_name&.casecmp?("deposit")
+      def rule_1_migrated_directory?(asset_path)
+        return false unless asset_path.downcase.include?("/deposit/")
+        return false if asset_path.downcase.include?("/deposit/scrc accessions")
 
-      segments = asset_path.split("/").reject(&:blank?)
-      return false if segments.empty?
+        path_segments = asset_path.split("/")
+        path_segments.any? { |segment| segment.downcase.include?("- migrated") }
+      end
 
-      segments.shift
+      def rule_2_delete_directory?(asset_path, volume_name)
+        return false unless volume_name&.casecmp?("deposit")
 
-      return false unless segments.any? { |segment| segment.casecmp?("scrc accessions") }
+        segments = asset_path.split("/").reject(&:blank?)
+        return false if segments.empty?
 
-      segments.any? { |segment| segment.downcase.include?("delete") }
-    end
+        segments.shift
 
-    def stdout_and_log(message, level: :info)
-      @log.send(level, message)
-      @stdout.send(level, message)
-    end
+        return false unless segments.any? { |segment| segment.casecmp?("scrc accessions") }
+
+        segments.any? { |segment| segment.downcase.include?("delete") }
+      end
+
+      def stdout_and_log(message, level: :info)
+        @log.send(level, message)
+        @stdout.send(level, message)
+      end
   end
 end
