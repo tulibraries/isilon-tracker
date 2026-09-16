@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class MigrationStatusesController < ApplicationController
   def index
     @migration_statuses = MigrationStatus.all

@@ -42,213 +42,213 @@ module SyncService
 
     private
 
-    def process_batch(batch)
-      assets_to_create = []
-      batch_imported = 0
+      def process_batch(batch)
+        assets_to_create = []
+        batch_imported = 0
 
-      batch.each do |row|
-        next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db") || row["Path"].include?(".apdisk")
+        batch.each do |row|
+          next if row["Path"].include?(".DS_Store") || row["Path"].include?("thumbs.db") || row["Path"].include?(".apdisk")
 
-        # Ensure directory structure exists before bulk insert
-        isilon_path = set_full_path(row["Path"])
-        is_directory = row["Type"].to_s.casecmp("directory").zero?
+          # Ensure directory structure exists before bulk insert
+          isilon_path = set_full_path(row["Path"])
+          is_directory = row["Type"].to_s.casecmp("directory").zero?
 
-        if is_directory
-          if ensure_directory_structure(isilon_path, include_leaf: true)
-            next
+          if is_directory
+            if ensure_directory_structure(isilon_path, include_leaf: true)
+              next
+            else
+              stdout_and_log("Skipping folder with invalid path: #{isilon_path}", level: :error)
+              next
+            end
+          end
+
+          if ensure_directory_structure(isilon_path)
+            begin
+              parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
+
+              assets_to_create << {
+                volume_id: @parent_volume.id,
+                isilon_path: isilon_path,
+                isilon_name: get_name(row["Path"]),
+                file_size: row["Size"],
+                file_type: row["Type"],
+                file_checksum: row["Hash"],
+                last_modified_in_isilon: row["ModifiedAt"],
+                date_created_in_isilon: row["CreatedAt"],
+                parent_folder_id: parent_folder_id,
+                migration_status_id: @default_status&.id,
+                created_at: Time.current,
+                updated_at: Time.current
+              }
+            rescue => e
+              stdout_and_log("Failed to prepare asset #{isilon_path}: #{e.message}", level: :error)
+            end
           else
-            stdout_and_log("Skipping folder with invalid path: #{isilon_path}", level: :error)
-            next
+            stdout_and_log("Skipping asset with invalid path: #{isilon_path}", level: :error)
           end
         end
 
-        if ensure_directory_structure(isilon_path)
+        # Bulk insert all valid assets at once
+        if assets_to_create.any?
           begin
-            parent_folder_id = get_asset_parent_id(row["Path"].split("/").compact_blank[1...-1])&.id
-
-            assets_to_create << {
-              volume_id: @parent_volume.id,
-              isilon_path: isilon_path,
-              isilon_name: get_name(row["Path"]),
-              file_size: row["Size"],
-              file_type: row["Type"],
-              file_checksum: row["Hash"],
-              last_modified_in_isilon: row["ModifiedAt"],
-              date_created_in_isilon: row["CreatedAt"],
-              parent_folder_id: parent_folder_id,
-              migration_status_id: @default_status&.id,
-              created_at: Time.current,
-              updated_at: Time.current
-            }
+            IsilonAsset.insert_all(assets_to_create)
+            batch_imported = assets_to_create.size
+            stdout_and_log("Bulk inserted #{batch_imported} assets")
           rescue => e
-            stdout_and_log("Failed to prepare asset #{isilon_path}: #{e.message}", level: :error)
+            stdout_and_log("Bulk insert failed, falling back to individual saves: #{e.message}", level: :error)
+            batch_imported = fallback_individual_saves(assets_to_create)
           end
+        end
+
+        batch_imported
+      end
+
+      def ensure_directory_structure(isilon_path, include_leaf: false)
+        all_directories = isilon_path.split("/").compact_blank
+        directories = include_leaf ? all_directories : all_directories[0...-1]
+        return true if directories.empty?
+
+        volume = @parent_volume
+
+        (directories.size).downto(0) do |i|
+          if directories.present?
+            parent_folder = get_folder_parent_id(directories)
+            current_path = "/" + directories.join("/")
+
+            begin
+              folder = find_or_create_folder_safely(volume.id, current_path)
+              folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
+            rescue => e
+              stdout_and_log("Unable to create or find folder: #{current_path}; #{e.message}", level: :error)
+              return false
+            end
+
+            directories.pop unless i == 0
+          end
+        end
+
+        true
+      end
+
+      def fallback_individual_saves(assets_to_create)
+        saved_count = 0
+
+        assets_to_create.each do |asset_attrs|
+          begin
+            # Remove bulk insert timestamps and let Rails handle them
+            asset_attrs.delete(:created_at)
+            asset_attrs.delete(:updated_at)
+
+            asset = IsilonAsset.new(asset_attrs)
+            if asset.save!
+              saved_count += 1
+            end
+          rescue => e
+            stdout_and_log("Failed to save individual asset #{asset_attrs[:isilon_path]}: #{e.message}", level: :error)
+          end
+        end
+
+        saved_count
+      end
+
+      def set_full_path(path)
+        segments = path.to_s.split("/").reject(&:blank?)
+        return "/" if segments.size <= 1
+
+        "/" + segments[1..].join("/")
+      end
+
+      def check_volume(path)
+        first_row = CSV.read(path, headers: true).first
+        volume = first_row["Path"].split("/").compact_blank[0]
+
+        existing_volume = find_volume_case_insensitive(volume)
+
+        if existing_volume
+          stdout_and_log("Volume #{existing_volume.name} already exists.")
+          existing_volume
         else
-          stdout_and_log("Skipping asset with invalid path: #{isilon_path}", level: :error)
-        end
-      end
-
-      # Bulk insert all valid assets at once
-      if assets_to_create.any?
-        begin
-          IsilonAsset.insert_all(assets_to_create)
-          batch_imported = assets_to_create.size
-          stdout_and_log("Bulk inserted #{batch_imported} assets")
-        rescue => e
-          stdout_and_log("Bulk insert failed, falling back to individual saves: #{e.message}", level: :error)
-          batch_imported = fallback_individual_saves(assets_to_create)
-        end
-      end
-
-      batch_imported
-    end
-
-    def ensure_directory_structure(isilon_path, include_leaf: false)
-      all_directories = isilon_path.split("/").compact_blank
-      directories = include_leaf ? all_directories : all_directories[0...-1]
-      return true if directories.empty?
-
-      volume = @parent_volume
-
-      (directories.size).downto(0) do |i|
-        if directories.present?
-          parent_folder = get_folder_parent_id(directories)
-          current_path = "/" + directories.join("/")
-
+          new_volume = Volume.create!(name: volume)
           begin
-            folder = find_or_create_folder_safely(volume.id, current_path)
-            folder.update!(parent_folder_id: parent_folder.id) if parent_folder.present?
+            new_volume.save!
+            stdout_and_log("Created new volume: #{new_volume.name}")
           rescue => e
-            stdout_and_log("Unable to create or find folder: #{current_path}; #{e.message}", level: :error)
-            return false
+            stdout_and_log("Unable to save volume: #{volume}; #{e.message}", level: :error)
+          end
+          new_volume
+        end
+      end
+
+      def get_folder_parent_id(path)
+        path = path[0...-1]
+        path = path.join("/")
+        return nil unless path.present?
+
+        find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+      end
+
+      def get_asset_parent_id(path)
+        path = path.join("/")
+        return nil unless path.present?
+
+        find_or_create_folder_safely(@parent_volume.id, "/#{path}")
+      end
+
+      def find_volume_case_insensitive(name)
+        Volume.where("LOWER(name) = ?", name.to_s.downcase).first
+      end
+
+      def find_or_create_folder_safely(volume_id, full_path)
+        retry_count = 0
+        max_retries = 3
+
+        begin
+          IsilonFolder.find_or_create_by!(volume_id: volume_id, full_path: full_path)
+        rescue ActiveRecord::RecordNotUnique
+          retry_count += 1
+          if retry_count <= max_retries
+            # Brief backoff to avoid thundering herd
+            sleep(0.1 * retry_count)
+
+            # Try to find the existing folder
+            existing_folder = IsilonFolder.find_by(volume_id: volume_id, full_path: full_path)
+            return existing_folder if existing_folder
+
+            # If we still can't find it, retry the create
+            retry if retry_count <= max_retries
           end
 
-          directories.pop unless i == 0
+          raise ActiveRecord::RecordNotFound, "Could not find or create folder after #{max_retries} retries: #{full_path}"
         end
       end
 
-      true
-    end
+      def get_name(path)
+        path.split("/").last
+      end
 
-    def fallback_individual_saves(assets_to_create)
-      saved_count = 0
+      def backfill_descendant_asset_counts
+        folders = IsilonFolder.where(volume_id: @parent_volume.id)
+                              .select(:id, :parent_folder_id, :full_path)
+                              .order(Arel.sql("LENGTH(full_path) DESC"))
 
-      assets_to_create.each do |asset_attrs|
-        begin
-          # Remove bulk insert timestamps and let Rails handle them
-          asset_attrs.delete(:created_at)
-          asset_attrs.delete(:updated_at)
+        totals = IsilonAsset.where(volume_id: @parent_volume.id)
+                            .group(:parent_folder_id)
+                            .count
+                            .transform_keys { |key| key&.to_i }
 
-          asset = IsilonAsset.new(asset_attrs)
-          if asset.save!
-            saved_count += 1
-          end
-        rescue => e
-          stdout_and_log("Failed to save individual asset #{asset_attrs[:isilon_path]}: #{e.message}", level: :error)
+        folders.each do |folder|
+          total = totals.fetch(folder.id, 0)
+          totals[folder.parent_folder_id] = totals.fetch(folder.parent_folder_id, 0) + total if folder.parent_folder_id
+          folder.update_column(:descendant_assets_count, total)
         end
       end
 
-      saved_count
-    end
+      def stdout_and_log(message, level: :info)
+        # Toggle for batch processing visibility
+        return unless level == :error
 
-    def set_full_path(path)
-      segments = path.to_s.split("/").reject(&:blank?)
-      return "/" if segments.size <= 1
-
-      "/" + segments[1..].join("/")
-    end
-
-    def check_volume(path)
-      first_row = CSV.read(path, headers: true).first
-      volume = first_row["Path"].split("/").compact_blank[0]
-
-      existing_volume = find_volume_case_insensitive(volume)
-
-      if existing_volume
-        stdout_and_log("Volume #{existing_volume.name} already exists.")
-        existing_volume
-      else
-        new_volume = Volume.create!(name: volume)
-        begin
-          new_volume.save!
-          stdout_and_log("Created new volume: #{new_volume.name}")
-        rescue => e
-          stdout_and_log("Unable to save volume: #{volume}; #{e.message}", level: :error)
-        end
-        new_volume
+        @log.send(level, message)
+        @stdout.send(level, message)
       end
-    end
-
-    def get_folder_parent_id(path)
-      path = path[0...-1]
-      path = path.join("/")
-      return nil unless path.present?
-
-      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
-    end
-
-    def get_asset_parent_id(path)
-      path = path.join("/")
-      return nil unless path.present?
-
-      find_or_create_folder_safely(@parent_volume.id, "/#{path}")
-    end
-
-    def find_volume_case_insensitive(name)
-      Volume.where("LOWER(name) = ?", name.to_s.downcase).first
-    end
-
-    def find_or_create_folder_safely(volume_id, full_path)
-      retry_count = 0
-      max_retries = 3
-
-      begin
-        IsilonFolder.find_or_create_by!(volume_id: volume_id, full_path: full_path)
-      rescue ActiveRecord::RecordNotUnique
-        retry_count += 1
-        if retry_count <= max_retries
-          # Brief backoff to avoid thundering herd
-          sleep(0.1 * retry_count)
-
-          # Try to find the existing folder
-          existing_folder = IsilonFolder.find_by(volume_id: volume_id, full_path: full_path)
-          return existing_folder if existing_folder
-
-          # If we still can't find it, retry the create
-          retry if retry_count <= max_retries
-        end
-
-        raise ActiveRecord::RecordNotFound, "Could not find or create folder after #{max_retries} retries: #{full_path}"
-      end
-    end
-
-    def get_name(path)
-      path.split("/").last
-    end
-
-    def backfill_descendant_asset_counts
-      folders = IsilonFolder.where(volume_id: @parent_volume.id)
-                            .select(:id, :parent_folder_id, :full_path)
-                            .order(Arel.sql("LENGTH(full_path) DESC"))
-
-      totals = IsilonAsset.where(volume_id: @parent_volume.id)
-                          .group(:parent_folder_id)
-                          .count
-                          .transform_keys { |key| key&.to_i }
-
-      folders.each do |folder|
-        total = totals.fetch(folder.id, 0)
-        totals[folder.parent_folder_id] = totals.fetch(folder.parent_folder_id, 0) + total if folder.parent_folder_id
-        folder.update_column(:descendant_assets_count, total)
-      end
-    end
-
-    def stdout_and_log(message, level: :info)
-      # Toggle for batch processing visibility
-      return unless level == :error
-
-      @log.send(level, message)
-      @stdout.send(level, message)
-    end
   end
 end

@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
+require "rails_helper"
 
 RSpec.describe SyncService::Assets, type: :service do
   let!(:volume) { FactoryBot.create(:volume, name: "deposit") }
   let!(:default_migration_status) { FactoryBot.create(:migration_status, :default) }
-  describe 'Integration test: full sync' do
+  describe "Integration test: full sync" do
     let(:csv_path) { Rails.root.join("spec/fixtures/files/assets_sync.csv").to_s }
 
-    it 'applies default migration status during sync' do
+    it "applies default migration status during sync" do
       service = described_class.new(csv_path: csv_path)
       service.sync
 
@@ -19,12 +19,12 @@ RSpec.describe SyncService::Assets, type: :service do
     end
   end
 
-  describe '#find_or_create_folder_safely' do
+  describe "#find_or_create_folder_safely" do
     let(:csv_path) { Rails.root.join("spec/fixtures/files/assets_sync.csv").to_s }
     let(:service) { described_class.new(csv_path: csv_path) }
 
-    context 'when handling race conditions' do
-      it 'handles concurrent folder creation gracefully' do
+    context "when handling race conditions" do
+      it "handles concurrent folder creation gracefully" do
         volume_id = volume.id
         folder_path = "/test/concurrent/folder"
 
@@ -55,7 +55,7 @@ RSpec.describe SyncService::Assets, type: :service do
         expect(result.full_path).to eq(folder_path)
       end
 
-      it 'raises error when retries are exhausted' do
+      it "raises error when retries are exhausted" do
         volume_id = volume.id
         folder_path = "/test/failing/folder"
 
@@ -78,7 +78,7 @@ RSpec.describe SyncService::Assets, type: :service do
         }.to raise_error(ActiveRecord::RecordNotFound, /Could not find or create folder after 3 retries/)
       end
 
-      it 'creates folder successfully on first try when no conflict' do
+      it "creates folder successfully on first try when no conflict" do
         volume_id = volume.id
         folder_path = "/test/no/conflict"
 

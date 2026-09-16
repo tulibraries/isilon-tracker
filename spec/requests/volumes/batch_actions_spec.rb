@@ -543,10 +543,10 @@ RSpec.describe "Volumes batch actions", type: :request do
         patch volume_batch_actions_path(volume), params: {
           asset_ids: "#{asset_1.id}",
           migration_status_id: migration_status_2.id
-        }, headers: { 'Accept' => 'text/vnd.turbo-stream.html' }
+        }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
 
         expect(response).to have_http_status(:ok)
-        expect(response.content_type).to include('text/vnd.turbo-stream.html')
+        expect(response.content_type).to include("text/vnd.turbo-stream.html")
       end
     end
 

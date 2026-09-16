@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class FileTypeNormalizer
   def self.canonical(value)
     normalized = value.to_s.strip.downcase

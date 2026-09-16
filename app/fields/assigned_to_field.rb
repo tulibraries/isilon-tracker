@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class AssignedToField < Administrate::Field::BelongsTo
   def self.permitted_attribute(attr, _options = {})
     :"#{attr}_id"

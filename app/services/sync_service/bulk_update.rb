@@ -58,53 +58,53 @@ module SyncService
 
     private
 
-    def validate_updates!
-      return if @updates.present?
+      def validate_updates!
+        return if @updates.present?
 
-      raise ArgumentError, "At least one update field is required"
-    end
-
-    def asset_update_attributes
-      {}.tap do |updates|
-        updates[:migration_status_id] = validated_migration_status_id if @updates.key?(:migration_status_id)
-        updates[:assigned_to_id] = validated_assigned_to_id if @updates.key?(:assigned_to_id)
+        raise ArgumentError, "At least one update field is required"
       end
-    end
 
-    def folder_update_attributes
-      {}.tap do |updates|
-        updates[:assigned_to_id] = validated_assigned_to_id if @updates.key?(:assigned_to_id)
+      def asset_update_attributes
+        {}.tap do |updates|
+          updates[:migration_status_id] = validated_migration_status_id if @updates.key?(:migration_status_id)
+          updates[:assigned_to_id] = validated_assigned_to_id if @updates.key?(:assigned_to_id)
+        end
       end
-    end
 
-    def validated_migration_status_id
-      return nil if @updates[:migration_status_id].nil?
+      def folder_update_attributes
+        {}.tap do |updates|
+          updates[:assigned_to_id] = validated_assigned_to_id if @updates.key?(:assigned_to_id)
+        end
+      end
 
-      MigrationStatus.find(@updates[:migration_status_id]).id
-    end
+      def validated_migration_status_id
+        return nil if @updates[:migration_status_id].nil?
 
-    def validated_assigned_to_id
-      return nil if @updates[:assigned_to_id].nil?
+        MigrationStatus.find(@updates[:migration_status_id]).id
+      end
 
-      User.find(@updates[:assigned_to_id]).id
-    end
+      def validated_assigned_to_id
+        return nil if @updates[:assigned_to_id].nil?
 
-    def descendant_folder_ids_for(folder_id)
-      sql = <<~SQL.squish
-        WITH RECURSIVE descendants AS (
-          SELECT id
-          FROM isilon_folders
-          WHERE id = #{folder_id.to_i} AND volume_id = #{@volume_id.to_i}
-          UNION ALL
-          SELECT child.id
-          FROM isilon_folders child
-          INNER JOIN descendants parent_descendants ON child.parent_folder_id = parent_descendants.id
-          WHERE child.volume_id = #{@volume_id.to_i}
-        )
-        SELECT id FROM descendants
-      SQL
+        User.find(@updates[:assigned_to_id]).id
+      end
 
-      ActiveRecord::Base.connection.exec_query(sql).rows.flatten.map(&:to_i).uniq
-    end
+      def descendant_folder_ids_for(folder_id)
+        sql = <<~SQL.squish
+          WITH RECURSIVE descendants AS (
+            SELECT id
+            FROM isilon_folders
+            WHERE id = #{folder_id.to_i} AND volume_id = #{@volume_id.to_i}
+            UNION ALL
+            SELECT child.id
+            FROM isilon_folders child
+            INNER JOIN descendants parent_descendants ON child.parent_folder_id = parent_descendants.id
+            WHERE child.volume_id = #{@volume_id.to_i}
+          )
+          SELECT id FROM descendants
+        SQL
+
+        ActiveRecord::Base.connection.exec_query(sql).rows.flatten.map(&:to_i).uniq
+      end
   end
 end

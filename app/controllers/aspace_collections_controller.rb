@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class AspaceCollectionsController < ApplicationController
   def index
     @aspace_collections = AspaceCollection.all
