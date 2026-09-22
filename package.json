@@ -10,7 +10,6 @@
     "chartkick": "^5.0.1",
     "jquery": "^3.7.1",
     "nodemon": "^3.1.14",
-    "selectize": "^0.12.6",
     "wunderbaum": "^0.13.0"
   },
   "resolutions": {
