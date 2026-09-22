@@ -59,7 +59,6 @@ group :test do
   gem "shoulda-matchers", "~> 8.0"
   gem "simplecov"
   gem "simplecov-lcov"
-  gem "webdrivers", "5.3.1"
   gem "coveralls", require: false
 end
 
