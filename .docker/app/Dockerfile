@@ -9,7 +9,7 @@ WORKDIR /app
 
 COPY . .
 
-USER root
+USER 0
 
 # gcompat is added to allow m1 build of nokogiri
 RUN apk add -U --no-cache \
