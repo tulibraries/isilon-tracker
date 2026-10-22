@@ -135,9 +135,9 @@ GEM
       tins (~> 1.6)
     crass (1.0.7)
     csv (3.3.6)
-    cuprite (0.18)
+    cuprite (0.19)
       capybara (~> 3.0)
-      ferrum (~> 0.18.0)
+      ferrum (~> 0.19.1)
     dalli (5.2.2)
       logger
     dartsass-rails (0.5.1)
@@ -173,7 +173,7 @@ GEM
       logger
     faraday-net_http (3.4.4)
       net-http (~> 0.5)
-    ferrum (0.18.0)
+    ferrum (0.19.1)
       addressable (~> 2.5)
       base64 (~> 0.2)
       concurrent-ruby (~> 1.1)
