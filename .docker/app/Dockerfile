@@ -34,7 +34,7 @@ RUN apk add -U --no-cache \
       libxml2-dev=2.13.9-r2 \
       postgresql17-dev=17.11-r0 \
       sqlite-dev=3.53.4-r0 \
-      nodejs=24.22.1-r0 \
+      nodejs=24.22.1-r1 \
       yarn=1.22.22-r1 && \
     if [ "${RAILS_ENV}" = "production" ]; then bundle config set --local without "development test"; fi && \
     bundle install --jobs=8 && \
