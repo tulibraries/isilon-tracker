@@ -1,0 +1,11 @@
+# Use the defaults, we're just adding exclusions
+[extend]
+useDefault = true
+
+# Exclude lines beginning with #
+# Those lines are code comments and not actual keys
+[allowlist]
+regexTarget = "line"
+regexes = [
+  '''^\s*#'''
+]
