@@ -134,7 +134,7 @@ GEM
       thor (>= 0.19.4, < 2.0)
       tins (~> 1.6)
     crass (1.0.8)
-    csv (3.3.6)
+    csv (3.3.7)
     cuprite (0.19)
       capybara (~> 3.0)
       ferrum (~> 0.19.1)
