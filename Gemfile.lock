@@ -135,7 +135,7 @@ GEM
       tins (~> 1.6)
     crass (1.0.8)
     csv (3.3.7)
-    cuprite (0.20)
+    cuprite (0.20.1)
       capybara (~> 3.0)
       ferrum (~> 0.20.1)
     dalli (5.3.2)
