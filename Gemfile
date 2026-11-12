@@ -55,7 +55,6 @@ group :test do
   gem "orderly"
   gem "rails-controller-testing"
   gem "rspec-activemodel-mocks"
-  gem "selenium-webdriver"
   gem "shoulda-matchers", "~> 8.0"
   gem "simplecov"
   gem "simplecov-lcov"
